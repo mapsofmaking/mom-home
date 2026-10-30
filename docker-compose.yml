@@ -1,6 +1,7 @@
-# The home app on the server, behind nginx-gateway (TLS and routing live in
-# hetzner-gateway: deploy/gateway-vhost.conf.tmpl). The server pulls the tag
-# in HOME_TAG and never builds:  docker compose pull && docker compose up -d
+# The home app on the server, behind the gateway's Caddy (TLS and the host:
+# deploy/gateway.caddy). The server is a checkout of this repo; it pulls the
+# tag in HOME_TAG (.env, git-ignored) and never builds:
+#   docker compose pull && docker compose up -d
 # Locally, HOME_TAG unset: `docker compose up --build` builds and tags `local`.
 services:
   mom-home:
@@ -20,6 +21,8 @@ services:
       app.domain: "home.mapsofmaking.org"
 
 networks:
-  # Shared with nginx-gateway, which creates it.
+  # The gateway's network, created by the gateway. On the mom VPS it is
+  # `proxy`: GATEWAY_NETWORK=proxy in .env.
   gateway:
     external: true
+    name: ${GATEWAY_NETWORK:-gateway}

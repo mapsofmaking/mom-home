@@ -199,10 +199,9 @@ Nothing compiles on the server. `/id.jsonld`, the Client ID Document (kit ADR
 010 point 6), is written at start from `PUBLIC_URL`
 (`deploy/docker-entrypoint.d/40-client-id.sh`).
 
-`deploy/gateway-vhost.conf` is versioned here but must be installed into
-`hetzner-gateway/nginx/conf.d/17-home-mapsofmaking.conf` and deployed from
-there: that repo stays the source of truth for routing. It sends `/` here and
-`/api/` to the map.
+`deploy/gateway.caddy` is versioned here but installed on the server's
+gateway (the `mom` VPS: `/srv/infra/gateway/sites/mom-home.caddy`, Caddy on
+the `proxy` network). It sends `/` here and `/api/` to the map's `maps-web`.
 
 ## CSS instances
 

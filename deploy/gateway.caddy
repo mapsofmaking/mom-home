@@ -1,0 +1,33 @@
+# =============================================================================
+# SERVICE: Maps of Making home (mapsofmaking/mom-home)
+# DOMAIN:  home.mapsofmaking.org
+# BACKEND: container mom-home:80 (this repo's image) for the app; maps-web:80
+#          (the map's own Caddy) for /api/, all on the gateway's network.
+# TLS:     ordinary certificate (HTTP challenge): not under *.pod.
+#
+# TO INSTALL: copy to the gateway as /srv/infra/gateway/sites/mom-home.caddy,
+# reload Caddy. Needs DNS for home.mapsofmaking.org first.
+#
+# /api/ goes to the map with the Host unchanged: maps-web serves /api/ on any
+# host (infra/web/Caddyfile in maps_of_making), so the page calls geocode,
+# register and heartbeat same-origin and link_handler needs no CORS.
+#
+# It must stay on a *.mapsofmaking.org host: creating an account and signing in
+# rely on pod.mapsofmaking.org's cookie, sent same-site only (solid-kit ADR 010).
+# =============================================================================
+
+home.mapsofmaking.org {
+	header {
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Strict-Transport-Security "max-age=31536000"
+		X-Frame-Options "SAMEORIGIN"
+	}
+
+	handle /api/* {
+		reverse_proxy maps-web:80
+	}
+	handle {
+		reverse_proxy mom-home:80
+	}
+}
