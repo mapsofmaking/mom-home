@@ -1,0 +1,317 @@
+/*──────────────────────────────────────────────────────────────
+  THEME — fills the slots core.css declares.
+
+  Palette: the pod design system's "daylight" (light) and "ink"
+  (dark), the same values the backoffice and the provider's own
+  identity pages use — so an app built from this kit reads as
+  part of the same system as the login screen it redirects to.
+  Plus "contrast", a high-contrast theme added beside them.
+
+  Changes from where these values came from:
+
+  1. Light is the default for everyone, and is stamped
+     `data-theme="light"` in each HTML entry (ADR 008, amended).
+     Dark and contrast exist only behind `[data-theme]`. The
+     switch in src/ui/theme.ts cycles Light → Dark → Same as this
+     device, and "same as this device" is resolved in the
+     blocking first-paint script, not here: it reads
+     `prefers-color-scheme` and `prefers-contrast` and stamps
+     dark, contrast or light. So this file has no `@media
+     (prefers-color-scheme)` block and no `prefers-contrast`
+     copy of the contrast theme — each theme's values live once.
+     The audit refuses a `prefers-color-scheme: dark` block.
+     A page that ships tokens as a blocking <link> also needs no
+     inline `var(--x, #fallback)` — those existed only because
+     the backoffice's tokens arrived via JS.
+
+  2. Every theme defines the COMPLETE slot set. The source theme
+     had --surface-recessed in dark only.
+
+  3. Contrast floor: text tokens clear WCAG AA 4.5:1 on the
+     surface they sit on. The muted tone is the one that gets
+     this wrong — it carries small mono labels, where the old
+     value measured about 2.2:1. Re-check any replacement
+     against --surface AND --surface-elevated before shipping it.
+
+  4. The high-contrast theme holds WCAG AAA: every text token at
+     7:1 on every surface, and every border, line and the accent
+     at 3:1, so outlines alone delimit controls. It exists so the
+     brand values can stay exact: daylight's --warn (3.5:1) and
+     --border (1.2:1) are the family's, and are fixed HERE rather
+     than re-tinted there. `npm run audit` checks both floors.
+──────────────────────────────────────────────────────────────*/
+
+:root {
+  /* ── Type ────────────────────────────────────────────────
+     Four roles. Heading and body are system stacks. Display is
+     Newsreader, 400 roman and italic only, never bold: it carries
+     the voice by size, for titles and the pull line, never for
+     running text. Mono is Commit Mono 400 and 700: even widths
+     for meta lines, paths and WebIDs. Both are self-hosted from
+     @fontsource 5.3.0, latin only (src/styles/fonts.css), with
+     real fallbacks while they load. Any other webfont is a
+     per-app choice; if the app is text-heavy, prefer a face
+     designed for legibility and make it the default, not an
+     option. */
+  --font-display: "Newsreader", Georgia, serif;
+  --font-heading: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-body:    system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono:    "Commit Mono", ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+
+  --text-display: 2.25rem;
+  --text-h1:      1.75rem;
+  --text-h2:      1.375rem;
+  --text-h3:      1.125rem;
+  --text-h4:      1rem;
+  --text-body:    1rem;
+  --text-small:   0.9375rem;
+  --text-meta:    0.8125rem;
+  --text-micro:   0.6875rem;
+
+  --leading-display: 1.15;
+  --leading-heading: 1.25;
+  --leading-body:    1.6;
+  --tracking-label:  0.08em;
+  --measure-body:    65ch;
+
+  /* ── Widths ──────────────────────────────────────────────
+     The app column, then the editorial register's frames
+     (src/styles/editorial.css). */
+  --width-app:     40rem;
+  --width-reading: 920px;
+  --width-landing: 80rem;
+  --width-wide:    90rem;
+  --measure-lead:  34em;
+  --measure-prose: 72ch;
+
+  /* ── Structure: daylight ─────────────────────────────────── */
+  --surface:          #f6f4ef;
+  --surface-elevated: #fbfaf7;
+  --surface-recessed: #f0ede4;
+
+  --text-primary:   #26241f;
+  --text-secondary: #5c5647;
+  /* The small-label tone. Purpose-built to clear 4.5:1 on both
+     --surface and --surface-elevated; the lighter #8a8474 it
+     replaces does not. */
+  --text-tertiary:  #6d6757;
+
+  --border:        #e7e2d6;
+  --border-subtle: #efece3;
+  --selection:     #dfe9e2;
+
+  /* ── Identity ────────────────────────────────────────────── */
+  --accent:          #3d6b52;  /* sage */
+  --accent-contrast: #ffffff;
+  --accent-soft:     #eef3ef;
+  --accent-line:     #b8ccbf;
+
+  --warn:      #b5722a;
+  --warn-soft: #faf3e6;
+  --warn-line: #e3c9a3;
+
+  --danger:      #a33227;
+  --danger-soft: #f9ecea;
+
+  --code-bg: #f0ede4;
+
+  /* ── Knowledge ───────────────────────────────────────────
+     From the portfolio: what a mark says about knowledge (a raw
+     block, a convergence, a pattern, time, the unexplored, a
+     fresh capture). Dots, bars and marks in the knowledge views
+     only, never UI state. Convergence sits close to --warn and
+     pattern close to --danger: keep them off screens that show
+     either. --know-frontier is about 2:1: never text.
+     Defined for light and dark only. High contrast is drawn on
+     Daylight's paper and keeps these light values, inherited
+     from this block. */
+  --know-block:       oklch(0.35 0.04 90);
+  --know-convergence: oklch(0.52 0.14 75);
+  --know-pattern:     oklch(0.48 0.18 25);
+  --know-temporal:    oklch(0.48 0.10 240);
+  --know-frontier:    oklch(0.75 0.01 260);
+  --know-fresh:       oklch(0.42 0.14 145);
+
+  /* A meter's fill (.meter). Sage by default; an app may set it to
+     a knowledge colour. Resolved per theme, as --accent is. */
+  --meter-fill: var(--accent);
+
+  /* Form controls and scrollbars follow the chosen theme, not the OS. */
+  color-scheme: light;
+}
+
+/* Dark: chosen, or "same as this device" on a dark system (ADR 008). */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --surface:          #12140f;
+  --surface-elevated: #1b1e17;
+  --surface-recessed: #0d0f0b;
+
+  --text-primary:   #eceadf;
+  --text-secondary: #b8b3a3;
+  --text-tertiary:  #9a9585;
+
+  --border:        rgba(255, 255, 255, 0.09);
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --selection:     rgba(143, 185, 138, 0.25);
+
+  --accent:          #8fb98a;
+  --accent-contrast: #12140f;
+  --accent-soft:     rgba(143, 185, 138, 0.14);
+  --accent-line:     rgba(143, 185, 138, 0.4);
+
+  --warn:      #d99a55;
+  --warn-soft: rgba(217, 154, 85, 0.13);
+  --warn-line: rgba(217, 154, 85, 0.35);
+
+  --danger:      #e0827a;
+  --danger-soft: rgba(224, 130, 122, 0.13);
+
+  --code-bg: #0d0f0b;
+
+  --know-block:       oklch(0.95 0.02 90);
+  --know-convergence: oklch(0.75 0.15 75);
+  --know-pattern:     oklch(0.65 0.25 25);
+  --know-temporal:    oklch(0.70 0.12 240);
+  --know-frontier:    oklch(0.40 0.01 260);
+  --know-fresh:       oklch(0.75 0.18 145);
+}
+
+/* High contrast: what "same as this device" gives a system that
+   asks for more contrast (`prefers-contrast: more`). It is not
+   in the switch's cycle. Daylight's paper, deeper inks, and
+   lines strong enough to find a control by. */
+:root[data-theme="contrast"] {
+  --surface:          #fbfaf7;
+  --surface-elevated: #ffffff;
+  --surface-recessed: #efece3;
+
+  --text-primary:   #1a1814;
+  --text-secondary: #3a362d;
+  --text-tertiary:  #433e33;
+
+  --border:        #7a7466;
+  --border-subtle: #8a8475;
+  --selection:     #c9dccf;
+
+  --accent:          #28493a;
+  --accent-contrast: #ffffff;
+  --accent-soft:     #e3ece6;
+  --accent-line:     #4f7a62;
+
+  --warn:      #6e4210;
+  --warn-soft: #faf3e6;
+  --warn-line: #a8691f;
+
+  --danger:      #7a2018;
+  --danger-soft: #f9ecea;
+
+  --code-bg: #efece3;
+}
+
+/* ══════════════════════════════════════════════════════════
+   Components — the handful every app in this family needs.
+   Anything app-specific belongs in the app, not here.
+   ══════════════════════════════════════════════════════════ */
+
+h1 { font-size: var(--text-h1); line-height: var(--leading-heading); text-wrap: balance; }
+h2 { font-size: var(--text-h2); line-height: var(--leading-heading); text-wrap: balance; }
+h3 { font-size: var(--text-h3); line-height: var(--leading-heading); }
+
+p { max-width: var(--measure-body); }
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background: var(--code-bg);
+  padding: 0.1em 0.35em;
+  border-radius: var(--radius-sm);
+  overflow-wrap: anywhere;
+}
+
+a {
+  color: var(--accent);
+  /* Underlined, not colour-only: colour alone is not an affordance, and the
+     accent is the same hue in both themes. */
+  text-underline-offset: 0.2em;
+}
+
+a:hover {
+  text-decoration-thickness: 2px;
+}
+
+hr {
+  border: 0;
+  border-top: var(--border-width) solid var(--border-subtle);
+  margin: var(--space-2) 0;
+}
+
+.lead {
+  color: var(--text-secondary);
+  max-width: var(--measure-body);
+}
+
+.error {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 30rem;
+}
+
+label {
+  font-size: var(--text-meta);
+  color: var(--text-secondary);
+}
+
+input[type="url"],
+input[type="text"] {
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+}
+
+button {
+  padding: var(--space-3) var(--space-5);
+  border: var(--border-width) solid var(--accent);
+  border-radius: var(--radius-lg);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+button.ghost {
+  background: transparent;
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  font-size: var(--text-meta);
+  color: var(--text-tertiary);
+}

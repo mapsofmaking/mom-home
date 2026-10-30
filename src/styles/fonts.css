@@ -1,0 +1,19 @@
+/*──────────────────────────────────────────────────────────────
+  FONTS — the two webfonts the kit ships, self-hosted.
+
+  Newsreader 400 and 400 italic (--font-display) and Commit Mono
+  400 and 700 (--font-mono), from @fontsource 5.3.0, latin subset
+  only, OFL 1.1. font-display: swap, so text shows at once in the
+  fallback (Georgia, the system mono) and swaps when the file
+  arrives. Heading and body stay system stacks: no file at all.
+
+  Exactly these four files. Newsreader is never bold, so no 700
+  is imported: a `font-weight: bold` on the serif would be
+  synthesised by the browser, which is the visible sign of a rule
+  broken (see editorial.css).
+──────────────────────────────────────────────────────────────*/
+
+@import "@fontsource/newsreader/latin-400.css";
+@import "@fontsource/newsreader/latin-400-italic.css";
+@import "@fontsource/commit-mono/latin-400.css";
+@import "@fontsource/commit-mono/latin-700.css";

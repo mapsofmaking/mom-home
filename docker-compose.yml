@@ -1,0 +1,25 @@
+# The home app on the server, behind nginx-gateway (TLS and routing live in
+# hetzner-gateway: deploy/gateway-vhost.conf.tmpl). The server pulls the tag
+# in HOME_TAG and never builds:  docker compose pull && docker compose up -d
+# Locally, HOME_TAG unset: `docker compose up --build` builds and tags `local`.
+services:
+  mom-home:
+    build: .
+    image: ghcr.io/mapsofmaking/mom-home:${HOME_TAG:-local}
+    container_name: mom-home
+    restart: unless-stopped
+    mem_limit: 32m
+    networks:
+      - gateway
+    environment:
+      # Its Client ID Document's origin, with the trailing slash (40-client-id.sh).
+      - PUBLIC_URL=${PUBLIC_URL:-https://home.mapsofmaking.org/}
+    labels:
+      app.name: "mom-home"
+      app.description: "Maps of Making home: onboarding and workbench for space coordinators"
+      app.domain: "home.mapsofmaking.org"
+
+networks:
+  # Shared with nginx-gateway, which creates it.
+  gateway:
+    external: true

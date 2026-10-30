@@ -1,0 +1,1260 @@
+/* Solid Kit — component styles.
+   Assembled from src/styles/core.css (reset, layout, utilities), the component
+   section of src/styles/theme.css, and src/styles/patterns.css. Colour, spacing,
+   radius, border-width, measure and font-family values live in tokens.json; only
+   the type-scale variables (which tokens.json expresses as styles, not
+   variables) are declared here. */
+
+:root {
+  --text-display: 2.25rem;
+  --text-h1:      1.75rem;
+  --text-h2:      1.375rem;
+  --text-h3:      1.125rem;
+  --text-h4:      1rem;
+  --text-body:    1rem;
+  --text-small:   0.9375rem;
+  --text-meta:    0.8125rem;
+  --text-micro:   0.6875rem;
+
+  --leading-display: 1.15;
+  --leading-heading: 1.25;
+  --leading-body:    1.6;
+  --tracking-label:  0.08em;
+  /* Daylight is the default for everyone; dark is an explicit choice. */
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] { color-scheme: dark; }
+
+/* ══════════════════════════════════════════════════════════
+      3. BASE RESET
+   ══════════════════════════════════════════════════════════ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background: var(--surface);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  line-height: var(--leading-body, 1.6);
+  /*
+    Stops the scroll bounce that retracts and re-shows the browser bars —
+    which matters on any screen with controls pinned to the bottom.
+  */
+  overscroll-behavior-y: none;
+}
+
+::selection {
+  background: var(--selection);
+}
+
+button, input, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+/* Never remove the focus ring outright — replace it if it clashes. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════
+   4. TYPE SCALE MECHANISM
+   ══════════════════════════════════════════════════════════ */
+
+/*
+  Core names the ROLES a theme's type scale must expose; the
+  theme decides the values.
+
+  Required roles:
+    --text-display   hero / largest display text
+    --text-h1        page titles
+    --text-h2        section titles
+    --text-h3        subsection / card titles
+    --text-h4        minor headings
+    --text-body      running text
+    --text-small     secondary body text
+    --text-meta      metadata, labels, timestamps
+    --text-micro     quietest annotation text
+
+  Optional but recommended:
+    --leading-display / --leading-heading / --leading-body
+    --tracking-display / --tracking-heading / --tracking-label
+    --measure-body / --measure-narrow / --measure-wide
+
+  Fonts (always three roles, any project):
+    --font-heading / --font-body / --font-mono
+
+  MULTI-DENSITY PATTERN:
+  If a project has several "rooms" with different density needs
+  (a public reading surface vs. a dense private tool), scope the
+  whole scale under a class on <html>:
+
+    .density-relaxed { --text-body: 15px; ... }
+    .density-compact { --text-body: 14px; ... }
+
+  A single-surface project — which is most apps built from this
+  kit — just defines them once, as theme.css does.
+*/
+
+
+/* ══════════════════════════════════════════════════════════
+   5. SEMANTIC COLOR SLOT CONTRACT
+   ══════════════════════════════════════════════════════════ */
+
+/*
+  Core defines NO color values — that is identity, and identity
+  is the theme's decision. Every theme must expose these
+  structural slots so components are written once and themed
+  freely:
+
+    --surface              page background
+    --surface-elevated     card/panel background (above surface)
+    --surface-recessed     inset background (below surface)
+    --text-primary
+    --text-secondary
+    --text-tertiary
+    --border
+    --border-subtle
+    --selection            text selection highlight
+    --accent               the one primary action color
+    --accent-contrast      text drawn ON --accent
+
+  Define the FULL set in every mode. A slot defined in one mode
+  and missing in the other renders one theme's text on the
+  other theme's ground.
+
+  On top of these, a theme adds semantic colors that mean
+  something in THAT project's domain. Name them after what they
+  mean there — don't inherit another project's vocabulary
+  because the file was copied from it.
+*/
+
+
+/* ══════════════════════════════════════════════════════════
+   6. LAYOUT PRIMITIVES
+   ══════════════════════════════════════════════════════════ */
+
+/*
+  Mobile-first, and two things here are load-bearing:
+
+  - `dvh`, never `vh`. `vh` ignores retracting browser bars and
+    pushes bottom-anchored controls underneath them.
+  - `env(safe-area-inset-*)` for the notch and the gesture bar.
+    These resolve to zero unless the page's viewport meta carries
+    `viewport-fit=cover` — index.html sets it.
+*/
+
+.screen {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding:
+    calc(var(--space-8) + env(safe-area-inset-top))
+    var(--space-4)
+    calc(var(--space-8) + env(safe-area-inset-bottom));
+}
+
+/* Full-height column: scrolling middle, controls pinned at the bottom. */
+.screen-fill {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: env(safe-area-inset-top) var(--space-4) 0;
+}
+
+.screen-fill > .scroll-area {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+
+/* ══════════════════════════════════════════════════════════
+   7. UTILITY CLASSES — generic, theme-independent
+   ══════════════════════════════════════════════════════════ */
+
+.font-heading { font-family: var(--font-heading); }
+.font-body    { font-family: var(--font-body); }
+.font-mono    { font-family: var(--font-mono); }
+
+.label-mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label, 0.08em);
+  color: var(--text-tertiary);
+}
+
+.meta {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  color: var(--text-tertiary);
+}
+
+.meta-sep {
+  color: var(--border);
+  margin: 0 var(--space-2);
+}
+
+.no-decoration {
+  /* opt-in marker class — reminds contributors of the
+     "no gradients / no shadows / flat color" house rule
+     without hard-coding it as a global reset */
+  background-image: none;
+  box-shadow: none;
+}
+
+/* ══════════════════════════════════════════════════════════
+      Components — the handful every app in this family needs.
+   Anything app-specific belongs in the app, not here.
+   ══════════════════════════════════════════════════════════ */
+
+h1 { font-size: var(--text-h1); line-height: var(--leading-heading); text-wrap: balance; }
+h2 { font-size: var(--text-h2); line-height: var(--leading-heading); text-wrap: balance; }
+h3 { font-size: var(--text-h3); line-height: var(--leading-heading); }
+
+p { max-width: var(--measure-body); }
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background: var(--code-bg);
+  padding: 0.1em 0.35em;
+  border-radius: var(--radius-sm);
+  overflow-wrap: anywhere;
+}
+
+a {
+  color: var(--accent);
+  /* Underlined, not colour-only: colour alone is not an affordance, and the
+     accent is the same hue in both themes. */
+  text-underline-offset: 0.2em;
+}
+
+a:hover {
+  text-decoration-thickness: 2px;
+}
+
+hr {
+  border: 0;
+  border-top: var(--border-width) solid var(--border-subtle);
+  margin: var(--space-2) 0;
+}
+
+.lead {
+  color: var(--text-secondary);
+  max-width: var(--measure-body);
+}
+
+.error {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 30rem;
+}
+
+label {
+  font-size: var(--text-meta);
+  color: var(--text-secondary);
+}
+
+input[type="url"],
+input[type="text"] {
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+}
+
+button {
+  padding: var(--space-3) var(--space-5);
+  border: var(--border-width) solid var(--accent);
+  border-radius: var(--radius-lg);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+button.ghost {
+  background: transparent;
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  font-size: var(--text-meta);
+  color: var(--text-tertiary);
+}
+
+/*
+  Styles for the UX patterns in src/ui/patterns.ts.
+
+  Imported by any app that uses them. Everything here consumes core.css slots —
+  no literal colours, so a themed app gets themed patterns for free.
+*/
+
+/* Available to assistive tech, invisible on screen. Not display:none, which
+   removes it from the accessibility tree entirely. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Focus lands on headings via focusView(); for a keyboard user the ring is the
+   only signal that the view changed, so it must not be suppressed. */
+h1:focus-visible,
+h2:focus-visible,
+[data-view-title]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+/* A browser also rings a programmatically focused heading on page load, which
+   reads as a stray selection box to a mouse user: hide it for them only
+   (trackInputModality sets data-input). */
+:root[data-input="pointer"] [tabindex="-1"]:focus-visible {
+  outline: none;
+}
+
+/* ── Concept card ─────────────────────────────────────────────────────────── */
+
+.concept {
+  background: var(--surface-elevated);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.concept-chunks {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.concept-chunks > li {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.concept-icon {
+  font-size: var(--text-h3);
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.concept-chunk-title {
+  font-weight: 600;
+}
+
+/* Prose, not metadata. `.meta` is the mono class — correct for timestamps and
+   labels, wrong for three lines someone has to actually read. */
+.concept-chunk-body {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  max-width: var(--measure-body);
+}
+
+.concept-aside {
+  background: var(--surface-recessed);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  overflow-x: auto;
+}
+
+/* ── Phase rail ───────────────────────────────────────────────────────────── */
+
+.phase-rail ol {
+  list-style: none;
+  display: flex;
+  gap: var(--space-3);
+}
+
+.phase {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.phase-bar {
+  height: var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--border);
+}
+
+.phase.is-done .phase-bar {
+  background: var(--accent-line);
+}
+
+.phase.is-current .phase-bar {
+  background: var(--accent);
+}
+
+.phase-name {
+  font-size: var(--text-meta);
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Weight as well as colour — the current phase must not be signalled by hue
+   alone, and the assistive-tech label is carried in the markup. */
+.phase.is-current .phase-name {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* ── Checkpoint ───────────────────────────────────────────────────────────── */
+
+.checkpoint {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.checkpoint-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+.checkpoint-options button {
+  text-align: left;
+  width: 100%;
+  max-width: 34rem;
+}
+
+.checkpoint-options button[aria-pressed="true"] {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.checkpoint-response {
+  border-left: 3px solid var(--border);
+  padding-left: var(--space-3);
+  color: var(--text-secondary);
+  max-width: var(--measure-body);
+}
+
+/* Getting it wrong is not an error state — the correct answer is marked, the
+   others are simply explained. */
+.checkpoint-response.is-correct {
+  border-left-color: var(--accent);
+}
+
+/* ── Empty state ──────────────────────────────────────────────────────────── */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-8) 0;
+  border-top: var(--border-width) solid var(--border-subtle);
+  border-bottom: var(--border-width) solid var(--border-subtle);
+}
+
+/* ── Error state ──────────────────────────────────────────────────────────── */
+
+/* Laid out like the empty state on purpose: a failure is a state of the screen,
+   not an interruption pasted over it. The danger colour is carried by the
+   detail line alone — a whole panel in --danger-soft reads as an alarm, and an
+   expired token is not an alarm. */
+.error-state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-6) 0;
+}
+
+/* Progressive disclosure applies to failures too: the plain sentence for
+   everyone, the server's own words for whoever is filing the bug. */
+.error-technical summary {
+  color: var(--text-tertiary);
+  font-size: var(--text-meta);
+  cursor: pointer;
+}
+
+.error-technical pre {
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  overflow-x: auto;
+  background: var(--code-bg);
+  border-radius: var(--radius-md);
+  font-size: var(--text-meta);
+}
+
+/* ── Pending ──────────────────────────────────────────────────────────────── */
+
+/* Column, not a row: the message leads and the indicator sits under it as a
+   rule. A spinner beside text competes with the text for the same glance. */
+.pending {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+  color: var(--text-secondary);
+}
+
+/* The track is the full width of the wait; the line crosses it and starts
+   again. Travel is what a rotation cannot express — a circle that has gone
+   round eighty times looks identical to one that is stuck. */
+.pending-track {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: var(--measure-body);
+  height: 2px;
+  overflow: hidden;
+  background: var(--border-subtle);
+  border-radius: var(--radius-full);
+}
+
+.pending-line {
+  position: absolute;
+  inset-block: 0;
+  width: 35%;
+  background: var(--accent);
+  border-radius: var(--radius-full);
+  animation: kit-pending-travel 1.4s ease-in-out infinite;
+}
+
+@keyframes kit-pending-travel {
+  from {
+    left: -35%;
+  }
+  to {
+    left: 100%;
+  }
+}
+
+/* core.css already reduces animation globally under prefers-reduced-motion,
+   which would leave the line parked at one end and reading as broken. Replace
+   the motion with a static full-width rule rather than removing the signal —
+   the message above it is still carrying the actual information. */
+@media (prefers-reduced-motion: reduce) {
+  .pending-line {
+    animation: none;
+    left: 0;
+    width: 100%;
+    opacity: 0.5;
+  }
+}
+
+/* ── Progress ─────────────────────────────────────────────────────────────── */
+
+/* Two lines, one block: the queue (a .hint), then the item being worked on.
+   Its height is held while it shows, so the list under it does not jump. */
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-height: 3rem;
+}
+
+.progress[hidden] { display: none; }
+
+/* A long name is cut in the middle: the stem shrinks, the extension stays. */
+.progress-queue { display: flex; max-width: 100%; min-width: 0; white-space: nowrap; }
+.progress-name { display: inline-flex; min-width: 0; }
+.progress-stem { overflow: hidden; text-overflow: ellipsis; }
+
+/* The body face, not mono, with even-width digits so the numbers hold still. */
+.progress-meter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-meta);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--text-tertiary);
+}
+
+.progress-meter[hidden] { display: none; }
+.progress-cells { display: inline-flex; gap: 2px; }
+
+/* Slanted cells, as a terminal draws ▰▱. Empty ones are the quiet text tone at
+   a quarter: findable in every theme without competing with the filled ones. */
+.progress-cells i {
+  width: 0.5rem;
+  height: 0.3rem;
+  border-radius: 1px;
+  background: var(--text-tertiary);
+  opacity: 0.28;
+  transform: skewX(-20deg);
+}
+
+.progress-cells i.is-on { background: var(--accent); opacity: 1; }
+
+.progress-value {
+  min-width: 4ch;
+  text-align: right;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* ── Toast ────────────────────────────────────────────────────────────────── */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  /* Above the gesture bar, not under it. */
+  bottom: calc(var(--space-4) + env(safe-area-inset-bottom));
+  z-index: 100;
+
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+
+  max-width: calc(100vw - var(--space-8));
+  padding: var(--space-3) var(--space-4);
+
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.toast-message {
+  font-size: var(--text-small);
+}
+
+.toast .toast-undo {
+  padding: var(--space-1) var(--space-3);
+  border-color: var(--accent-line);
+  color: var(--accent);
+}
+
+.toast .toast-close {
+  padding: var(--space-1) var(--space-2);
+  border-color: transparent;
+  color: var(--text-tertiary);
+}
+
+/* ---------- Prose: Markdown read from a pod (src/ui/markdown.ts) ----------
+   One look for a document wherever it is shown — an app's preview and the
+   pod's own public page (deploy/doc-view) use these same rules, so a file
+   reads the same signed in or not. Put `.prose` on the element that receives
+   renderMarkdown()'s output. */
+.prose { max-width: 48rem; line-height: 1.65; }
+.prose > :first-child { margin-top: 0; }
+.prose h1 { font-family: var(--font-heading); font-weight: 400; }
+.prose :is(h1, h2, h3, h4) { margin: 1.6em 0 0.5em; }
+.prose :is(p, ul, ol, pre, blockquote, table, dl) { margin: 0 0 1em; }
+.prose :is(ul, ol) { padding-left: 1.5em; }
+.prose li { margin-bottom: 0.25em; }
+.prose li > :is(ul, ol) { margin: 0.25em 0 0; }
+.prose img { max-width: 100%; }
+.prose hr { border: 0; border-top: var(--border-width) solid var(--border-subtle); margin: 1.5em 0; }
+.prose blockquote { padding-left: var(--space-4); border-left: 3px solid var(--border); color: var(--text-secondary); }
+/* A fenced block: one box, its lines and spaces as written, scrolled rather than wrapped (diagrams). */
+.prose pre { padding: var(--space-3) var(--space-4); background: var(--surface-recessed); border-radius: var(--radius-md); overflow-x: auto; line-height: 1.5; }
+.prose pre code { background: none; padding: 0; font-size: var(--text-small); white-space: pre; overflow-wrap: normal; }
+.prose table { border-collapse: collapse; display: block; overflow-x: auto; }
+.prose :is(th, td) { border: var(--border-width) solid var(--border-subtle); padding: var(--space-2) var(--space-3); text-align: left; vertical-align: top; }
+.prose th { background: var(--surface-recessed); }
+/* A YAML header: fields, set apart from the text. Rendered as Markdown it
+   would become a rule and one large bold heading holding every field. */
+.prose dl.front-matter { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-1) var(--space-4); padding: var(--space-3) var(--space-4); background: var(--surface-recessed); border-radius: var(--radius-md); font-size: var(--text-small); }
+.prose dl.front-matter > div { display: contents; }
+.prose dl.front-matter dt { grid-column: 1; font-family: var(--font-mono); color: var(--text-secondary); }
+.prose dl.front-matter dd { grid-column: 2; margin: 0; min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 40rem) {
+  .prose dl.front-matter { grid-template-columns: 1fr; }
+  .prose dl.front-matter :is(dt, dd) { grid-column: 1; }
+  .prose dl.front-matter > div + div dt { margin-top: var(--space-2); }
+}
+
+/* ══════════════════════════════════════════════════════════
+      THE EDITORIAL REGISTER — from solid-backoffice (dev@bc07959)
+   src/styles/backoffice.css: layout A's shell pieces and the landing (L3).
+   --font-display comes from tokens.json (type.families.display), so it is
+   not declared here.
+   ══════════════════════════════════════════════════════════ */
+
+/* ── Display serif, eyebrow, pull ─────────────────────────────────────────── */
+
+.display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(2.25rem, 5vw, 3rem);
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--text-tertiary);
+}
+
+.eyebrow::before {
+  content: "";
+  width: 40px;
+  height: var(--border-width);
+  background: currentColor;
+  opacity: 0.6;
+}
+
+.pull {
+  margin: 0;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--text-h3);
+  line-height: 1.35;
+  color: var(--text-primary);
+}
+
+/* A section's name on a wide app screen: the in-app eyebrow, without the rule. */
+.section-title {
+  margin: var(--space-6) 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--text-tertiary);
+}
+
+/* ── Brand: the mark drawn in CSS beside the app's name ───────────────────── */
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.brand-mark {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-mark);
+  border: 1.5px solid var(--accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.brand-mark::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+
+/* ── Hint: help text under a field, the quiet line under a form ───────────── */
+
+/* Prose someone has to read: the body family, never mono. */
+.hint {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-meta);
+  line-height: 1.5;
+  color: var(--text-secondary);
+  max-width: var(--measure-body);
+}
+
+.hint code { font-size: inherit; }
+
+/* ── Buttons that act like links, and the icon button ─────────────────────── */
+
+button.small {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-small);
+}
+
+/* A button that reads as a link: it acts on the page, not the address. */
+button.link-button {
+  display: inline;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+button.link-button:hover { color: var(--text-primary); text-decoration: underline; }
+.panel-card button.link-button { color: var(--accent); }
+
+/* The theme switch: an icon button in the top bar or the landing's nav.
+   `button.` on purpose: it is also `button.small`, whose padding would win on
+   specificity over a bare `.icon-button` and leave 10px of the 36px for the
+   icon. */
+button.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  flex: none;
+}
+
+.theme-icon {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+/* ── Wide app screens ─────────────────────────────────────────────────────── */
+
+/* min-width: 0 so a long address wraps instead of widening the page. */
+.screen-wide {
+  min-width: 0;
+  max-width: var(--width-wide);
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-8) calc(var(--space-12) + env(safe-area-inset-bottom));
+}
+
+/* ── The landing ──────────────────────────────────────────────────────────── */
+
+.landing {
+  max-width: var(--width-landing);
+  margin: 0 auto;
+  padding: 0 var(--space-8) env(safe-area-inset-bottom);
+}
+
+.landing-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: calc(var(--space-5) + env(safe-area-inset-top)) 0 var(--space-5);
+}
+
+.landing-links {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.landing-hero,
+.landing-why,
+.landing-then {
+  display: grid;
+  gap: var(--space-8);
+  align-items: start;
+}
+
+.landing-hero { padding: var(--space-16) 0 var(--space-20); }
+.landing-hero-text { gap: var(--space-6); padding-top: var(--space-6); min-width: 0; }
+
+.landing-title {
+  font-size: clamp(2.5rem, 6vw, 4rem);
+  line-height: 1.04;
+  text-wrap: balance;
+}
+
+.landing-h2 {
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  line-height: 1.1;
+  text-wrap: balance;
+}
+
+.landing-lead { font-size: var(--text-h4); max-width: var(--measure-lead); }
+
+.panel-card {
+  padding: var(--space-6);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-elevated);
+}
+
+.panel-card h2 { margin: 0; }
+.panel-card .field { max-width: none; }
+
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.divider {
+  width: 100%;
+  height: var(--border-width);
+  margin: 0;
+  border: none;
+  background: var(--border-subtle);
+}
+
+/* Sections are cut by a full-width hairline on top, never boxed. */
+.landing-band {
+  padding: var(--space-16) 0;
+  border-top: var(--border-width) solid var(--border-subtle);
+}
+
+.landing-band:focus { outline: none; }
+
+.how-steps {
+  list-style: none;
+  margin: var(--space-8) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-8);
+}
+
+.how-steps li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-4);
+  border-top: var(--border-width) solid var(--border);
+}
+
+.how-number { font-family: var(--font-mono); font-size: var(--text-micro); color: var(--accent); }
+.how-title { margin: 0; font-size: var(--text-h3); }
+.how-steps .lead { margin: 0; font-size: var(--text-body); }
+
+.landing-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-6) 0 var(--space-8);
+  border-top: var(--border-width) solid var(--border-subtle);
+}
+
+@media (min-width: 64rem) {
+  .landing-hero,
+  .landing-why,
+  .landing-then { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .landing-hero-text { grid-column: span 7; }
+  .landing-panel { grid-column: span 5; }
+  .landing-why > :first-child { grid-column: span 6; }
+  .landing-why-text { grid-column: span 6; padding-top: var(--space-8); }
+  .landing-then { align-items: center; }
+  .landing-then > :first-child { grid-column: span 5; }
+  .landing-then > :last-child { grid-column: span 7; }
+  .how-steps { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@media (min-width: 40rem) and (max-width: 64rem) {
+  .how-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 40rem) {
+  .landing { padding-inline: var(--space-4); }
+  .landing-hero { padding: var(--space-8) 0 var(--space-12); }
+  .landing-band { padding: var(--space-12) 0; }
+  .landing-links { gap: var(--space-4); }
+}
+
+/* ══════════════════════════════════════════════════════════
+      THE READING PAGES — from the portfolio (ndb_hugo main@b5fc7a9)
+   layouts/partials: post-list-item, section-heading, hero, timeline-moment,
+   confidence-bar. Restyled onto the kit's tokens: the display serif at 400,
+   sage links, the kit's text sizes.
+   ══════════════════════════════════════════════════════════ */
+
+/* ── Reading page: an article, a list, a timeline ─────────────────────────── */
+
+.reading {
+  max-width: var(--width-reading);
+  margin: 0 auto;
+  padding: var(--space-16) var(--space-8) calc(var(--space-12) + env(safe-area-inset-bottom));
+  min-width: 0;
+}
+
+.reading .prose { max-width: var(--measure-prose); }
+
+/* A document shown on a card, inside an app: a file opened from a pod. The
+   card takes the reading width, centred, so the page is not weighted to one
+   side; the text inside keeps a comfortable line (--measure-prose, about 72
+   characters), centred too. Wider than that is harder to read, not roomier:
+   the eye loses the start of the next line. Pictures, tables, code and
+   diagrams take the card's whole width. Use with .prose. */
+.prose-card {
+  width: 100%;
+  max-width: var(--width-reading);
+  margin-inline: auto;
+  padding: var(--space-8);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-elevated);
+}
+
+/* The text column is a grid track, not a max-width on each block: 72ch is
+   measured in the font of the element it is set on, so a smaller front-matter
+   list or a larger heading would each get their own width and a left edge of
+   their own. A track measures it once, in the card's font.
+   Grid items' margins do not collapse: every block in .prose ends on a 1em
+   bottom margin, so a heading's 1.6em top becomes 0.6em to keep the rhythm. */
+.prose.prose-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) min(var(--measure-prose), 100%) minmax(0, 1fr);
+  max-width: var(--width-reading);
+}
+
+.prose.prose-card > * { grid-column: 2; min-width: 0; max-width: none; } /* the track sets it */
+.prose.prose-card > :is(h1, h2, h3, h4) { margin-top: 0.6em; }
+.prose.prose-card > :first-child { margin-top: 0; }
+.prose.prose-card > :is(table, figure, pre, hr, .diagram),
+.prose.prose-card > p:has(> img:only-child) { grid-column: 1 / -1; }
+
+@media (max-width: 40rem) {
+  .reading { padding: var(--space-8) var(--space-4) calc(var(--space-8) + env(safe-area-inset-bottom)); }
+  .prose-card { padding: var(--space-4); }
+}
+
+/* ── Meta line: counts and facts joined by middots ────────────────────────── */
+
+.meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 0;
+}
+
+.meta-line > .meta-sep { margin: 0 var(--space-2); }
+
+/* ── Section heading: a label, a link to the rest, one line of context ────── */
+
+.section-head { margin-bottom: var(--space-6); }
+
+.section-head-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin: 0;
+}
+
+.section-head .label-mono { margin: 0; }
+
+a.section-link {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--text-tertiary);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+a.section-link:hover { color: var(--text-primary); text-decoration: underline; }
+
+.section-sub {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-small);
+  line-height: 1.5;
+  color: var(--text-secondary);
+  max-width: var(--measure-body);
+}
+
+/* ── Entry list: posts, documents, projects ───────────────────────────────── */
+
+.entry-list { list-style: none; margin: 0; padding: 0; }
+
+.entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-8);
+  padding: var(--space-6) 0;
+  border-top: var(--border-width) solid var(--border);
+}
+
+.entry-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+
+.entry-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.25rem;
+  line-height: 1.3;
+}
+
+.entry-title a { color: var(--text-primary); text-decoration: none; }
+.entry-title a:hover { text-decoration: underline; text-decoration-color: var(--accent); }
+
+.entry-excerpt {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  max-width: var(--measure-body);
+}
+
+.entry-date {
+  flex: none;
+  font-size: var(--text-small);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+@media (max-width: 40rem) {
+  .entry { padding: var(--space-4) 0; }
+  .entry-date { display: none; }
+}
+
+/* ── Timeline: moments on a spine, grouped by year ────────────────────────── */
+
+.timeline { list-style: none; margin: 0; padding: 0; position: relative; }
+
+.timeline::before {
+  content: "";
+  position: absolute;
+  top: var(--space-2);
+  bottom: 0;
+  left: 5px;
+  width: var(--border-width);
+  background: var(--border);
+}
+
+.timeline-year {
+  position: relative;
+  margin: var(--space-6) 0 var(--space-3);
+  padding-left: var(--space-8);
+}
+
+.timeline-year:first-child { margin-top: 0; }
+
+/* The year's ring, centred on the spine. */
+.timeline-year::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 11px;
+  height: 11px;
+  margin-top: -5.5px;
+  box-sizing: border-box;
+  border: 2px solid var(--text-tertiary);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+}
+
+.moment {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: 0 0 var(--space-6) var(--space-8);
+}
+
+/* The moment's dot: sage unless the moment names a colour (--moment). */
+.moment::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 0.6em;
+  width: 5px;
+  height: 5px;
+  border-radius: var(--radius-full);
+  background: var(--moment, var(--accent));
+}
+
+.moment .pull { color: var(--text-secondary); font-size: var(--text-body); line-height: 1.5; }
+.moment a.pull { text-decoration: none; }
+.moment a.pull:hover { color: var(--text-primary); }
+.moment .meta-line a { color: var(--accent); }
+
+/* ── Meter: a share of something, with its number ─────────────────────────── */
+
+.meter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.meter-track {
+  flex: 1;
+  height: 3px;
+  border-radius: 1px;
+  overflow: hidden;
+  background: var(--border-subtle);
+}
+
+.meter-fill {
+  height: 100%;
+  width: var(--value, 0%);
+  border-radius: 1px;
+  background: var(--meter-fill);
+}
+
+.meter-value {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}

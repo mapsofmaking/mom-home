@@ -1,0 +1,82 @@
+/* Styles for the guidelines page only. Same tokens it documents. */
+
+#guidelines .screen {
+  max-width: 52rem;
+}
+
+#guidelines section {
+  padding-top: var(--space-8);
+  border-top: var(--border-width) solid var(--border-subtle);
+}
+
+#guidelines h2 {
+  margin-bottom: var(--space-2);
+}
+
+#guidelines section > .lead {
+  margin-bottom: var(--space-5);
+}
+
+/* A demo is a live component, not a screenshot — the frame says so. */
+.demo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.demo-stage {
+  background: var(--surface-recessed);
+  border: var(--border-width) dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  align-items: flex-start;
+}
+
+/* The stage is already inset; a card inside it should not read as a second box
+   of the same weight. */
+.demo-stage .concept,
+.demo-stage .empty-state {
+  width: 100%;
+}
+
+.demo-stage .phase-rail {
+  width: 100%;
+}
+
+/* The note under each demo is an explanation to read, so it drops the mono
+   face `.meta` carries and keeps only the quiet colour. */
+.demo .meta {
+  max-width: var(--measure-body);
+  font-family: var(--font-body);
+  font-size: var(--text-small);
+}
+
+/* The three tiers: numbered because they are genuinely ordered by strength,
+   and the order is the point. */
+.tiers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding-left: var(--space-5);
+}
+
+.tiers > li {
+  padding-left: var(--space-2);
+}
+
+.tiers p {
+  max-width: var(--measure-body);
+}
+
+.tier-name {
+  font-weight: 600;
+  margin-bottom: var(--space-1);
+}
+
+.sg-footer {
+  padding-top: var(--space-6);
+  border-top: var(--border-width) solid var(--border-subtle);
+}

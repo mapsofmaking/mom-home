@@ -1,0 +1,76 @@
+# Checks every push. On main, also publishes the image the server runs:
+# ghcr.io/mapsofmaking/mom-home:sha-<short commit> and :main (solid-kit ADR 011).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run verify
+      - run: npm run build
+
+  image:
+    # The image as the server runs it: the app, the tree as Turtle, and
+    # /id.jsonld only when PUBLIC_URL is set.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t mom-home:ci .
+      - name: no PUBLIC_URL, the app and the tree serve, /id.jsonld 404s
+        run: |
+          docker run -d --name bare -p 8081:80 mom-home:ci
+          sleep 2
+          curl -fsS http://localhost:8081/ | grep -q '<div id="app">'
+          curl -fsSI http://localhost:8081/onboarding.ttl | grep -qi '^content-type: text/turtle'
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8081/id.jsonld)
+          [ "$code" = 404 ] || { echo "/id.jsonld answered $code, not 404"; exit 1; }
+      - name: with PUBLIC_URL, /id.jsonld names that origin
+        run: |
+          docker run -d --name inst -p 8082:80 -e PUBLIC_URL=https://home.example.org/ mom-home:ci
+          sleep 2
+          curl -fsSI http://localhost:8082/id.jsonld | grep -qi '^content-type: application/ld+json'
+          curl -fsS http://localhost:8082/id.jsonld | grep -q '"client_id": "https://home.example.org/id.jsonld"'
+
+  publish:
+    needs: [verify, image]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: build and push
+        run: |
+          set -eu
+          R=ghcr.io/mapsofmaking/mom-home
+          SHA=sha-${GITHUB_SHA::7}
+          docker build \
+            --label org.opencontainers.image.source=https://github.com/${{ github.repository }} \
+            --label org.opencontainers.image.revision=${{ github.sha }} \
+            -t $R:$SHA -t $R:main .
+          docker push $R:$SHA
+          docker push $R:main
+          echo "Pushed $SHA" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,395 @@
+/*
+  Styles for the UX patterns in src/ui/patterns.ts.
+
+  Imported by any app that uses them. Everything here consumes core.css slots —
+  no literal colours, so a themed app gets themed patterns for free.
+*/
+
+/* Available to assistive tech, invisible on screen. Not display:none, which
+   removes it from the accessibility tree entirely. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Focus lands on headings via focusView(); for a keyboard user the ring is the
+   only signal that the view changed, so it must not be suppressed. */
+h1:focus-visible,
+h2:focus-visible,
+[data-view-title]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+/* A browser also rings a programmatically focused heading on page load, which
+   reads as a stray selection box to a mouse user: hide it for them only
+   (trackInputModality sets data-input). */
+:root[data-input="pointer"] [tabindex="-1"]:focus-visible {
+  outline: none;
+}
+
+/* ── Concept card ─────────────────────────────────────────────────────────── */
+
+.concept {
+  background: var(--surface-elevated);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.concept-chunks {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.concept-chunks > li {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.concept-icon {
+  font-size: var(--text-h3);
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.concept-chunk-title {
+  font-weight: 600;
+}
+
+/* Prose, not metadata. `.meta` is the mono class — correct for timestamps and
+   labels, wrong for three lines someone has to actually read. */
+.concept-chunk-body {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  max-width: var(--measure-body);
+}
+
+.concept-aside {
+  background: var(--surface-recessed);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  overflow-x: auto;
+}
+
+/* ── Phase rail ───────────────────────────────────────────────────────────── */
+
+.phase-rail ol {
+  list-style: none;
+  display: flex;
+  gap: var(--space-3);
+}
+
+.phase {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.phase-bar {
+  height: var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--border);
+}
+
+.phase.is-done .phase-bar {
+  background: var(--accent-line);
+}
+
+.phase.is-current .phase-bar {
+  background: var(--accent);
+}
+
+.phase-name {
+  font-size: var(--text-meta);
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Weight as well as colour — the current phase must not be signalled by hue
+   alone, and the assistive-tech label is carried in the markup. */
+.phase.is-current .phase-name {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* ── Checkpoint ───────────────────────────────────────────────────────────── */
+
+.checkpoint {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.checkpoint-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+.checkpoint-options button {
+  text-align: left;
+  width: 100%;
+  max-width: 34rem;
+}
+
+.checkpoint-options button[aria-pressed="true"] {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.checkpoint-response {
+  border-left: 3px solid var(--border);
+  padding-left: var(--space-3);
+  color: var(--text-secondary);
+  max-width: var(--measure-body);
+}
+
+/* Getting it wrong is not an error state — the correct answer is marked, the
+   others are simply explained. */
+.checkpoint-response.is-correct {
+  border-left-color: var(--accent);
+}
+
+/* ── Empty state ──────────────────────────────────────────────────────────── */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-8) 0;
+  border-top: var(--border-width) solid var(--border-subtle);
+  border-bottom: var(--border-width) solid var(--border-subtle);
+}
+
+/* ── Error state ──────────────────────────────────────────────────────────── */
+
+/* Laid out like the empty state on purpose: a failure is a state of the screen,
+   not an interruption pasted over it. The danger colour is carried by the
+   detail line alone — a whole panel in --danger-soft reads as an alarm, and an
+   expired token is not an alarm. */
+.error-state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-6) 0;
+}
+
+/* Progressive disclosure applies to failures too: the plain sentence for
+   everyone, the server's own words for whoever is filing the bug. */
+.error-technical summary {
+  color: var(--text-tertiary);
+  font-size: var(--text-meta);
+  cursor: pointer;
+}
+
+.error-technical pre {
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  overflow-x: auto;
+  background: var(--code-bg);
+  border-radius: var(--radius-md);
+  font-size: var(--text-meta);
+}
+
+/* ── Pending ──────────────────────────────────────────────────────────────── */
+
+/* Column, not a row: the message leads and the indicator sits under it as a
+   rule. A spinner beside text competes with the text for the same glance. */
+.pending {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+  color: var(--text-secondary);
+}
+
+/* The track is the full width of the wait; the line crosses it and starts
+   again. Travel is what a rotation cannot express — a circle that has gone
+   round eighty times looks identical to one that is stuck. */
+.pending-track {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: var(--measure-body);
+  height: 2px;
+  overflow: hidden;
+  background: var(--border-subtle);
+  border-radius: var(--radius-full);
+}
+
+.pending-line {
+  position: absolute;
+  inset-block: 0;
+  width: 35%;
+  background: var(--accent);
+  border-radius: var(--radius-full);
+  animation: kit-pending-travel 1.4s ease-in-out infinite;
+}
+
+@keyframes kit-pending-travel {
+  from {
+    left: -35%;
+  }
+  to {
+    left: 100%;
+  }
+}
+
+/* core.css already reduces animation globally under prefers-reduced-motion,
+   which would leave the line parked at one end and reading as broken. Replace
+   the motion with a static full-width rule rather than removing the signal —
+   the message above it is still carrying the actual information. */
+@media (prefers-reduced-motion: reduce) {
+  .pending-line {
+    animation: none;
+    left: 0;
+    width: 100%;
+    opacity: 0.5;
+  }
+}
+
+/* ── Progress ─────────────────────────────────────────────────────────────── */
+
+/* Two lines, one block: the queue (a .hint), then the item being worked on.
+   Its height is held while it shows, so the list under it does not jump. */
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-height: 3rem;
+}
+
+.progress[hidden] { display: none; }
+
+/* A long name is cut in the middle: the stem shrinks, the extension stays. */
+.progress-queue { display: flex; max-width: 100%; min-width: 0; white-space: nowrap; }
+.progress-name { display: inline-flex; min-width: 0; }
+.progress-stem { overflow: hidden; text-overflow: ellipsis; }
+
+/* The body face, not mono, with even-width digits so the numbers hold still. */
+.progress-meter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-meta);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--text-tertiary);
+}
+
+.progress-meter[hidden] { display: none; }
+.progress-cells { display: inline-flex; gap: 2px; }
+
+/* Slanted cells, as a terminal draws ▰▱. Empty ones are the quiet text tone at
+   a quarter: findable in every theme without competing with the filled ones. */
+.progress-cells i {
+  width: 0.5rem;
+  height: 0.3rem;
+  border-radius: 1px;
+  background: var(--text-tertiary);
+  opacity: 0.28;
+  transform: skewX(-20deg);
+}
+
+.progress-cells i.is-on { background: var(--accent); opacity: 1; }
+
+.progress-value {
+  min-width: 4ch;
+  text-align: right;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* ── Toast ────────────────────────────────────────────────────────────────── */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  /* Above the gesture bar, not under it. */
+  bottom: calc(var(--space-4) + env(safe-area-inset-bottom));
+  z-index: 100;
+
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+
+  max-width: calc(100vw - var(--space-8));
+  padding: var(--space-3) var(--space-4);
+
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.toast-message {
+  font-size: var(--text-small);
+}
+
+.toast .toast-undo {
+  padding: var(--space-1) var(--space-3);
+  border-color: var(--accent-line);
+  color: var(--accent);
+}
+
+.toast .toast-close {
+  padding: var(--space-1) var(--space-2);
+  border-color: transparent;
+  color: var(--text-tertiary);
+}
+
+/* ---------- Prose: Markdown read from a pod (src/ui/markdown.ts) ----------
+   One look for a document wherever it is shown — an app's preview and the
+   pod's own public page (deploy/doc-view) use these same rules, so a file
+   reads the same signed in or not. Put `.prose` on the element that receives
+   renderMarkdown()'s output. */
+.prose { max-width: 48rem; line-height: 1.65; }
+.prose > :first-child { margin-top: 0; }
+.prose h1 { font-family: var(--font-heading); font-weight: 400; }
+.prose :is(h1, h2, h3, h4) { margin: 1.6em 0 0.5em; }
+.prose :is(p, ul, ol, pre, blockquote, table, dl) { margin: 0 0 1em; }
+.prose :is(ul, ol) { padding-left: 1.5em; }
+.prose li { margin-bottom: 0.25em; }
+.prose li > :is(ul, ol) { margin: 0.25em 0 0; }
+.prose img { max-width: 100%; }
+.prose hr { border: 0; border-top: var(--border-width) solid var(--border-subtle); margin: 1.5em 0; }
+.prose blockquote { padding-left: var(--space-4); border-left: 3px solid var(--border); color: var(--text-secondary); }
+/* A fenced block: one box, its lines and spaces as written, scrolled rather than wrapped (diagrams). */
+.prose pre { padding: var(--space-3) var(--space-4); background: var(--surface-recessed); border-radius: var(--radius-md); overflow-x: auto; line-height: 1.5; }
+.prose pre code { background: none; padding: 0; font-size: var(--text-small); white-space: pre; overflow-wrap: normal; }
+.prose table { border-collapse: collapse; display: block; overflow-x: auto; }
+.prose :is(th, td) { border: var(--border-width) solid var(--border-subtle); padding: var(--space-2) var(--space-3); text-align: left; vertical-align: top; }
+.prose th { background: var(--surface-recessed); }
+/* A YAML header: fields, set apart from the text. Rendered as Markdown it
+   would become a rule and one large bold heading holding every field. */
+.prose dl.front-matter { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-1) var(--space-4); padding: var(--space-3) var(--space-4); background: var(--surface-recessed); border-radius: var(--radius-md); font-size: var(--text-small); }
+.prose dl.front-matter > div { display: contents; }
+.prose dl.front-matter dt { grid-column: 1; font-family: var(--font-mono); color: var(--text-secondary); }
+.prose dl.front-matter dd { grid-column: 2; margin: 0; min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 40rem) {
+  .prose dl.front-matter { grid-template-columns: 1fr; }
+  .prose dl.front-matter :is(dt, dd) { grid-column: 1; }
+  .prose dl.front-matter > div + div dt { margin-top: var(--space-2); }
+}

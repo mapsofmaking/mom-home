@@ -1,0 +1,273 @@
+/*──────────────────────────────────────────────────────────────
+  DESIGN SYSTEM — CORE
+
+  Project-agnostic. Never edit this file per-project.
+  Defines STRUCTURE, not identity: spacing scale, radii, the
+  type-scale mechanism, base reset, layout primitives, and the
+  *slots* a theme file must fill in.
+
+  Usage — core first, then the theme that fills its slots:
+    @import "./core.css";
+    @import "./theme.css";
+
+  A theme file supplies:
+    - font families (--font-heading / --font-body / --font-mono)
+    - the type scale values
+    - surface / text / border values for light and dark
+    - whatever semantic colors that project's domain needs
+
+  (Originally valisette/core.css. One fix on the way in: the old
+  header nested a comment inside this block, which closes it
+  early and leaves the remaining lines to be parsed as CSS.)
+──────────────────────────────────────────────────────────────*/
+
+
+/* ══════════════════════════════════════════════════════════
+   1. SPACING — universal 4px base unit
+   ══════════════════════════════════════════════════════════ */
+
+:root {
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+}
+
+/*
+  Density-specific spacing (page padding, card padding, gaps)
+  is a THEME concern — different projects want different
+  densities. Core only supplies the raw scale above.
+*/
+
+
+/* ══════════════════════════════════════════════════════════
+   2. BORDERS & RADII
+   ══════════════════════════════════════════════════════════ */
+
+:root {
+  --radius-none: 0;
+  --radius-sm:   2px;
+  --radius-md:   3px;
+  --radius-lg:   4px;
+  --radius-mark: 6px;  /* the brand mark (.brand-mark), and nothing else */
+  --radius-full: 9999px;
+  --border-width: 1px;
+}
+
+/*
+  DEFAULT RULE (override in theme if the brand wants bubblier UI):
+  Max 4px radius on rectangular elements, except radius-mark
+  (6px) on the brand mark. radius-full reserved for circular
+  elements (dots, avatars, status indicators).
+*/
+
+
+/* ══════════════════════════════════════════════════════════
+   3. BASE RESET
+   ══════════════════════════════════════════════════════════ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background: var(--surface);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  line-height: var(--leading-body, 1.6);
+  /*
+    Stops the scroll bounce that retracts and re-shows the browser bars —
+    which matters on any screen with controls pinned to the bottom.
+  */
+  overscroll-behavior-y: none;
+}
+
+::selection {
+  background: var(--selection);
+}
+
+button, input, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+/* Never remove the focus ring outright — replace it if it clashes. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════
+   4. TYPE SCALE MECHANISM
+   ══════════════════════════════════════════════════════════ */
+
+/*
+  Core names the ROLES a theme's type scale must expose; the
+  theme decides the values.
+
+  Required roles:
+    --text-display   hero / largest display text
+    --text-h1        page titles
+    --text-h2        section titles
+    --text-h3        subsection / card titles
+    --text-h4        minor headings
+    --text-body      running text
+    --text-small     secondary body text
+    --text-meta      metadata, labels, timestamps
+    --text-micro     quietest annotation text
+
+  Optional but recommended:
+    --leading-display / --leading-heading / --leading-body
+    --tracking-display / --tracking-heading / --tracking-label
+    --measure-body / --measure-narrow / --measure-wide
+
+  Fonts (always three roles, any project):
+    --font-heading / --font-body / --font-mono
+
+  MULTI-DENSITY PATTERN:
+  If a project has several "rooms" with different density needs
+  (a public reading surface vs. a dense private tool), scope the
+  whole scale under a class on <html>:
+
+    .density-relaxed { --text-body: 15px; ... }
+    .density-compact { --text-body: 14px; ... }
+
+  A single-surface project — which is most apps built from this
+  kit — just defines them once, as theme.css does.
+*/
+
+
+/* ══════════════════════════════════════════════════════════
+   5. SEMANTIC COLOR SLOT CONTRACT
+   ══════════════════════════════════════════════════════════ */
+
+/*
+  Core defines NO color values — that is identity, and identity
+  is the theme's decision. Every theme must expose these
+  structural slots so components are written once and themed
+  freely:
+
+    --surface              page background
+    --surface-elevated     card/panel background (above surface)
+    --surface-recessed     inset background (below surface)
+    --text-primary
+    --text-secondary
+    --text-tertiary
+    --border
+    --border-subtle
+    --selection            text selection highlight
+    --accent               the one primary action color
+    --accent-contrast      text drawn ON --accent
+
+  Define the FULL set in every mode. A slot defined in one mode
+  and missing in the other renders one theme's text on the
+  other theme's ground.
+
+  On top of these, a theme adds semantic colors that mean
+  something in THAT project's domain. Name them after what they
+  mean there — don't inherit another project's vocabulary
+  because the file was copied from it.
+*/
+
+
+/* ══════════════════════════════════════════════════════════
+   6. LAYOUT PRIMITIVES
+   ══════════════════════════════════════════════════════════ */
+
+/*
+  Mobile-first, and two things here are load-bearing:
+
+  - `dvh`, never `vh`. `vh` ignores retracting browser bars and
+    pushes bottom-anchored controls underneath them.
+  - `env(safe-area-inset-*)` for the notch and the gesture bar.
+    These resolve to zero unless the page's viewport meta carries
+    `viewport-fit=cover` — index.html sets it.
+*/
+
+.screen {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding:
+    calc(var(--space-8) + env(safe-area-inset-top))
+    var(--space-4)
+    calc(var(--space-8) + env(safe-area-inset-bottom));
+}
+
+/* Full-height column: scrolling middle, controls pinned at the bottom. */
+.screen-fill {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: env(safe-area-inset-top) var(--space-4) 0;
+}
+
+.screen-fill > .scroll-area {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+
+/* ══════════════════════════════════════════════════════════
+   7. UTILITY CLASSES — generic, theme-independent
+   ══════════════════════════════════════════════════════════ */
+
+.font-heading { font-family: var(--font-heading); }
+.font-body    { font-family: var(--font-body); }
+.font-mono    { font-family: var(--font-mono); }
+
+.label-mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label, 0.08em);
+  color: var(--text-tertiary);
+}
+
+.meta {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  color: var(--text-tertiary);
+}
+
+.meta-sep {
+  color: var(--border);
+  margin: 0 var(--space-2);
+}
+
+.no-decoration {
+  /* opt-in marker class — reminds contributors of the
+     "no gradients / no shadows / flat color" house rule
+     without hard-coding it as a global reset */
+  background-image: none;
+  box-shadow: none;
+}

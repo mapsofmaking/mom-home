@@ -1,0 +1,198 @@
+/*
+  Styles for the styleguide page only. Uses the same tokens it documents —
+  a page that needs its own palette to look right would prove nothing.
+*/
+
+#styleguide .screen {
+  max-width: 56rem;
+}
+
+#styleguide section {
+  padding-top: var(--space-8);
+  border-top: var(--border-width) solid var(--border-subtle);
+}
+
+#styleguide h2 {
+  margin-bottom: var(--space-2);
+}
+
+#styleguide h3 {
+  margin-top: var(--space-6);
+  margin-bottom: var(--space-3);
+}
+
+#styleguide p + p,
+#styleguide h3 + p {
+  margin-top: var(--space-2);
+}
+
+.sg-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.sg-themes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* The styleguide's theme preview (not the app's switch, see styleguide.ts).
+   Pressed is carried by aria-pressed for assistive tech, and by fill AND
+   border on screen, not hue alone. */
+.sg-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.sg-preview button[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* Tables scroll on their own so the page body never moves sideways. */
+.tablewrap {
+  overflow-x: auto;
+}
+
+#styleguide table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--text-small);
+}
+
+#styleguide th {
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--text-tertiary);
+  font-weight: 600;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 2px solid var(--border);
+}
+
+#styleguide td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--border-width) solid var(--border-subtle);
+  vertical-align: middle;
+}
+
+#styleguide td.value {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.chip {
+  display: block;
+  width: var(--space-8);
+  height: var(--space-6);
+  border-radius: var(--radius-sm);
+  border: var(--border-width) solid var(--border);
+}
+
+.badge {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pass/fail is carried by the word as well as the color — never color alone. */
+.badge.pass {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: var(--border-width) solid var(--accent-line);
+}
+
+.badge.fail {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border: var(--border-width) solid var(--danger);
+}
+
+.sg-type-row {
+  display: grid;
+  grid-template-columns: 10rem 4rem 1fr;
+  gap: var(--space-4);
+  align-items: baseline;
+}
+
+.sg-type-token {
+  font-size: var(--text-meta);
+}
+
+.sg-type-size {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.sg-space-row {
+  display: grid;
+  grid-template-columns: 8rem 6rem 1fr;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.sg-bar {
+  display: block;
+  height: var(--space-3);
+  background: var(--accent);
+  border-radius: var(--radius-sm);
+}
+
+.sg-radii {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  margin-top: var(--space-4);
+}
+
+.sg-radius {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+  font-size: var(--text-meta);
+}
+
+.sg-radius-box {
+  width: var(--space-16);
+  height: var(--space-10);
+  background: var(--surface-elevated);
+  border: var(--border-width) solid var(--border);
+}
+
+.sg-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.sg-footer {
+  padding-top: var(--space-6);
+  border-top: var(--border-width) solid var(--border-subtle);
+}
+
+@media (max-width: 40rem) {
+  .sg-type-row,
+  .sg-space-row {
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+  }
+}

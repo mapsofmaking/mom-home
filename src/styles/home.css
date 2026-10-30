@@ -1,0 +1,24 @@
+/*
+ * The home app's own styles, over the kit's slots (theme.css stays the kit's).
+ * Story 14.1 S3 brings the Maps of Making design system's Workbench classes
+ * (wb-*, hx-*) here, mapped onto the same slots.
+ */
+
+/* One header row: wordmark + "home", the session on the right (AC1b). */
+.app-head {
+  justify-content: flex-start;
+}
+.app-mark {
+  color: var(--text-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+.app-name {
+  color: var(--text-secondary);
+}
+.app-head-right {
+  margin-left: auto;
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}

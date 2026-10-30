@@ -1,0 +1,156 @@
+@prefix onb: <https://mapsofmaking.org/ns/onboarding#> .
+@prefix : <https://mapsofmaking.org/onboarding/space-coordinator#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# The home app's tile tree (home.mapsofmaking.org, Epic 14). Single source of every
+# line Bernard speaks in the app: another vertical forks the app by swapping this file.
+# Draft vocabulary: onb: moves to the ontology repo once stable. The doneWhen queries
+# are illustrative: they show how an app would read progress from the pod; their
+# predicates are not settled. Copy reference: the "Onboard Storyboard" design canvas.
+# onb:icon names the tile's picto in the folded row (inline SVG strokes, per the design system).
+
+# Lines that belong to the app, not to one tile.
+:home a onb:App ;
+  onb:sayNeedsPod "That one needs a pod I can reach with your permission. A file on GitLab can't hold it. Your call."@en .
+
+:describe a onb:Tile ;
+  onb:icon "pin" ;
+  onb:title "Describe your space"@en ; onb:cue "Get on the map"@en ;
+  onb:q 0 ; onb:r 0 ; onb:prio 1 ;
+  onb:act "describe" ; onb:preview "mapcard" ;
+  onb:saidDone "That's you, the way a visitor will see it. For now it only lives in this browser. Nobody else can see it."@en ;
+  onb:sayNext "Want it out there for real?"@en ;
+  onb:doneWhen """ASK { ?space a mom:Space ; schema:name ?n ; schema:address ?a }""" .
+
+:keep a onb:Tile ;
+  onb:icon "publish" ;
+  onb:title "Publish it"@en ; onb:cue "Out there for real"@en ;
+  onb:q 1 ; onb:r 0 ; onb:prio 2 ;
+  onb:requiresAll :describe ;
+  onb:act "threshold" ; onb:preview "kept" ; onb:unlocksWord :pod ;
+  onb:say "Your data needs a home online, a public place the map can read from. Two ways: do it yourself, or let us. Your choice."@en ;
+  onb:saidDone "There you are. Anyone looking for a workshop in {locality} can find you now."@en ;
+  onb:sayNext "That's the hard part done. But hours change, stuff happen: when something's different, update it once. Here, or later at home.mapsofmaking.org."@en ;
+  onb:sayPod "Three things: a name for your Personal Online Datastore (pod), the space's mailbox and a passphrase to secure it."@en ;
+  onb:sayConsent "Heads up. After \"Create it\", your pod's own page asks if home.mapsofmaking.org may use it. That's this page, asking to write your profile there. Say yes."@en ;
+  onb:sayTaken "The pod server said that address is taken. Nothing you did wrong. Pick another one."@en ;
+  onb:saidDoneSelf "You've got the file. Now it needs an address. Some use GitLab, it gives you one, free, in about five minutes."@en ;
+  onb:doneWhen """ASK { <> pim:storage ?pod }  # or: the map knows the space's own URL""" .
+
+:change a onb:Tile ;
+  onb:icon "pencil" ;
+  onb:title "Update it once"@en ; onb:cue "One edit, everywhere"@en ;
+  onb:q 2 ; onb:r -1 ; onb:prio 3 ;
+  onb:requiresAll :keep ;
+  onb:act "hours" ; onb:preview "readers" ; onb:unlocksWord :endpoint ;
+  onb:say "Hours change. Change them here. Once."@en ;
+  onb:saidDone "One edit, in your file. The map reads it from there. Nothing was copied."@en ;
+  onb:sayTool "Your profile, as the map reads it. Change what's changed."@en ;
+  onb:saidSaved "Saved once, in your file. The map picks it up from there."@en ;
+  onb:doneWhen """ASK { ?space mom:openingHours ?h ; dct:modified ?m . FILTER(?m > ?created) }""" .
+
+:join a onb:Tile ;
+  onb:icon "people" ;
+  onb:title "Join your network"@en ; onb:cue "Show who you belong to"@en ;
+  onb:q 2 ; onb:r 0 ; onb:prio 4 ;
+  onb:requiresAll :keep ; onb:needsPod true ;
+  onb:act "network" ; onb:preview "network" ; onb:unlocksWord :handshake ;
+  onb:say "Name your network. I carry the request. They answer, not me."@en ;
+  onb:saidDone "Request's in their inbox. Dashed until they say yes. Solid after. Either of you can end it, any day, without asking."@en ;
+  onb:doneWhen """ASK { ?space org:memberOf ?network }""" .
+
+:event a onb:Tile ;
+  onb:icon "calendar" ;
+  onb:title "Post an event"@en ; onb:cue "Tell people what's on"@en ;
+  onb:q 1 ; onb:r 1 ; onb:prio 5 ;
+  onb:requiresAll :keep ;
+  onb:act "event" ; onb:preview "mapcard" ;
+  onb:say "A title and a date. It goes on your card."@en ;
+  onb:saidDone "On your card. Posted once."@en ;
+  onb:doneWhen """ASK { ?event a schema:Event ; schema:location ?space }""" .
+
+:answer a onb:Tile ;
+  onb:icon "speech" ;
+  onb:title "Let it answer for you"@en ; onb:cue "Stop answering the same question"@en ;
+  onb:q 3 ; onb:r -2 ; onb:prio 6 ;
+  onb:requiresAll :change ; onb:needsPod true ;
+  onb:act "none" ; onb:preview "assistant" ; onb:unlocksWord :agent ;
+  onb:say "Same questions every week. Give an assistant your folder. That folder, nothing else."@en ;
+  onb:saidDone "It read one file. The log says which, and when. That's the deal."@en ;
+  onb:doneWhen """ASK { ?agent solid:owner <> . ?acl acl:agent ?agent ; acl:accessTo ?folder }""" .
+
+:second a onb:Tile ;
+  onb:icon "layers" ;
+  onb:title "Show up on another map"@en ; onb:cue "More maps, no extra work"@en ;
+  onb:q 3 ; onb:r -1 ; onb:prio 7 ;
+  onb:requiresAll :keep ;
+  onb:act "none" ; onb:preview "ohm" ; onb:unlocksWord :linkeddata ;
+  onb:say "Other maps read what I index. Say yes and you're on them. Nothing to fill twice."@en ;
+  onb:saidDone "Second map. Same file."@en ;
+  onb:doneWhen """ASK { ?space mom:listedOn ?otherMap }""" .
+
+:peers a onb:Tile ;
+  onb:icon "network" ;
+  onb:title "Find your peers"@en ; onb:cue "See who's around you"@en ;
+  onb:q 3 ; onb:r 0 ; onb:prio 8 ;
+  onb:requiresAll :join ; onb:needsPod true ;
+  onb:act "peers" ; onb:preview "peers" ; onb:unlocksWord :webid ;
+  onb:say "The spaces your network recognises. And what they have on their benches."@en ;
+  onb:saidDone "There they are. Ask before you borrow."@en ;
+  onb:doneWhen """ASK { ?network org:hasMember ?space . ?space org:memberOf ?network }""" .
+
+:agenda a onb:Tile ;
+  onb:icon "agenda" ;
+  onb:title "Share your events"@en ; onb:cue "On your network's calendar too"@en ;
+  onb:q 2 ; onb:r 1 ; onb:prio 9 ;
+  onb:requiresAll :join , :event ; onb:needsPod true ;
+  onb:act "none" ; onb:preview "agenda" ;
+  onb:say "Your events on the network's calendar. You don't post twice."@en ;
+  onb:saidDone "Beside your peers'. Posted once, still."@en ;
+  onb:doneWhen """ASK { ?event mom:sharedWith ?network }""" .
+
+:discord a onb:Tile ;
+  onb:icon "chat" ;
+  onb:title "Answer where people talk"@en ; onb:cue "On Discord or Matrix too"@en ;
+  onb:q 4 ; onb:r -3 ; onb:prio 10 ;
+  onb:requiresAll :answer ; onb:planned true ;
+  onb:say "Discord, Matrix. Where your people already talk. Not built yet."@en .
+
+:handover a onb:Tile ;
+  onb:icon "key" ;
+  onb:title "Hand over the space"@en ; onb:cue "When you move on, nothing breaks"@en ;
+  onb:q 1 ; onb:r 2 ; onb:prio 11 ;
+  onb:requiresAll :keep ; onb:needsPod true ;
+  onb:act "none" ; onb:preview "handover" ; onb:unlocksWord :account ;
+  onb:say "Coordinators move on. The space stays. Give the role mailbox to whoever's next."@en ;
+  onb:saidDone "Nothing breaks. The account follows the mailbox."@en ;
+  onb:doneWhen """ASK { ?account mom:email ?roleMailbox }""" .
+
+:mentor a onb:Tile ;
+  onb:icon "person-plus" ;
+  onb:title "Help a space join"@en ; onb:cue "Bring a neighbour"@en ;
+  onb:q 4 ; onb:r -1 ; onb:prio 12 ;
+  onb:requiresAll :peers ; onb:emergent true ;
+  onb:say "Not drawn yet. It opens when people start doing it."@en .
+
+:bridge a onb:Tile ;
+  onb:icon "bridge" ;
+  onb:title "Bridge two maps"@en ; onb:cue "Carry news between maps"@en ;
+  onb:q 4 ; onb:r -2 ; onb:prio 13 ;
+  onb:requiresAll :second , :peers ; onb:emergent true ;
+  onb:say "Not drawn yet. A space on two maps carries things across, so nobody relays by hand."@en .
+
+:pod a onb:Word ; onb:label "pod" ; onb:prio 1 ;
+  onb:meaning "Storage that's yours. The map reads it; it doesn't keep a copy."@en .
+:endpoint a onb:Word ; onb:label "endpoint" ; onb:prio 2 ;
+  onb:meaning "The address where your file lives. Everyone who reads you reads there."@en .
+:handshake a onb:Word ; onb:label "handshake" ; onb:prio 3 ;
+  onb:meaning "A membership both sides state. Either side can end it at once."@en .
+:agent a onb:Word ; onb:label "agent" ; onb:prio 4 ;
+  onb:meaning "An assistant with a name of its own, let into the folders you choose and nowhere else."@en .
+:linkeddata a onb:Word ; onb:label "linked data" ; onb:prio 5 ;
+  onb:meaning "A shape other tools read without an adapter. That's how a second map finds you."@en .
+:webid a onb:Word ; onb:label "WebID" ; onb:prio 6 ;
+  onb:meaning "A name on the web. Each space you see has one. So does yours."@en .
+:account a onb:Word ; onb:label "account" ; onb:prio 7 ;
+  onb:meaning "How you sign in. Separate from your space's identity, so it can change hands."@en .
