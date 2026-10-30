@@ -199,9 +199,9 @@ Nothing compiles on the server. `/id.jsonld`, the Client ID Document (kit ADR
 010 point 6), is written at start from `PUBLIC_URL`
 (`deploy/docker-entrypoint.d/40-client-id.sh`).
 
-`deploy/gateway.caddy` is versioned here but installed on the server's
-gateway (the `mom` VPS: `/srv/infra/gateway/sites/mom-home.caddy`, Caddy on
-the `proxy` network). It sends `/` here and `/api/` to the map's `maps-web`.
+Routing is owned by [mapsofmaking/vps-infra](https://github.com/mapsofmaking/vps-infra)
+(`gateway/sites/mom-home.caddy`, Caddy on the `proxy` network): `/` here,
+`/api/` to the map's `maps-web`. Check the server with `ssh mom`.
 
 ## CSS instances
 

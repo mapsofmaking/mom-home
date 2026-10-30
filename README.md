@@ -46,9 +46,8 @@ CI builds one image on every push to `main` and publishes it as
 1. On the server, `docker-compose.yml` runs the tag set in `HOME_TAG`.
 2. The container writes `/id.jsonld`, the Solid-OIDC Client ID Document, at
    start from `PUBLIC_URL` (default `https://home.mapsofmaking.org/`).
-3. Routing: copy `deploy/gateway.caddy` to the gateway's sites folder
-   (`/srv/infra/gateway/sites/mom-home.caddy` on the `mom` VPS) and reload
-   Caddy. It sends `/` to this container and `/api/` to the map
-   (`maps-web`). It needs DNS for `home.mapsofmaking.org` first.
-4. On the server, `.env` beside `docker-compose.yml` sets `HOME_TAG` and
-   `GATEWAY_NETWORK=proxy`.
+3. Routing lives in [mapsofmaking/vps-infra](https://github.com/mapsofmaking/vps-infra):
+   `gateway/sites/mom-home.caddy` sends `/` to this container and `/api/` to
+   the map (`maps-web`). It needs DNS for `home.mapsofmaking.org` first.
+4. On the server (`/srv/mom-home`), `.env` beside `docker-compose.yml` sets
+   `HOME_TAG`.

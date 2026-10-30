@@ -1,5 +1,5 @@
 # The home app on the server, behind the gateway's Caddy (TLS and the host:
-# deploy/gateway.caddy). The server is a checkout of this repo; it pulls the
+# gateway/sites/mom-home.caddy in mapsofmaking/vps-infra). The server is a checkout of this repo; it pulls the
 # tag in HOME_TAG (.env, git-ignored) and never builds:
 #   docker compose pull && docker compose up -d
 # Locally, HOME_TAG unset: `docker compose up --build` builds and tags `local`.
@@ -10,8 +10,11 @@ services:
     container_name: mom-home
     restart: unless-stopped
     mem_limit: 32m
+    # No `ports:`: the gateway reaches it by its alias on `proxy`. The alias is
+    # unique across every app on the VPS (vps-infra conventions).
     networks:
-      - gateway
+      proxy:
+        aliases: [mom-home]
     environment:
       # Its Client ID Document's origin, with the trailing slash (40-client-id.sh).
       - PUBLIC_URL=${PUBLIC_URL:-https://home.mapsofmaking.org/}
@@ -21,8 +24,6 @@ services:
       app.domain: "home.mapsofmaking.org"
 
 networks:
-  # The gateway's network, created by the gateway. On the mom VPS it is
-  # `proxy`: GATEWAY_NETWORK=proxy in .env.
-  gateway:
+  # The gateway's network, created on the VPS (vps-infra).
+  proxy:
     external: true
-    name: ${GATEWAY_NETWORK:-gateway}

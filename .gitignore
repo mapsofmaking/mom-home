@@ -6,5 +6,5 @@ dist-ssr
 .vite
 dist-doc-view
 
-# Server values (HOME_TAG, GATEWAY_NETWORK): never committed.
+# Server values (HOME_TAG): never committed.
 .env
