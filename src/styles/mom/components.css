@@ -29,10 +29,8 @@ kbd { font-family: var(--font-mono); border: 1px solid var(--rule); padding: 1px
 .btn { border: var(--stroke-rule) solid var(--rule); padding: var(--space-8) var(--space-14); font-size: 12px; background: var(--drawer-bg); cursor: pointer; font-weight: 500; color: var(--ink); }
 .btn:hover { background: var(--surface-white); }
 .btn-primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-.btn-primary:hover { background: var(--accent); border-color: var(--accent); color: #ffffff; }
 .sp-embed-btn { display: flex; align-items: center; justify-content: center; gap: var(--space-8); width: 100%; padding: 11px var(--space-16);
   background: var(--ink); color: var(--paper); border: var(--stroke-rule) solid var(--ink); font-family: var(--font-display); font-size: 13px; font-weight: 600; letter-spacing: 0.01em; }
-.sp-embed-btn:hover { background: var(--accent); border-color: var(--accent); }
 .sp-refresh-btn { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; padding: var(--space-14) 11px;
   background: var(--surface-white); font-family: var(--font-display); font-size: 12px; font-weight: 500; color: var(--ink); }
 .sp-refresh-btn:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
@@ -155,14 +153,12 @@ pre.json.sp-terminal-body .n { color: var(--terminal-number); } pre.json.sp-term
 .sp-trust-line::before { content: '↳ '; color: var(--faint); }
 .code { font-family: var(--font-mono); font-size: 11px; padding: var(--space-10) var(--space-12); background: var(--code-bg); color: var(--code-fg); border: var(--stroke-rule) solid var(--rule); white-space: pre-wrap; word-break: break-all; position: relative; }
 .code .copy { position: absolute; top: 6px; right: 6px; background: #f7f2e7; color: #1a1a1a; border: var(--stroke-rule) solid var(--rule); font-size: 10px; padding: 2px 8px; font-family: inherit; }
-.code .copy:hover { background: var(--accent); color: #ffffff; border-color: var(--accent); }
 
 /* Note */
 .note { background: color-mix(in oklch, var(--yellow) 30%, var(--paper)); border: var(--stroke-rule) dashed var(--rule); padding: var(--space-10) var(--space-12); font-size: 12px; line-height: 1.5; color: var(--ink); }
 
 /* Ask the map */
 .bot-fab { background: var(--ink); color: var(--paper); border: var(--stroke-rule) solid var(--rule); padding: var(--space-10) var(--space-14); display: inline-flex; align-items: center; gap: var(--space-10); box-shadow: var(--shadow); white-space: nowrap; }
-.bot-fab:hover { background: var(--accent); border-color: var(--accent); }
 .bot-fab .dot { width: 8px; height: 8px; border-radius: var(--radius-dot); background: var(--green); box-shadow: 0 0 0 3px color-mix(in oklch, var(--green) 30%, transparent); }
 .bot-fab .soon { font-family: var(--font-mono); font-size: 9.5px; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.1em; }
 
@@ -172,3 +168,13 @@ pre.json.sp-terminal-body .n { color: var(--terminal-number); } pre.json.sp-term
 .bernard-panel .bernard-voice { color: var(--bernard-amber); }
 .bernard-panel .hint { font-family: var(--font-voice); font-size: 13px; color: var(--bernard-muted); margin-top: var(--bernard-space-1); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* Hover lift (2026-10-31): a pressable control rises off the paper, the
+   riso way: same colours, the hard shadow, 1px up-left. Hover means "you can
+   press this" and nothing else, so it carries no colour: red is for errors,
+   cobalt for focus, amber is Bernard's. Pressed, it lands. */
+.btn-primary:hover, .sp-embed-btn:hover, .code .copy:hover, .bot-fab:hover { transform: translate(-1px, -1px); box-shadow: var(--shadow); }
+/* .btn:hover whitens a plain button; a primary one keeps its ink (the red
+   hover used to override it, and paper text on white vanished without). */
+.btn-primary:hover { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.btn-primary:active, .sp-embed-btn:active, .code .copy:active, .bot-fab:active { transform: none; box-shadow: none; }

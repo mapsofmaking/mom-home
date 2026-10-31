@@ -58,7 +58,7 @@ const PREVIEWS: Record<string, (d: Draft) => string> = {
     <div class="pv">
       <p class="pv-title">${name(d)}</p>
       <p><span class="pv-chip declared">${network(d)}</span></p>
-      <p class="pv-meta">Declared by ${name(d)}. ${network(d)} hasn't recognised it yet.</p>
+      <p class="pv-meta">Declared by ${name(d)}. ${esc(d.network || "Your network")} hasn't recognised it yet.</p>
     </div>`,
   assistant: (d) => `
     <div class="pv">

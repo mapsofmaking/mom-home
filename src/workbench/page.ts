@@ -11,11 +11,13 @@
  * the tile until 14.2: "Show me my card" marks it done here, in this tab.
  */
 import { tally, tileStates } from "../tree/fog";
+import { announce } from "../ui/a11y";
 import type { Tree } from "../tree/parse";
 import { fillExample, readDescribeForm } from "./describe";
 import { renderHexView } from "./hexview";
 import type { Draft } from "./previews";
 import { renderStep } from "./step";
+import { metWords, renderWords } from "./words";
 
 export interface OnboardingOptions {
   /** Mutable: tiles done in this tab. */
@@ -77,6 +79,7 @@ export function renderOnboarding(root: HTMLElement, tree: Tree, opts: Onboarding
           <div class="wb-panel-body wb-hex-body">
             ${LEGEND}
             <div class="hx-stage" id="hexes"></div>
+            <div id="words"></div>
           </div>
         </section>
         <section class="wb-panel wb-step-panel" aria-label="Step">
@@ -88,6 +91,14 @@ export function renderOnboarding(root: HTMLElement, tree: Tree, opts: Onboarding
   const hexes = root.querySelector<HTMLElement>("#hexes")!;
   const step = root.querySelector<HTMLElement>("#step")!;
   const tallyEl = root.querySelector<HTMLElement>("#tally")!;
+  const wordsEl = root.querySelector<HTMLElement>("#words")!;
+  /** The word whose tip a tap pinned open. */
+  let openWord: string | null = null;
+  let met = metWords(tree, opts.done);
+
+  const drawWords = () => {
+    wordsEl.innerHTML = renderWords(tree, opts.done, openWord);
+  };
 
   const draw = () => {
     const states = tileStates(tree.tiles, opts.done);
@@ -97,6 +108,12 @@ export function renderOnboarding(root: HTMLElement, tree: Tree, opts: Onboarding
       selected = (tree.tiles.find((t) => states.get(t.id) === "open") ?? tree.tiles[0]).id;
     }
     hexes.innerHTML = renderHexView(tree.tiles, states, selected);
+    // A word unlocks right after its tile (AC5): say so once, politely.
+    const nowMet = metWords(tree, opts.done);
+    const fresh = tree.words.filter((w) => nowMet.has(w.id) && !met.has(w.id));
+    met = nowMet;
+    if (fresh.length) announce(`New word: ${fresh.map((w) => w.label).join(", ")}. It's under What you can do.`);
+    drawWords();
     fit(hexes);
     const tile = tree.tiles.find((t) => t.id === selected)!;
     step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing });
@@ -143,6 +160,30 @@ export function renderOnboarding(root: HTMLElement, tree: Tree, opts: Onboarding
     } else if (target.dataset.go) {
       select(target.dataset.go);
       step.querySelector<HTMLElement>(".wb-step-title")?.focus();
+    }
+  });
+
+  // A tap pins a word's tip open (and closes the one before); Escape or a
+  // tap anywhere else closes it. Hover and focus need no script (workbench.css).
+  wordsEl.addEventListener("click", (event) => {
+    const chip = (event.target as Element).closest<HTMLButtonElement>("button[data-word]");
+    if (!chip) return;
+    openWord = openWord === chip.dataset.word ? null : chip.dataset.word!;
+    drawWords();
+    wordsEl.querySelector<HTMLButtonElement>(`button[data-word="${CSS.escape(chip.dataset.word!)}"]`)?.focus();
+  });
+  root.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && openWord) {
+      openWord = null;
+      drawWords();
+    }
+  });
+  root.addEventListener("click", (event) => {
+    // The path, not target.closest: a tap on a chip redraws the strip first,
+    // and the detached target would read as a tap outside.
+    if (openWord && !event.composedPath().includes(wordsEl)) {
+      openWord = null;
+      drawWords();
     }
   });
 

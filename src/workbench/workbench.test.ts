@@ -6,6 +6,7 @@ import { parseTree } from "../tree/parse";
 import { hexPosition, renderHexView, tileLabel } from "./hexview";
 import { locality, renderPreview } from "./previews";
 import { renderStep } from "./step";
+import { metWords, renderWords } from "./words";
 
 const tree = parseTree(readFileSync(join(__dirname, "../../public/onboarding.ttl"), "utf8"));
 const byId = Object.fromEntries(tree.tiles.map((t) => [t.id, t]));
@@ -147,5 +148,40 @@ describe("previews show only what was typed", () => {
   it("reads the locality off an address", () => {
     expect(locality("Rue du Canal 12, 1070 Anderlecht")).toBe("Anderlecht");
     expect(locality("")).toBe("");
+  });
+});
+
+describe("words you've met (AC5)", () => {
+  const strip = (...done: string[]) => html(renderWords(tree, new Set(done)));
+
+  it("stays hidden until a first word unlocks", () => {
+    expect(renderWords(tree, new Set())).toBe("");
+    expect(renderWords(tree, new Set(["describe"]))).toBe(""); // describe unlocks no word
+  });
+
+  it("unlocks a word right after the tile that shows what it names", () => {
+    expect([...metWords(tree, new Set(["describe", "keep"]))]).toEqual(["pod"]);
+    expect([...metWords(tree, new Set(["describe", "keep", "change"]))].sort()).toEqual(["endpoint", "pod"]);
+  });
+
+  it("gives every word a place: met as a WordChip, the rest as dots", () => {
+    const s = strip("describe", "keep");
+    const chips = [...s.querySelectorAll("li")];
+    expect(chips).toHaveLength(tree.words.length);
+    expect(chips[0].querySelector("button.wd")!.textContent).toContain("pod");
+    expect(s.querySelectorAll(".wd.locked")).toHaveLength(tree.words.length - 1);
+    expect(s.querySelector(".wd.locked")!.getAttribute("aria-label")).toBe("A word not met yet");
+    expect(s.textContent).not.toContain("endpoint");
+  });
+
+  it("shows the meaning in a tip tied to the chip, never in a title", () => {
+    const s = strip("describe", "keep");
+    const chip = s.querySelector<HTMLButtonElement>("button.wd")!;
+    const tip = s.querySelector(`#${chip.getAttribute("aria-describedby")}`)!;
+    expect(tip.getAttribute("role")).toBe("tooltip");
+    expect(tip.textContent).toBe(tree.words.find((w) => w.id === "pod")!.meaning);
+    expect(s.querySelector("[title]")).toBeNull();
+    expect(chip.getAttribute("aria-pressed")).toBe("false");
+    expect(html(renderWords(tree, new Set(["describe", "keep"]), "pod")).querySelector("button.wd")!.getAttribute("aria-pressed")).toBe("true");
   });
 });

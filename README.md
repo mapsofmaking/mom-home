@@ -19,7 +19,7 @@ divergence from the kit is a diff against that commit.
 
 **Design-system version:** `src/styles/mom/` is copied from
 [`mapsofmaking/design-system`](https://github.com/mapsofmaking/design-system)
-at `b8e2062` by `scripts/sync-design-system.sh`. That repo is the source: a
+at `e7ad52a` by `scripts/sync-design-system.sh`. That repo is the source: a
 change goes there first, then the script runs with the new commit and this
 line changes.
 
