@@ -47,6 +47,8 @@ export interface PageOptions {
   draft: Draft;
   /** Shared with the shell, so the fold outlives a redraw and a sign-in. */
   fold: FoldState;
+  /** The coordinator folded or unfolded: the shell keeps it (signed in, in settings/home.ttl). */
+  onFold?: (folded: boolean) => void;
   onSignIn: () => void;
   onSignOut: () => void;
 }
@@ -177,6 +179,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   const setFolded = (value: boolean) => {
     opts.fold.folded = value;
     layout();
+    opts.onFold?.(value);
     root.querySelector<HTMLButtonElement>(value ? "#unfold" : "#fold")?.focus();
   };
 

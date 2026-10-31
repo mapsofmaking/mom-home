@@ -1,0 +1,60 @@
+/**
+ * Done is read from the pod, never stored (Story 14.1 AC4: "the pod is the
+ * map"). One check per tile id; each reads the space's own data and answers
+ * true only on proof. `onb:doneWhen` in the tree says, as documentation, what
+ * each check looks for; SPARQL/SHACL evaluation is out of scope.
+ *
+ * Most checks are stubs until their tile is real: a stub answers false, it
+ * never guesses (14.2–14.6 replace them one at a time). A check that fails to
+ * read counts as not done and says so in the console: a missing tile beats a
+ * page that won't load.
+ */
+import type { Tree } from "../tree/parse";
+
+export interface DoneContext {
+  webId: string;
+  /** The pod's root, from the profile's pim:storage (kit getPrimaryPodUrl). */
+  podRoot: string;
+}
+
+export type DoneCheck = (ctx: DoneContext) => Promise<boolean>;
+
+const notYet: DoneCheck = async () => false;
+
+export const DONE_CHECKS: Readonly<Record<string, DoneCheck>> = {
+  // keep, "Publish it": doneWhen ASK { <> pim:storage ?pod }. Signed in, the
+  // shell already found the pod's storage in the profile, or it would not be
+  // here. (The self-hosted door, "the map knows the space's URL", comes with
+  // 14.3/14.4.)
+  keep: async (ctx) => ctx.podRoot !== "",
+  // describe: nobody publishes without describing, so a published space was
+  // described. The card's own check (name and address in the space's file)
+  // replaces this once 14.2/14.3 settle where the file lives.
+  describe: async (ctx) => ctx.podRoot !== "",
+  change: notYet, // → 14.6: hours modified after the card was created
+  join: notYet, // → its story: org:memberOf a network
+  event: notYet,
+  answer: notYet,
+  second: notYet,
+  peers: notYet,
+  agenda: notYet,
+  handover: notYet,
+  // discord (planned), mentor and bridge (emergent) never open: no check needed.
+};
+
+/** The tiles done, checked in parallel. A tile with no check, or whose check fails, is not done. */
+export async function readDone(tree: Tree, ctx: DoneContext): Promise<Set<string>> {
+  const results = await Promise.all(
+    tree.tiles.map(async (t) => {
+      const check = DONE_CHECKS[t.id];
+      if (!check) return null;
+      try {
+        return (await check(ctx)) ? t.id : null;
+      } catch (err) {
+        console.warn(`Done check for "${t.id}" failed; counted as not done.`, err);
+        return null;
+      }
+    })
+  );
+  return new Set(results.filter((id): id is string => id !== null));
+}

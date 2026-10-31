@@ -25,6 +25,8 @@ export type Lines = Readonly<Record<string, string>>;
 
 export interface Tile {
   id: string;
+  /** The tile's IRI in the tree, as settings/home.ttl names it. */
+  iri: string;
   title: string;
   cue: string;
   /** Hex position, hand-placed (docs/explanation/home-hex-view.md in maps_of_making). */
@@ -134,6 +136,7 @@ export function parseTree(turtle: string): Tree {
     if (types.includes(ONB + "Tile")) {
       tiles.push({
         id,
+        iri,
         title: need("title", "Tile"),
         cue: need("cue", "Tile"),
         q: num("q", "Tile"),

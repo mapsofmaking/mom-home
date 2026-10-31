@@ -26,6 +26,9 @@ import { renderError, renderPending } from "./ui/patterns";
 import { loadTree } from "./tree/load";
 import { renderPage, type FoldState } from "./workbench/page";
 import { displayName } from "./workbench/who";
+import { changeHomeSettings, readHomeSettings, type HomeSettings } from "./settings/home";
+import { readDone } from "./tiles/done";
+import { announce } from "./ui/a11y";
 import type { Draft } from "./workbench/previews";
 import type { Tree } from "./tree/parse";
 
@@ -77,17 +80,30 @@ function renderOnboardingView(): void {
 
 /**
  * Signed in through the pod, the same page is the workbench (AC1b). What is
- * done comes from the pod (S6); until then a fresh tree, nothing carried over
- * from the signed-out tab.
+ * done is read from the pod (src/tiles/done.ts), never carried over from the
+ * signed-out tab; the fold comes from settings/home.ttl and goes back there.
+ * Without a pod (the dev preview) both stay in the tab.
  */
-function renderWorkbenchView(name: string): void {
+function renderWorkbenchView(
+  name: string,
+  pod: { webId: string; root: string; done: Set<string>; settings: HomeSettings } | null = null
+): void {
+  const wbFold: FoldState = pod ? { folded: pod.settings.folded } : fold;
   renderPage(app, tree!, {
     mode: "workbench",
     who: name,
     // Dev: `?done=` applies here too, to review the toolbar further along.
-    done: import.meta.env.DEV ? new Set(done) : new Set(),
+    done: pod ? pod.done : import.meta.env.DEV ? new Set(done) : new Set(),
     draft: {},
-    fold,
+    fold: wbFold,
+    onFold: pod
+      ? (folded) => {
+          changeHomeSettings(pod.root, pod.webId, (s) => ({ ...s, folded })).catch((err) => {
+            console.warn("Could not keep the fold in settings/home.ttl:", err);
+            announce("Your pod didn't take that change. It holds for this visit.");
+          });
+        }
+      : undefined,
     onSignIn: () => renderLoginView(),
     onSignOut: signOut,
   });
@@ -135,7 +151,17 @@ async function main(): Promise<void> {
 
   try {
     podRoot = await getPrimaryPodUrl(webId);
-    renderWorkbenchView(await displayName(webId));
+    const root = podRoot;
+    // Settings that can't be read cost the remembered fold, not the page.
+    const [name, doneOnPod, settings] = await Promise.all([
+      displayName(webId),
+      readDone(tree!, { webId, podRoot: root }),
+      readHomeSettings(root).catch((err): HomeSettings => {
+        console.warn("Could not read settings/home.ttl:", err);
+        return { folded: null, seen: [] };
+      }),
+    ]);
+    renderWorkbenchView(name, { webId, root, done: doneOnPod, settings });
   } catch (err) {
     renderErrorView(webId, err);
   }
