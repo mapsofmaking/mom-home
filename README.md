@@ -17,6 +17,25 @@ each tile sits are in `docs/explanation/home-hex-view.md`.
 [`solid-kit`](https://github.com/nicolasdb/solid-kit) at `f880797`. Every
 divergence from the kit is a diff against that commit.
 
+**Design-system version:** `src/styles/mom/` is copied from
+[`mapsofmaking/design-system`](https://github.com/mapsofmaking/design-system)
+at `f77875c` by `scripts/sync-design-system.sh`. That repo is the source: a
+change goes there first, then the script runs with the new commit and this
+line changes.
+
+## The look
+
+Two layers, one source:
+
+- **Built in:** the design system's tokens, components and Workbench layer
+  (`src/styles/mom/`, pinned above). The hex view and the workbench use them
+  directly.
+- **Mounted at run time:** `/skin.css` (the design system's
+  `skins/kit/skin.css`, with its fonts at `/fonts/skin/`) maps the same
+  values onto the kit's slots, as for the backoffice. Absent, the kit's own
+  look holds. In dev, `npm run dev` serves both from `../mom-design-system`
+  (or `DESIGN_SYSTEM=<checkout>`).
+
 ## The tree
 
 `public/onboarding.ttl` holds the tiles, their positions and their

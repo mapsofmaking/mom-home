@@ -1,0 +1,130 @@
+/* Maps of Making — Workbench (home.mapsofmaking.org): the hex view, the step
+   panel, the folded HexRow toolbar, TilePicto, WordChip, Copyable, Finder.
+   Prefixed wb-/hx-/fd- so nothing clashes with the map. Values come from
+   tokens.css; load after it (and after components.css, whose .btn and
+   .status-label the workbench reuses). Rules: workbench.md. */
+/* Page shell: header, then the hex view and the step panel side by side */
+.wb-page { background: var(--paper); color: var(--ink); font-family: var(--font-display); font-size: 15px; line-height: 1.55;
+  padding: var(--space-20) var(--space-28); display: flex; flex-direction: column; gap: var(--space-16); box-sizing: border-box; }
+.wb-header { display: flex; justify-content: space-between; align-items: center; gap: var(--space-16); min-height: var(--btn-h); flex-wrap: wrap; }
+.wb-mark { display: flex; align-items: baseline; gap: var(--space-10); }
+.wb-mark .logo { font-family: var(--font-hand); font-size: 26px; font-weight: 700; line-height: 1; }
+.wb-mark .app { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.wb-who { display: flex; gap: var(--space-12); align-items: center; font-size: 13px; color: var(--ink-soft); }
+.wb-who b { color: var(--ink); }
+.wb-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-24); min-height: 0; }
+@media (max-width: 900px) { .wb-page { padding: var(--space-14) var(--space-16); } .wb-grid { grid-template-columns: minmax(0, 1fr); } }
+.wb-panel { background: var(--drawer-bg); border: var(--stroke-rule) solid var(--rule); box-shadow: var(--shadow); display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.wb-panel-head { display: flex; align-items: baseline; gap: var(--space-10); padding: var(--space-16) var(--space-20) var(--space-14); border-bottom: 1px dashed var(--rule); }
+.wb-panel-head h2 { margin: 0; flex: 1; font: 600 20px/1.2 var(--font-display); text-wrap: balance; }
+.wb-panel-head .tally { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.wb-panel-head .tally b { color: var(--ink); }
+.wb-panel-body { padding: var(--space-20); display: flex; flex-direction: column; gap: var(--space-16); overflow-y: auto; min-height: 0; }
+.wb-panel-body .bernard-voice { margin: 0; }
+.wb-out { border-top: 1px dashed var(--rule); padding-top: var(--space-12); display: flex; gap: var(--space-14); align-items: center; flex-wrap: wrap; }
+.wb-aside { font-size: 12.5px; line-height: 1.5; color: var(--muted); margin: 0; }
+.wb-cta { padding: 11px 18px; font-size: 14px; font-weight: 600; }
+
+/* Hex tile: one feature on "What you can do". SVG shape + label; state is a class, selection is aria-current */
+.hx { position: relative; width: 104px; height: 120px; display: inline-grid; place-items: center; text-align: center; color: var(--ink); padding: 0; }
+.hx > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.hx-shape { stroke-linejoin: round; vector-effect: non-scaling-stroke; fill: var(--surface-white); stroke: var(--ink); stroke-width: 2.5px; }
+.hx-tint { display: none; fill: var(--done-tint); transform: translate(-4px, 4px); }
+.hx-label { position: relative; padding: 0 var(--space-14); font-size: 12px; line-height: 1.25; font-weight: 600; }
+.hx-tick { display: none; font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
+.hx.done { grid-template-rows: auto auto; align-content: center; gap: 3px; }
+.hx.done .hx-tint, .hx.done .hx-tick { display: block; }
+.hx.done .hx-tick { position: relative; }
+.hx.done .hx-shape { fill: none; stroke-width: 1.5px; }
+.hx.done .hx-label { font-weight: 500; }
+.hx.cue .hx-shape { fill: var(--paper); stroke: var(--muted); stroke-width: 1.5px; stroke-dasharray: 5 4; }
+.hx.cue .hx-label { font-size: 11px; font-weight: 400; color: var(--ink-soft); }
+.hx.fog > svg { display: none; }
+.hx.fog::before { content: ""; position: absolute; inset: 0; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: radial-gradient(circle, var(--faint) 1.1px, transparent 1.5px) 0 0 / 6px 6px, var(--paper-2); }
+.hx[aria-current="step"] .hx-shape { stroke-width: 4px; }
+.hx[aria-current="step"] .hx-label { font-weight: 700; }
+.hx:focus-visible { outline: none; }
+.hx:focus-visible .hx-shape { stroke: var(--accent); stroke-width: 3px; }
+.hx-legend { display: flex; flex-direction: column; gap: var(--space-6); font-size: 12px; color: var(--ink-soft); }
+.hx-legend span { display: flex; align-items: center; gap: var(--space-8); }
+.hx-key { width: 13px; height: 13px; box-sizing: border-box; display: inline-block; flex-shrink: 0; }
+.hx-key.done { background: var(--done-tint); border: var(--stroke-rule) solid var(--ink); box-shadow: -2px 2px 0 var(--done-tint); }
+.hx-key.open { background: var(--surface-white); border: 2.5px solid var(--ink); }
+.hx-key.cue { background: var(--paper); border: var(--stroke-rule) dashed var(--muted); }
+.hx-key.fog { background: radial-gradient(circle, var(--faint) 1px, transparent 1.4px) 0 0 / 4px 4px, var(--paper-2); }
+
+/* Hex row: the folded hex view (phone, signed-in workbench) */
+.hx-row { display: flex; flex-direction: column; gap: var(--space-10); padding: var(--space-12); }
+.hx-pips { display: flex; align-items: center; gap: var(--space-6); flex-wrap: wrap; }
+.hx.pip { width: 22px; height: 25px; }
+.hx.pip .hx-tint { transform: translate(-9px, 9px); }
+.hx.pip .hx-tick, .hx.pip .hx-label { display: none; }
+.hx-more { font-family: var(--font-mono); font-size: 11px; color: var(--muted); margin-left: 4px; }
+.hx-now { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-10); font-size: 13px; }
+.hx-now .k { color: var(--muted); }
+
+/* Door card: one of two equal choices, same weight, no badge, no shadow inside the panel */
+.wb-doors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-14); }
+@media (max-width: 560px) { .wb-doors { grid-template-columns: minmax(0, 1fr); } }
+.wb-door { display: flex; flex-direction: column; gap: var(--space-8); text-align: left; padding: 18px; border: var(--stroke-rule) solid var(--ink); background: var(--surface-white); color: var(--ink); min-width: 0; }
+.wb-door:hover { background: var(--paper); }
+.wb-door-title { font-size: 17px; font-weight: 600; line-height: 1.25; }
+.wb-door-desc { font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+.wb-door-where { font-family: var(--font-mono); font-size: 10px; color: var(--muted); overflow-wrap: anywhere; }
+
+/* Field: label, input, hint. Error = 2.5px accent outline; the words stay ink so they stay readable */
+.wb-field { display: flex; flex-direction: column; gap: var(--space-6); font-size: 13px; font-weight: 600; color: var(--ink); min-width: 0; }
+.wb-field input, .wb-field textarea { font: 400 14px/1.4 var(--font-display); padding: var(--space-10) var(--space-12); border: var(--stroke-rule) solid var(--rule);
+  border-radius: var(--radius); background: var(--surface-white); color: var(--ink); min-width: 0; }
+.wb-field input.mono { font-family: var(--font-mono); font-size: 14px; }
+.wb-field input[aria-invalid="true"] { border: 2.5px solid var(--accent); }
+.wb-field .hint { font-size: 12.5px; font-weight: 400; line-height: 1.5; color: var(--muted); }
+.wb-field .hint.is-error { color: var(--ink-soft); }
+.wb-inline { display: flex; gap: var(--space-6); }
+.wb-inline input { flex: 1; }
+@media (max-width: 560px) { .wb-field input, .wb-field textarea { font-size: 16px; } }
+
+/* Preview frame: what a visitor will see, always labelled preview or live */
+.wb-frame-label { display: flex; justify-content: space-between; gap: var(--space-8); font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.wb-frame { position: relative; height: 196px; background: var(--paper-2); border: var(--stroke-rule) solid var(--rule); overflow: hidden; }
+.wb-frame .wb-popup { position: absolute; left: 50%; top: var(--space-12); transform: translateX(-50%); width: min(270px, calc(100% - 24px)); border: var(--stroke-rule) solid var(--ink); box-shadow: var(--shadow); background: var(--surface-white); }
+.wb-frame .wb-popup .sp-hero { padding: var(--space-10) var(--space-12); gap: 5px; }
+.wb-frame .wb-popup .sp-name { font-size: 24px; }
+.wb-popup-foot { padding: 6px var(--space-12); background: var(--paper-2); font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: var(--accent-2); }
+
+
+/* ---- Workbench, round 2 (Onboard Storyboard, 2026-10-30): HexRow toolbar, TilePicto, WordChip, Copyable, Finder ---- */
+.ico { width: 14px; height: 14px; fill: none; stroke: var(--ink); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.hx-bar { display: flex; align-items: center; gap: var(--space-6); height: 52px; padding: 0 var(--space-14); box-sizing: border-box; }
+.hx-bar .k { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-right: var(--space-6); }
+.hx-bar .hx-now { margin-left: auto; }
+.hx.tool { position: relative; width: 30px; height: 34px; display: grid; place-items: center; padding: 0; border: 0; background: none; cursor: pointer; }
+.hx.tool svg.hex { position: absolute; inset: 0; width: 100%; height: 100%; }
+.hx.tool .hx-tint { transform: translate(-3px, 3px); }
+.hx.tool .ico { position: relative; }
+.hx.tool.cue .ico { display: none; }
+.hx.tool[aria-current="step"] .hx-shape { stroke-width: 3.5px; }
+.wd { position: relative; font-family: var(--font-mono); font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 6px; border: 1px solid var(--ink); background: var(--done-tint); color: var(--ink); cursor: help; }
+.wd.locked { background: none; border: 1px dashed var(--muted); color: var(--muted); cursor: default; }
+.tip { position: absolute; z-index: 5; left: 0; bottom: calc(100% + 6px); width: 220px; padding: 6px 8px; background: var(--ink); color: var(--paper); font: 400 12px/1.35 var(--font-display); text-transform: none; letter-spacing: 0; box-shadow: var(--shadow); opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .12s 0s, visibility 0s .12s; }
+.tip.below { bottom: auto; top: calc(100% + 6px); width: auto; white-space: nowrap; }
+.wd:hover .tip, .hx.tool:hover .tip { opacity: 1; visibility: visible; transition-delay: 1s, 1s; }
+.wd:focus-visible .tip, .wd[aria-pressed="true"] .tip, .hx.tool:focus-visible .tip, .tip.is-open { opacity: 1; visibility: visible; transition-delay: 0s, 0s; }
+.copyable { display: inline-flex; align-items: center; gap: var(--space-8); padding: 2px 0; border: 0; background: none; cursor: pointer; font-family: var(--font-mono); font-size: 13px; color: var(--ink); text-align: left; overflow-wrap: anywhere; }
+.copy-icon { flex-shrink: 0; width: 14px; height: 14px; fill: var(--ink-soft); }
+.copyable:hover .copy-icon { fill: var(--ink); }
+.fd-bar { display: flex; align-items: center; gap: var(--space-8); padding: 7px var(--space-10); background: var(--drawer-bg); border: var(--stroke-rule) solid var(--ink); box-shadow: var(--shadow); }
+.fd-bar:focus-within { outline: var(--stroke-focus) solid var(--accent); outline-offset: 2px; }
+.fd-bar .g { font-size: 16px; line-height: 1; color: var(--ink-soft); }
+.fd-bar input { flex: 1; min-width: 0; border: 0; background: none; font: 400 14px/1.3 var(--font-display); color: var(--ink); outline: none; }
+.fd-bar .key { font-family: var(--font-mono); font-size: 10px; color: var(--muted); border: 1px solid var(--rule); padding: 1px 5px; }
+.fd-bar .x { border: 0; background: none; font-size: 12px; color: var(--ink-soft); cursor: pointer; }
+.fd-meta { display: flex; justify-content: space-between; gap: var(--space-8); font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.fd-head { display: flex; align-items: center; gap: var(--space-6); font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); padding-top: 4px; }
+.fd-head .n { margin-left: auto; border: 1px solid var(--rule); padding: 0 5px; color: var(--muted); }
+.fd-row { display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left; padding: 6px var(--space-10); background: var(--surface-white); border: 1px solid var(--rule); border-left: 3px solid var(--rule); font: inherit; color: var(--ink); cursor: pointer; }
+.fd-row.on { border-left-color: var(--ink); }
+.fd-row b { font-size: 13px; font-weight: 600; }
+.fd-row span { font-size: 12.5px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fd-row mark { background: color-mix(in oklab, var(--accent-2) 22%, transparent); color: var(--ink); padding: 0 1px; }

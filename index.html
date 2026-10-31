@@ -49,6 +49,14 @@
     </script>
   </head>
   <body>
+    <!--
+      The instance's look (solid-kit ADR 011): mounted at /skin.css by the
+      deploy (the design system's skins/kit/skin.css), absent otherwise (a 404
+      costs nothing; the kit's look holds). In <body> on purpose: Vite puts the
+      bundle's stylesheets at the end of <head>, and the skin must come after
+      them to win at equal specificity.
+    -->
+    <link rel="stylesheet" href="/skin.css" />
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

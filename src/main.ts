@@ -6,6 +6,12 @@
  * view and the workbench replace `renderHome` and the signed-out screen in
  * Story 14.1's next slices.
  */
+// The design system first (pinned copy, README.md), so the kit's slot-based
+// rules after it keep the page theme-aware; the Workbench classes (wb-, hx-)
+// don't collide with the kit's.
+import "./styles/mom/tokens.css";
+import "./styles/mom/components.css";
+import "./styles/mom/workbench.css";
 import "./styles/fonts.css";
 import "./styles/core.css";
 import "./styles/theme.css";
