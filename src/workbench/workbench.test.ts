@@ -94,14 +94,15 @@ describe("step panel", () => {
   });
 
   it("names a requirement still in the fog without naming it", () => {
-    const t = (id: string, all: string[] = []) => ({ ...byId.describe, id, title: `${id} title`, requiresAll: all });
+    const t = (id: string, all: string[] = []) => ({ ...byId.describe, id, title: `${id} title`, cue: `${id} cue`, requiresAll: all });
     const tiles = [t("a"), t("b", ["a"]), t("c", ["b"]), t("x", ["a", "c"])];
     const states = tileStates(tiles, new Set(["a"]));
     expect(states.get("c")).toBe("cue"); // next to b, which is open
     expect(states.get("x")).toBe("cue"); // next to a, which is done
     const s = html(renderStep(tiles[3], { tiles, states, draft: {} })).textContent!;
     expect(s).toContain("a title");
-    expect(s).toContain("c title"); // a cue is seen on the map, so it is named
+    expect(s).toContain("c cue"); // a cue is seen on the map by its cue, so that is how it is named
+    expect(s).not.toContain("c title"); // its title is mechanism: AC3
     const fogged = tileStates([t("a"), t("b", ["a"]), t("c", ["b"]), t("x", ["a", "c"])], new Set(["a"]));
     fogged.set("c", "fog");
     const hidden = html(renderStep(tiles[3], { tiles, states: fogged, draft: {} })).textContent!;

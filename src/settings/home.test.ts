@@ -5,6 +5,7 @@ vi.mock("../lib/auth", () => ({ authFetch: (...args: unknown[]) => mockFetch(...
 
 const {
   changeHomeSettings,
+  homeSettingsUrl,
   parseHomeSettings,
   readHomeSettings,
   registrationTurtle,
@@ -92,6 +93,59 @@ describe("reading and changing it on the pod", () => {
     expect(parseHomeSettings(store.get(URL)!.text, URL)).toEqual({ folded: false, seen: [CHANGE] });
   });
 
+  it("builds the URL from a pod root without its closing slash", async () => {
+    pod({});
+    expect(homeSettingsUrl("https://atelier.pod.example")).toBe(URL);
+  });
+
+  it("keeps what it doesn't own when it rewrites the file", () => {
+    const mine = serializeHomeSettings({ folded: true, seen: [] }, URL);
+    const withOther = mine + `\n<${URL}#other> <https://example.org/x> "kept" .\n<${URL}#settings> <https://example.org/y> "also kept" .\n`;
+    const out = serializeHomeSettings({ folded: false, seen: [] }, URL, withOther);
+    expect(out).toContain("kept");
+    expect(out).toContain("also kept");
+    expect(parseHomeSettings(out, URL).folded).toBe(false);
+  });
+
+  it("leaves a file it can't read, or that isn't its own, alone", async () => {
+    const store = pod({ [URL]: "this is not turtle" });
+    await expect(changeHomeSettings(POD, WEBID, (s) => ({ ...s, folded: true }))).rejects.toMatchObject({ name: "SettingsUnreadable" });
+    expect(store.get(URL)!.text).toBe("this is not turtle");
+    const foreign = pod({ [URL]: `<${URL}#x> <https://example.org/y> "mine" .` });
+    await expect(changeHomeSettings(POD, WEBID, (s) => ({ ...s, folded: true }))).rejects.toMatchObject({ name: "SettingsUnreadable" });
+    expect(foreign.get(URL)!.text).toContain("mine");
+  });
+
+  it("tries a creation again once, not for ever", async () => {
+    mockFetch.mockImplementation(async (_url: string, init: RequestInit = {}) =>
+      (init.method ?? "GET") === "GET" ? new Response("", { status: 404 }) : new Response("", { status: 412 })
+    );
+    await expect(changeHomeSettings(POD, WEBID, (s) => ({ ...s, folded: true }))).rejects.toThrow();
+    expect(puts()).toHaveLength(2);
+  });
+
+  it("does not follow a Type Index on another origin, and leaves a file it would break", async () => {
+    const away = "https://elsewhere.example/idx.ttl";
+    const store = pod({ [WEBID.split("#")[0]]: `<${WEBID}> <http://www.w3.org/ns/solid/terms#privateTypeIndex> <${away}> .` });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await changeHomeSettings(POD, WEBID, (s) => ({ ...s, folded: true }));
+    expect(mockFetch.mock.calls.some(([u]) => u === away)).toBe(false);
+    expect(store.has(away)).toBe(false);
+    warn.mockRestore();
+    // Ends mid-statement: appending would swallow the registration into it.
+    const index = POD + "settings/privateTypeIndex.ttl";
+    const broken = `<${index}#a> <http://www.w3.org/ns/solid/terms#instance> <${POD}x> ;`;
+    const store2 = pod({
+      [WEBID.split("#")[0]]: `<${WEBID}> <http://www.w3.org/ns/solid/terms#privateTypeIndex> <${index}> .`,
+      [index]: broken,
+    });
+    forgetReads();
+    const warn2 = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await changeHomeSettings(POD, WEBID, (s) => ({ ...s, folded: true }));
+    warn2.mockRestore();
+    expect(store2.get(index)!.text).toBe(broken);
+  });
+
   it("registers the file in the private Type Index, once, when the profile has one", async () => {
     const index = POD + "settings/privateTypeIndex.ttl";
     const profile = `<${WEBID}> <http://www.w3.org/ns/solid/terms#privateTypeIndex> <${index}> .`;
@@ -142,8 +196,16 @@ describe("done, read from the pod (AC4)", () => {
       throw new Error("pod down");
     };
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect([...(await readDone(t, { webId: WEBID, podRoot: POD, space: POD + "space.ttl#space" }))]).toEqual([]);
+    } finally {
+      (DONE_CHECKS as Record<string, unknown>).keep = original;
+      warn.mockRestore();
+    }
+  });
+
+  it("finds no check for an inherited name like constructor", async () => {
+    const t = { ...tree, tiles: [{ ...tree.tiles[0], id: "constructor" }] };
     expect([...(await readDone(t, { webId: WEBID, podRoot: POD, space: POD + "space.ttl#space" }))]).toEqual([]);
-    (DONE_CHECKS as Record<string, unknown>).keep = original;
-    warn.mockRestore();
   });
 });

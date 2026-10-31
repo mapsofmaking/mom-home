@@ -31,6 +31,11 @@ export type DoneCheck = (ctx: DoneContext) => Promise<boolean>;
 
 const notYet: DoneCheck = async () => false;
 
+/** The tiles whose check can say yes today: a stub never can (fog.ts: they take open slots first). */
+export function completableIds(tree: Tree): Set<string> {
+  return new Set(tree.tiles.filter((t) => Object.hasOwn(DONE_CHECKS, t.id) && DONE_CHECKS[t.id] !== notYet).map((t) => t.id));
+}
+
 export const DONE_CHECKS: Readonly<Record<string, DoneCheck>> = {
   // keep, "Publish it": a space is published when its card is registered and
   // readable. Having a pod proves nothing: a person's own pod has storage too
@@ -55,7 +60,8 @@ export const DONE_CHECKS: Readonly<Record<string, DoneCheck>> = {
 export async function readDone(tree: Tree, ctx: DoneContext): Promise<Set<string>> {
   const results = await Promise.all(
     tree.tiles.map(async (t) => {
-      const check = DONE_CHECKS[t.id];
+      // Own keys only: a tile id like "constructor" must not find an inherited function.
+      const check = Object.hasOwn(DONE_CHECKS, t.id) ? DONE_CHECKS[t.id] : undefined;
       if (!check) return null;
       try {
         return (await check(ctx)) ? t.id : null;

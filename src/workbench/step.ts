@@ -29,7 +29,9 @@ function waitsFor(tile: Tile, ctx: StepContext): string {
   const steps = ids
     .map((id) => {
       const state = ctx.states.get(id) ?? "fog";
-      const name = state === "fog" ? "Something still to discover" : byId.get(id)!.title;
+      // Outcome only, never mechanism (AC3): a requirement that is not done or open is shown by its cue.
+      const req = byId.get(id)!;
+      const name = state === "done" || state === "open" ? req.title : state === "fog" ? "Something still to discover" : req.cue;
       const marker =
         state === "done"
           ? `<span class="sp-unlock-marker tint" aria-hidden="true">✓</span>`

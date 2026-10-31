@@ -91,7 +91,7 @@ const PREVIEWS: Record<string, (d: Draft) => string> = {
 };
 
 export function hasPreview(kind: string | null): kind is string {
-  return kind !== null && kind in PREVIEWS;
+  return kind !== null && Object.hasOwn(PREVIEWS, kind);
 }
 
 /** A preview, always framed and labelled: it never passes for the real thing (AC6). */

@@ -89,7 +89,7 @@ function lines(props: Props): Lines {
   for (const [p, terms] of props) {
     if (!p.startsWith(ONB)) continue;
     const name = local(p);
-    if (!/^(say|said)[A-Z]?/.test(name)) continue;
+    if (!/^(say|said)([A-Z]|$)/.test(name)) continue;
     const value = text(terms);
     if (value !== null) out[name] = value;
   }
@@ -127,9 +127,12 @@ export function parseTree(turtle: string): Tree {
       if (value === null) throw new TreeError(`${kind} "${id}" has no onb:${name}.`);
       return value;
     };
-    const num = (name: string, kind: string): number => {
-      const value = Number(need(name, kind));
+    const num = (name: string, kind: string, integer = false): number => {
+      const raw = need(name, kind).trim();
+      // Number("") is 0: a blank value would silently place a tile at 0,0.
+      const value = raw === "" ? NaN : Number(raw);
       if (!Number.isFinite(value)) throw new TreeError(`${kind} "${id}": onb:${name} is not a number.`);
+      if (integer && !Number.isInteger(value)) throw new TreeError(`${kind} "${id}": onb:${name} must be a whole number.`);
       return value;
     };
 
@@ -139,8 +142,8 @@ export function parseTree(turtle: string): Tree {
         iri,
         title: need("title", "Tile"),
         cue: need("cue", "Tile"),
-        q: num("q", "Tile"),
-        r: num("r", "Tile"),
+        q: num("q", "Tile", true),
+        r: num("r", "Tile", true),
         prio: num("prio", "Tile"),
         requiresAll: iris("requiresAll"),
         requiresAny: iris("requiresAny"),
@@ -168,7 +171,13 @@ export function parseTree(turtle: string): Tree {
 
   if (tiles.length === 0) throw new TreeError("onboarding.ttl has no onb:Tile.");
 
-  const tileIds = new Set(tiles.map((t) => t.id));
+  const tileIds = new Set<string>();
+  for (const t of tiles) {
+    // Two IRIs with the same fragment would collapse into one id and hide a tile.
+    if (tileIds.has(t.id)) throw new TreeError(`Two tiles are called "${t.id}".`);
+    if (t.emergent && t.planned) throw new TreeError(`Tile "${t.id}" is both emergent and planned.`);
+    tileIds.add(t.id);
+  }
   const wordIds = new Set(words.map((w) => w.id));
   const cells = new Map<string, string>();
   for (const t of tiles) {
@@ -182,6 +191,32 @@ export function parseTree(turtle: string): Tree {
     const other = cells.get(cell);
     if (other) throw new TreeError(`Tiles "${other}" and "${t.id}" share the hex at q=${t.q}, r=${t.r}.`);
     cells.set(cell, t.id);
+  }
+
+  // A tile can open only if everything it needs can be done: a cycle, or no starting
+  // tile, would draw fog that never lifts.
+  const byId = new Map(tiles.map((t) => [t.id, t]));
+  const openable = new Set<string>();
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const t of tiles) {
+      if (openable.has(t.id)) continue;
+      const all = t.requiresAll.every((id) => openable.has(id));
+      const any = t.requiresAny.length === 0 || t.requiresAny.some((id) => openable.has(id));
+      if (all && any) {
+        openable.add(t.id);
+        grew = true;
+      }
+    }
+  }
+  // Emergent and planned tiles never open, but can be done (by data, once people do it), so others may require them.
+  if (!tiles.some((t) => !t.emergent && !t.planned && openable.has(t.id))) {
+    throw new TreeError("No tile can open: none is free of requirements.");
+  }
+  for (const t of tiles) {
+    if (t.emergent || t.planned || openable.has(t.id)) continue;
+    const stuck = [...t.requiresAll, ...t.requiresAny].filter((id) => !openable.has(id) && byId.get(id));
+    throw new TreeError(`Tile "${t.id}" can never open (needs ${stuck.join(", ") || "a cycle"}).`);
   }
 
   tiles.sort((a, b) => a.prio - b.prio);

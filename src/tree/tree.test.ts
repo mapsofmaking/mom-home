@@ -81,6 +81,26 @@ describe("parseTree refuses a tree that would draw a lie", () => {
   it("refuses two tiles in one hex", () =>
     refuses(tile("a") + tile("b"), /"a" and "b" share the hex/));
 
+  it("refuses a dependency cycle, and a tree with no way in", () => {
+    refuses(tile("a", "; onb:requiresAll :b", 0, 0) + tile("b", "; onb:requiresAll :a", 1, 0), /No tile can open/);
+    refuses(tile("a", "", 0, 0) + tile("b", "; onb:requiresAll :c", 1, 0) + tile("c", "; onb:requiresAll :b", 2, 0), /"b" can never open/);
+  });
+  it("lets a tile require an emergent one: it can be done by data, never opened", () => {
+    expect(() => parseTree(HEAD + tile("a") + tile("e", "; onb:emergent true", 1, 0) + tile("b", "; onb:requiresAll :e", 2, 0))).not.toThrow();
+  });
+  it("refuses a blank or fractional number, and two ids that collapse into one", () => {
+    refuses(`:a a onb:Tile ; onb:title "A" ; onb:cue "C" ; onb:q "" ; onb:r 0 ; onb:prio 1 .`, /onb:q is not a number/);
+    refuses(`:a a onb:Tile ; onb:title "A" ; onb:cue "C" ; onb:q 1.5 ; onb:r 0 ; onb:prio 1 .`, /whole number/);
+    refuses(
+      tile("a", "", 0, 0) + `<https://other.example/x#a> a onb:Tile ; onb:title "A2" ; onb:cue "C2" ; onb:q 1 ; onb:r 0 ; onb:prio 1 .`,
+      /Two tiles are called "a"/
+    );
+  });
+  it("keeps only real Bernard lines: say, said, sayNext…, not sayso", () => {
+    const t = parseTree(HEAD + tile("a", '; onb:say "x" ; onb:sayNext "y" ; onb:sayso "no" ; onb:saying "no"')).tiles[0];
+    expect(Object.keys(t.lines).sort()).toEqual(["say", "sayNext"]);
+  });
+
   it("reads an untagged line when no English one exists", () => {
     const t = parseTree(HEAD + `:a a onb:Tile ; onb:title "A" ; onb:cue "C" ; onb:q 0 ; onb:r 0 ; onb:prio 1 ;
       onb:say "plain" ; onb:saidDone "fr"@fr , "en"@en .`).tiles[0];
@@ -123,6 +143,18 @@ describe("fog rules (AC3)", () => {
     expect(s.get("mentor")).toBe("cue");
     expect(s.get("bridge")).toBe("cue");
     expect(ids(s, "open")).toEqual([]);
+  });
+
+  it("lets a tile that can complete take an open slot before a stub does", () => {
+    const t = (id: string, prio: number, all: string[] = []): Tile => ({
+      ...tree.tiles[0], id, requiresAll: all, requiresAny: [], emergent: false, planned: false, prio,
+    });
+    const tiles = [t("root", 0), t("s1", 1, ["root"]), t("s2", 2, ["root"]), t("s3", 3, ["root"]), t("real", 4, ["root"])];
+    const done = new Set(["root"]);
+    expect(tileStates(tiles, done).get("real")).toBe("ready"); // prio only: starved
+    const s = tileStates(tiles, done, new Set(["root", "real"]));
+    expect(s.get("real")).toBe("open");
+    expect(s.get("s3")).toBe("ready");
   });
 
   it("opens on any one of requiresAny", () => {

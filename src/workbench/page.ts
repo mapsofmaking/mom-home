@@ -27,6 +27,7 @@
  * the tile until 14.2: "Show me my card" marks it done here, in this tab.
  */
 import { tally, tileStates } from "../tree/fog";
+import { completableIds } from "../tiles/done";
 import { announce } from "../ui/a11y";
 import type { Tree } from "../tree/parse";
 import { fillExample, readDescribeForm } from "./describe";
@@ -61,6 +62,8 @@ export interface FoldState {
 export interface PageHandle {
   /** The one planned fold, at the end of tile C's tutorial (14.6). */
   foldForFirstTime(): void;
+  /** Removes the page's listeners and observers: call before drawing another page into the same root. */
+  destroy(): void;
 }
 
 /** Up to a quarter larger than the design system's 104px tile on a big screen. */
@@ -111,6 +114,11 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   let selected: string | null = null;
   let editing = false;
   const workbench = opts.mode === "workbench";
+  // Everything that outlives the markup (root and media-query listeners,
+  // observers) is undone by destroy(), so a redraw never stacks a second set.
+  const life = new AbortController();
+  const observers: ResizeObserver[] = [];
+  const completable = completableIds(tree);
 
   const who = workbench
     ? `<span>Signed in as <b>${esc(opts.who ?? "")}</b></span>
@@ -133,7 +141,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
           <div class="wb-panel-head">
             <h2 id="hex-title">What you can do</h2>
             <span class="tally" id="tally"></span>
-            <button type="button" class="btn wb-fold" id="fold" aria-expanded="true" aria-controls="full">Fold</button>
+            <button type="button" class="btn wb-fold" id="fold" aria-expanded="true">Fold</button>
           </div>
           <div class="wb-panel-body wb-hex-body">
             ${LEGEND}
@@ -184,11 +192,16 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   };
 
   const draw = () => {
-    const states = tileStates(tree.tiles, opts.done);
+    const states = tileStates(tree.tiles, opts.done, completable);
     const { cleared, open } = tally(states);
     tallyEl.innerHTML = `Cleared <b>${cleared}</b> · Open <b>${open}</b>`;
     if (!selected || states.get(selected) === "fog") {
-      selected = (tree.tiles.find((t) => states.get(t.id) === "open") ?? tree.tiles[0]).id;
+      // An open tile, else the first one reached, never a fog tile ("Still to discover" reads as a dead page).
+      selected = (
+        tree.tiles.find((t) => states.get(t.id) === "open") ??
+        tree.tiles.find((t) => states.get(t.id) !== "fog") ??
+        tree.tiles[0]
+      ).id;
     }
     hexes.innerHTML = renderHexView(tree.tiles, states, selected);
     row.innerHTML = renderHexRow(tree.tiles, states, selected);
@@ -213,10 +226,11 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
 
   layout();
   draw();
-  new ResizeObserver(() => fit(hexes)).observe(hexes);
-  new ResizeObserver(() => alignTips(row)).observe(row);
+  observers.push(new ResizeObserver(() => fit(hexes)), new ResizeObserver(() => alignTips(row)));
+  observers[0].observe(hexes);
+  observers[1].observe(row);
   // Only an unset fold follows the width; a chosen one stays chosen.
-  wide.addEventListener("change", layout);
+  wide.addEventListener("change", layout, { signal: life.signal });
 
   hexes.addEventListener("click", (event) => {
     const button = (event.target as Element).closest<HTMLButtonElement>("button[data-tile]");
@@ -245,6 +259,11 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     if (form.id !== "f-describe") return;
     event.preventDefault();
     readDescribeForm(form, opts.draft);
+    if (workbench) {
+      // Done is read from the pod, never carried here (AC4); tile A is not connected to the pod until 14.2.
+      announce("This step isn't connected to your pod yet, so nothing was saved or marked done.");
+      return;
+    }
     opts.done.add("describe");
     editing = false;
     draw();
@@ -275,20 +294,28 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     drawWords();
     wordsEl.querySelector<HTMLButtonElement>(`button[data-word="${CSS.escape(chip.dataset.word!)}"]`)?.focus();
   });
-  root.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && openWord) {
-      openWord = null;
-      drawWords();
-    }
-  });
-  root.addEventListener("click", (event) => {
-    // The path, not target.closest: a tap on a chip redraws the strip first,
-    // and the detached target would read as a tap outside.
-    if (openWord && !event.composedPath().includes(wordsEl)) {
-      openWord = null;
-      drawWords();
-    }
-  });
+  root.addEventListener(
+    "keydown",
+    (event) => {
+      if (event.key === "Escape" && openWord) {
+        openWord = null;
+        drawWords();
+      }
+    },
+    { signal: life.signal }
+  );
+  root.addEventListener(
+    "click",
+    (event) => {
+      // The path, not target.closest: a tap on a chip redraws the strip first,
+      // and the detached target would read as a tap outside.
+      if (openWord && !event.composedPath().includes(wordsEl)) {
+        openWord = null;
+        drawWords();
+      }
+    },
+    { signal: life.signal }
+  );
 
   root.querySelector("#sign-in")?.addEventListener("click", opts.onSignIn);
   root.querySelector("#sign-out")?.addEventListener("click", opts.onSignOut);
@@ -296,6 +323,10 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   return {
     foldForFirstTime() {
       if (opts.fold.folded === null || opts.fold.folded === false) setFolded(true);
+    },
+    destroy() {
+      life.abort();
+      observers.forEach((o) => o.disconnect());
     },
   };
 }

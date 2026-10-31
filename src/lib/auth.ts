@@ -122,12 +122,18 @@ export async function loginWithIdentifier(identifier: string): Promise<void> {
 export async function clientIdFor(redirectUrl: string, fetchImpl: typeof fetch = (...a) => fetch(...a)): Promise<string | null> {
   const own = new URL("/id.jsonld", redirectUrl).href;
   try {
-    const res = await fetchImpl(own, { cache: "no-cache" });
+    // A hung gateway must not hang Sign in: past 3 s, register dynamically.
+    const res = await fetchImpl(own, { cache: "no-cache", signal: AbortSignal.timeout(3000) });
     if (!res.ok) return null;
     const doc = await res.json();
     const uris: unknown = doc?.redirect_uris;
-    return doc?.client_id === own && Array.isArray(uris) && uris.includes(redirectUrl) ? own : null;
-  } catch {
+    // A trailing slash is not a different address.
+    const same = (a: unknown) => typeof a === "string" && a.replace(/\/$/, "") === redirectUrl.replace(/\/$/, "");
+    if (doc?.client_id === own && Array.isArray(uris) && uris.some(same)) return own;
+    console.info(`Not using ${own}: it does not list ${redirectUrl} as its client_id and redirect URI (is PUBLIC_URL right?). Registering dynamically.`);
+    return null;
+  } catch (err) {
+    console.info(`No Client ID Document at ${own} (${(err as Error).message}). Registering dynamically.`);
     return null;
   }
 }
