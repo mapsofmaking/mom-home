@@ -32,7 +32,7 @@ vi.mock("@inrupt/solid-client", () => ({
   getUrl: (...a: unknown[]) => mockGetUrl(...a),
 }));
 
-const { discoverOidcIssuer, redirectUrlFrom } = await import("./auth");
+const { clientIdFor, discoverOidcIssuer, redirectUrlFrom } = await import("./auth");
 
 beforeEach(() => {
   mockGetSolidDataset.mockReset();
@@ -91,5 +91,22 @@ describe("redirectUrlFrom", () => {
   it("drops the query string and the fragment, which OIDC refuses", () => {
     expect(redirectUrlFrom("http://localhost:5173/#/")).toBe("http://localhost:5173/");
     expect(redirectUrlFrom("https://app.example/x/?code=1&state=2#/c/abc")).toBe("https://app.example/x/");
+  });
+});
+
+describe("clientIdFor", () => {
+  const HERE = "https://home.example.org/";
+  const doc = (over: object = {}) => async () =>
+    Response.json({ client_id: HERE + "id.jsonld", redirect_uris: [HERE], ...over });
+
+  it("uses this origin's document when it lists this redirect", async () => {
+    expect(await clientIdFor(HERE, doc())).toBe(HERE + "id.jsonld");
+  });
+
+  it("registers dynamically without one, or with one for another address", async () => {
+    expect(await clientIdFor(HERE, async () => new Response("", { status: 404 }))).toBeNull();
+    expect(await clientIdFor(HERE, async () => new Response("<!doctype html>"))).toBeNull();
+    expect(await clientIdFor(HERE, doc({ client_id: "https://other.example/id.jsonld" }))).toBeNull();
+    expect(await clientIdFor(HERE, doc({ redirect_uris: ["https://other.example/"] }))).toBeNull();
   });
 });

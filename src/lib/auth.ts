@@ -91,19 +91,45 @@ export async function resolveOidcIssuer(identifier: string): Promise<string> {
 
 /**
  * Redirects to the provider. `redirectUrl` is derived from the current location
- * rather than configured, so the app self-registers wherever it is served
- * (Dynamic Client Registration) — localhost and production need no separate
- * setup. The query string is stripped so a second login does not stack
+ * rather than configured, so the app signs in wherever it is served: with this
+ * deploy's Client ID Document when it has one (`clientIdFor`), otherwise by
+ * Dynamic Client Registration (localhost needs no setup). The query string is stripped so a second login does not stack
  * redirect parameters, and the fragment because OIDC refuses a redirect URL
  * that has one (an app with hash routes would otherwise never sign in).
  */
 export async function loginWithIdentifier(identifier: string): Promise<void> {
   const oidcIssuer = await resolveOidcIssuer(identifier);
+  const redirectUrl = redirectUrlFrom(window.location.href);
+  const clientId = await clientIdFor(redirectUrl);
   await session.login({
     oidcIssuer,
-    redirectUrl: redirectUrlFrom(window.location.href),
+    redirectUrl,
     clientName: APP_NAME,
+    ...(clientId ? { clientId } : {}),
   });
+}
+
+/**
+ * This deploy's Client ID Document (solid-kit ADR 010, point 6), or null to
+ * register dynamically as before. With it, the consent page names where the
+ * app runs (the document's own URL) instead of a random client id.
+ *
+ * The image writes `/id.jsonld` at start from PUBLIC_URL; a dev server or an
+ * older deploy has none. Used only when it is this origin's own and lists
+ * this redirect: a document for another address would make the provider
+ * refuse the sign-in outright, which is worse than an unnamed app.
+ */
+export async function clientIdFor(redirectUrl: string, fetchImpl: typeof fetch = (...a) => fetch(...a)): Promise<string | null> {
+  const own = new URL("/id.jsonld", redirectUrl).href;
+  try {
+    const res = await fetchImpl(own, { cache: "no-cache" });
+    if (!res.ok) return null;
+    const doc = await res.json();
+    const uris: unknown = doc?.redirect_uris;
+    return doc?.client_id === own && Array.isArray(uris) && uris.includes(redirectUrl) ? own : null;
+  } catch {
+    return null;
+  }
 }
 
 /** The current address without query string or fragment. */
