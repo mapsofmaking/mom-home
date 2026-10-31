@@ -45,6 +45,25 @@ describe("parseTree, on the shipped tree", () => {
   });
 });
 
+describe("the layout (docs/explanation/home-hex-view.md)", () => {
+  const hexDistance = (a: Tile, b: Tile) => {
+    const dq = a.q - b.q;
+    const dr = a.r - b.r;
+    return Math.max(Math.abs(dq), Math.abs(dr), Math.abs(dq + dr));
+  };
+  /** Tiles that sit away from what they need on purpose: the band mattered more. Adding one here is a decision. */
+  const APART = ["second", "handover"];
+
+  it("puts every tile next to something it needs, except the named ones", () => {
+    const by = Object.fromEntries(tree.tiles.map((t) => [t.id, t]));
+    const lost = tree.tiles
+      .filter((t) => [...t.requiresAll, ...t.requiresAny].length > 0)
+      .filter((t) => ![...t.requiresAll, ...t.requiresAny].some((id) => hexDistance(t, by[id]) === 1))
+      .map((t) => t.id);
+    expect(lost.sort()).toEqual([...APART].sort());
+  });
+});
+
 describe("parseTree refuses a tree that would draw a lie", () => {
   const refuses = (ttl: string, message: RegExp) =>
     expect(() => parseTree(HEAD + ttl)).toThrowError(message);

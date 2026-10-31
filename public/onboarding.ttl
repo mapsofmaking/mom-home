@@ -31,7 +31,7 @@
   onb:act "threshold" ; onb:preview "kept" ; onb:unlocksWord :pod ;
   onb:say "Your data needs a home online, a public place the map can read from. Two ways: do it yourself, or let us. Your choice."@en ;
   onb:saidDone "There you are. Anyone looking for a workshop in {locality} can find you now."@en ;
-  onb:sayNext "That's the hard part done. But hours change, stuff happen: when something's different, update it once. Here, or later at home.mapsofmaking.org."@en ;
+  onb:sayNext "That's the hard part done. But hours change, things happen: when something's different, update it once. Here, or later at home.mapsofmaking.org."@en ;
   onb:sayPod "Three things: a name for your Personal Online Datastore (pod), the space's mailbox and a passphrase to secure it."@en ;
   onb:sayConsent "Heads up. After \"Create it\", your pod's own page asks if home.mapsofmaking.org may use it. That's this page, asking to write your profile there. Say yes."@en ;
   onb:sayTaken "The pod server said that address is taken. Nothing you did wrong. Pick another one."@en ;
