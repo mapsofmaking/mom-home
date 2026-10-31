@@ -1,8 +1,24 @@
 /**
- * The signed-out page: onboarding (Story 14.1 AC1b, AC7). Header, then "What
- * you can do" and the step side by side, 50/50 (design system: Workbench,
- * Layout). The hex column holds still; only the step panel scrolls. Under
- * 900px the panels stack (the folded HexRow comes with S5).
+ * One page, two modes (Story 14.1 AC1b): signed out it onboards, signed in
+ * through the pod it is the workbench. A returning coordinator never steps
+ * through onboarding again.
+ *
+ * Full: header, then "What you can do" and the step side by side, 50/50
+ * (design system: Workbench, Layout). The hex column holds still; only the
+ * step panel scrolls.
+ *
+ * Folded (AC7): the hex view folds into one row above the step (hexrow.ts);
+ * in the workbench the row is the HexRow toolbar, with pictos. Words live in
+ * the full view and are hidden with it.
+ *
+ * Fold is one state of the page, never of a tile (Nicolas, 2026-10-31: the
+ * dry run's fold followed the selected tile, and the page seemed to move by
+ * itself). It changes twice only: once on purpose, after tile C's tutorial
+ * (`foldForFirstTime`, 14.6), and whenever the coordinator uses the toggle,
+ * "Fold" / "Show all", in the same corner of the hex panel. Picking a tile
+ * never moves the layout. The shell keeps the state (`FoldState`): for the
+ * tab signed out, in settings/home.ttl signed in (S6). Unset, a desktop
+ * arrives unfolded and a phone folded, so the form leads.
  *
  * The hex view scales to its panel, the way the dry run's does: the whole
  * tree is always in sight, larger on a large screen, never a scrollbar.
@@ -14,16 +30,35 @@ import { tally, tileStates } from "../tree/fog";
 import { announce } from "../ui/a11y";
 import type { Tree } from "../tree/parse";
 import { fillExample, readDescribeForm } from "./describe";
+import { esc } from "./html";
+import { renderHexRow } from "./hexrow";
 import { renderHexView } from "./hexview";
 import type { Draft } from "./previews";
 import { renderStep } from "./step";
 import { metWords, renderWords } from "./words";
 
-export interface OnboardingOptions {
-  /** Mutable: tiles done in this tab. */
+export interface PageOptions {
+  /** The session decides (AC1b). */
+  mode: "onboarding" | "workbench";
+  /** Signed in: the name to show, "Signed in as <name>". */
+  who?: string;
+  /** Mutable: tiles done. Signed out, in this tab only (AC4); signed in, read from the pod (S6). */
   done: Set<string>;
   draft: Draft;
+  /** Shared with the shell, so the fold outlives a redraw and a sign-in. */
+  fold: FoldState;
   onSignIn: () => void;
+  onSignOut: () => void;
+}
+
+/** null: never set, the width decides. */
+export interface FoldState {
+  folded: boolean | null;
+}
+
+export interface PageHandle {
+  /** The one planned fold, at the end of tile C's tutorial (14.6). */
+  foldForFirstTime(): void;
 }
 
 /** Up to a quarter larger than the design system's 104px tile on a big screen. */
@@ -44,37 +79,59 @@ function fit(stage: HTMLElement): void {
   if (!view) return;
   const w = parseFloat(view.style.width);
   const h = parseFloat(view.style.height);
-  const wide = matchMedia(WIDE).matches;
+  // Bounded: a desktop panel. Unbounded (stacked on a phone): the width
+  // decides and the stage takes the height it needs.
+  const bounded = matchMedia(WIDE).matches;
   const availW = stage.clientWidth;
-  const availH = wide ? stage.clientHeight : Infinity;
-  if (!availW || (wide && !availH)) return;
+  const availH = bounded ? stage.clientHeight : Infinity;
+  if (!availW || (bounded && !availH)) return;
   const s = Math.min(availW / w, availH / h, MAX_SCALE);
-  stage.style.height = wide ? "" : `${(h * s).toFixed(0)}px`;
+  stage.style.height = bounded ? "" : `${(h * s).toFixed(0)}px`;
   view.style.transform = `translate(${((availW - w * s) / 2).toFixed(1)}px, ${
-    wide ? ((availH - h * s) / 2).toFixed(1) : 0
+    bounded ? ((availH - h * s) / 2).toFixed(1) : 0
   }px) scale(${s.toFixed(3)})`;
 }
 
-export function renderOnboarding(root: HTMLElement, tree: Tree, opts: OnboardingOptions): void {
+/**
+ * A tile name's tip opens rightward from its hex; in the right half of the
+ * row it opens leftward, so it never pushes past the screen's edge (hidden
+ * tips still take width).
+ */
+function alignTips(row: HTMLElement): void {
+  const mid = row.getBoundingClientRect().left + row.clientWidth / 2;
+  row.querySelectorAll<HTMLElement>(".hx.tool").forEach((hex) => {
+    const r = hex.getBoundingClientRect();
+    hex.classList.toggle("tip-end", r.left + r.width / 2 > mid);
+  });
+}
+
+export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): PageHandle {
   let selected: string | null = null;
   let editing = false;
+  const workbench = opts.mode === "workbench";
+
+  const who = workbench
+    ? `<span>Signed in as <b>${esc(opts.who ?? "")}</b></span>
+       <button type="button" class="btn" id="sign-out">Sign out</button>`
+    : `<span>On the map already? <button type="button" class="inline-link" id="sign-in">Sign in</button></span>`;
 
   root.innerHTML = `
     <div class="wb-page">
+      <h1 class="visually-hidden" data-view-title tabindex="-1">Maps of Making home</h1>
       <header class="wb-header">
         <div class="wb-mark">
           <a class="logo app-mark" href="https://mapsofmaking.org/">maps of making</a>
           <span class="app">home</span>
         </div>
-        <div class="wb-who">
-          <span>On the map already? <button type="button" class="inline-link" id="sign-in">Sign in</button></span>
-        </div>
+        <div class="wb-who">${who}</div>
       </header>
       <main class="wb-grid">
-        <section class="wb-panel wb-hex-panel" aria-labelledby="hex-title">
+        <section class="wb-panel wb-row-panel" id="row" hidden></section>
+        <section class="wb-panel wb-hex-panel" id="full" aria-labelledby="hex-title">
           <div class="wb-panel-head">
-            <h1 id="hex-title" data-view-title tabindex="-1">What you can do</h1>
+            <h2 id="hex-title">What you can do</h2>
             <span class="tally" id="tally"></span>
+            <button type="button" class="btn wb-fold" id="fold" aria-expanded="true" aria-controls="full">Fold</button>
           </div>
           <div class="wb-panel-body wb-hex-body">
             ${LEGEND}
@@ -88,6 +145,9 @@ export function renderOnboarding(root: HTMLElement, tree: Tree, opts: Onboarding
       </main>
     </div>`;
 
+  const page = root.querySelector<HTMLElement>(".wb-page")!;
+  const row = root.querySelector<HTMLElement>("#row")!;
+  const full = root.querySelector<HTMLElement>("#full")!;
   const hexes = root.querySelector<HTMLElement>("#hexes")!;
   const step = root.querySelector<HTMLElement>("#step")!;
   const tallyEl = root.querySelector<HTMLElement>("#tally")!;
@@ -100,6 +160,26 @@ export function renderOnboarding(root: HTMLElement, tree: Tree, opts: Onboarding
     wordsEl.innerHTML = renderWords(tree, opts.done, openWord);
   };
 
+  const wide = matchMedia(WIDE);
+  const folded = () => opts.fold.folded ?? !wide.matches;
+
+  /** Folded: the row above the step. Unfolded: the full view, 50/50 or stacked. */
+  const layout = () => {
+    const isFolded = folded();
+    page.classList.toggle("is-folded", isFolded);
+    row.hidden = !isFolded;
+    full.hidden = isFolded;
+    alignTips(row);
+    fit(hexes);
+  };
+
+  /** The toggle: the coordinator's choice, kept by the shell. Focus follows to the other control. */
+  const setFolded = (value: boolean) => {
+    opts.fold.folded = value;
+    layout();
+    root.querySelector<HTMLButtonElement>(value ? "#unfold" : "#fold")?.focus();
+  };
+
   const draw = () => {
     const states = tileStates(tree.tiles, opts.done);
     const { cleared, open } = tally(states);
@@ -108,6 +188,8 @@ export function renderOnboarding(root: HTMLElement, tree: Tree, opts: Onboarding
       selected = (tree.tiles.find((t) => states.get(t.id) === "open") ?? tree.tiles[0]).id;
     }
     hexes.innerHTML = renderHexView(tree.tiles, states, selected);
+    row.innerHTML = renderHexRow(tree.tiles, states, selected, workbench ? "toolbar" : "pips");
+    if (!row.hidden) alignTips(row);
     // A word unlocks right after its tile (AC5): say so once, politely.
     const nowMet = metWords(tree, opts.done);
     const fresh = tree.words.filter((w) => nowMet.has(w.id) && !met.has(w.id));
@@ -126,8 +208,12 @@ export function renderOnboarding(root: HTMLElement, tree: Tree, opts: Onboarding
     draw();
   };
 
+  layout();
   draw();
   new ResizeObserver(() => fit(hexes)).observe(hexes);
+  new ResizeObserver(() => alignTips(row)).observe(row);
+  // Only an unset fold follows the width; a chosen one stays chosen.
+  wide.addEventListener("change", layout);
 
   hexes.addEventListener("click", (event) => {
     const button = (event.target as Element).closest<HTMLButtonElement>("button[data-tile]");
@@ -136,6 +222,20 @@ export function renderOnboarding(root: HTMLElement, tree: Tree, opts: Onboarding
     // The hexes were redrawn: keep the keyboard where it was.
     hexes.querySelector<HTMLButtonElement>(`button[data-tile="${CSS.escape(selected!)}"]`)?.focus();
   });
+
+  row.addEventListener("click", (event) => {
+    const target = (event.target as Element).closest<HTMLButtonElement>("button");
+    if (!target) return;
+    if (target.id === "unfold") {
+      setFolded(false);
+      return;
+    }
+    if (target.dataset.tile && target.dataset.tile !== selected) {
+      select(target.dataset.tile);
+      row.querySelector<HTMLButtonElement>(`button[data-tile="${CSS.escape(selected!)}"]`)?.focus();
+    }
+  });
+  root.querySelector("#fold")!.addEventListener("click", () => setFolded(true));
 
   step.addEventListener("submit", (event) => {
     const form = event.target as HTMLFormElement;
@@ -187,5 +287,12 @@ export function renderOnboarding(root: HTMLElement, tree: Tree, opts: Onboarding
     }
   });
 
-  root.querySelector("#sign-in")!.addEventListener("click", opts.onSignIn);
+  root.querySelector("#sign-in")?.addEventListener("click", opts.onSignIn);
+  root.querySelector("#sign-out")?.addEventListener("click", opts.onSignOut);
+
+  return {
+    foldForFirstTime() {
+      if (opts.fold.folded === null || opts.fold.folded === false) setFolded(true);
+    },
+  };
 }

@@ -17,7 +17,7 @@ export const HEX_H = 120;
 /** Centre-to-centre spacing: a hairline of paper between neighbours. */
 const SIZE = 63;
 
-const HEX_POINTS = "52,2 102,31 102,89 52,118 2,89 2,31";
+export const HEX_POINTS = "52,2 102,31 102,89 52,118 2,89 2,31";
 
 /** Top-left corner of a tile's box, before the view is shifted to start at 0,0. */
 export function hexPosition(q: number, r: number): { x: number; y: number } {

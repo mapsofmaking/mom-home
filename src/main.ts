@@ -2,9 +2,9 @@
  * The shell: login → pod discovery → the home app.
  *
  * No framework, no router. Screens are functions that replace the contents of
- * `#app`. Kit shell (solid-kit f880797) with the app's header row; the hex
- * view and the workbench replace `renderHome` and the signed-out screen in
- * Story 14.1's next slices.
+ * `#app`. Kit shell (solid-kit f880797): signed out the page onboards,
+ * signed in it is the workbench (src/workbench/page.ts); the kit's sign-in
+ * and error screens stay.
  */
 // The design system first (pinned copy, README.md), so the kit's rules after
 // it win on the kit's own screens (the skin colours them); the Workbench
@@ -18,13 +18,14 @@ import "./styles/theme.css";
 import "./styles/patterns.css";
 import "./styles/editorial.css";
 import "./styles/home.css";
-import { completeLogin, getSession, loginWithIdentifier, logout } from "./lib/auth";
+import { completeLogin, loginWithIdentifier, logout } from "./lib/auth";
 import { describePodError, getPrimaryPodUrl, isAuthError } from "./lib/pod";
 import { APP_NAME, DEFAULT_IDENTIFIER } from "./config";
 import { focusView, trackInputModality } from "./ui/a11y";
 import { renderError, renderPending } from "./ui/patterns";
 import { loadTree } from "./tree/load";
-import { renderOnboarding } from "./workbench/page";
+import { renderPage, type FoldState } from "./workbench/page";
+import { displayName } from "./workbench/who";
 import type { Draft } from "./workbench/previews";
 import type { Tree } from "./tree/parse";
 
@@ -62,10 +63,41 @@ const done = new Set<string>(
   import.meta.env.DEV ? (new URLSearchParams(location.search).get("done") ?? "").split(",").filter(Boolean) : []
 );
 const draft: Draft = {};
+/** The hex panel's fold, one state for the page (page.ts). Signed in, S6 keeps it in settings/home.ttl. */
+const fold: FoldState = { folded: null };
+
+/** Signed in: the pod's root, for the done checks (S6). */
+let podRoot: string | null = null;
+export const currentPod = (): string | null => podRoot;
 
 function renderOnboardingView(): void {
-  renderOnboarding(app, tree!, { done, draft, onSignIn: () => renderLoginView() });
+  renderPage(app, tree!, { mode: "onboarding", done, draft, fold, onSignIn: () => renderLoginView(), onSignOut: signOut });
   focusView(app);
+}
+
+/**
+ * Signed in through the pod, the same page is the workbench (AC1b). What is
+ * done comes from the pod (S6); until then a fresh tree, nothing carried over
+ * from the signed-out tab.
+ */
+function renderWorkbenchView(name: string): void {
+  renderPage(app, tree!, {
+    mode: "workbench",
+    who: name,
+    // Dev: `?done=` applies here too, to review the toolbar further along.
+    done: import.meta.env.DEV ? new Set(done) : new Set(),
+    draft: {},
+    fold,
+    onSignIn: () => renderLoginView(),
+    onSignOut: signOut,
+  });
+  focusView(app);
+}
+
+async function signOut(): Promise<void> {
+  await logout();
+  podRoot = null;
+  renderOnboardingView();
 }
 
 async function main(): Promise<void> {
@@ -73,6 +105,14 @@ async function main(): Promise<void> {
     tree = await loadTree();
   } catch (err) {
     renderTreeErrorView(err);
+    return;
+  }
+
+  // Dev only: `?workbench=<name>` draws the signed-in page without a session,
+  // to review the workbench by eye. Production ignores it.
+  const devWorkbench = import.meta.env.DEV ? new URLSearchParams(location.search).get("workbench") : null;
+  if (devWorkbench) {
+    renderWorkbenchView(devWorkbench);
     return;
   }
 
@@ -94,8 +134,8 @@ async function main(): Promise<void> {
   renderLoadingView(webId);
 
   try {
-    const podUrl = await getPrimaryPodUrl(webId);
-    await renderHome(webId, podUrl);
+    podRoot = await getPrimaryPodUrl(webId);
+    renderWorkbenchView(await displayName(webId));
   } catch (err) {
     renderErrorView(webId, err);
   }
@@ -204,67 +244,6 @@ function renderTreeErrorView(err: unknown): void {
   document.querySelector<HTMLButtonElement>("#retry")!.addEventListener("click", () => {
     void main();
   });
-  focusView(app);
-}
-
-/**
- * Replace this. It exists to prove the chain end to end — session, WebID, pod
- * root — so a new app starts from something known to work rather than from a
- * blank file.
- *
- * The links to the kit's reference pages live HERE, in the placeholder, rather
- * than in the shell above: replacing this function is what removes them. An app
- * built from the kit gets no stray links pointing at pages its users have no
- * business seeing, and nothing has to be remembered or configured off.
- * Both reference pages still ship in `dist/` — /styleguide.html and
- * /guidelines.html — they just stop being linked from the app.
- */
-async function renderHome(webId: string, podUrl: string): Promise<void> {
-  app.innerHTML = `
-    <main class="screen stack">
-      ${appHeader(`<button id="logout" class="ghost">Sign out</button>`)}
-      <h1>Connected</h1>
-      <p class="lead">This is where the app goes.</p>
-      <dl class="stack">
-        <div>
-          <dt class="label-mono">WebID</dt>
-          <dd><code>${esc(webId)}</code></dd>
-        </div>
-        <div>
-          <dt class="label-mono">Pod root</dt>
-          <dd><code>${esc(podUrl)}</code></dd>
-        </div>
-      </dl>
-      <p class="hint">
-        Session id <code>${esc(getSession().info.sessionId)}</code> — must be
-        unique per app, see src/config.ts.
-      </p>
-
-      <hr />
-
-      <nav class="stack">
-        <p class="label-mono">Kit reference</p>
-        <p>
-          <a href="/styleguide.html">Design system</a>
-          <span class="hint">
-            — tokens, type scale and components, with live contrast ratios.
-          </span>
-        </p>
-        <p>
-          <a href="/guidelines.html">UX guidelines</a>
-          <span class="hint">
-            — the interaction patterns, running, and how their limits are set.
-          </span>
-        </p>
-        <p class="hint">This block goes when you replace <code>renderHome</code>.</p>
-      </nav>
-    </main>
-  `;
-  document.querySelector<HTMLButtonElement>("#logout")!.addEventListener("click", async () => {
-    await logout();
-    renderLoginView();
-  });
-
   focusView(app);
 }
 

@@ -75,7 +75,7 @@ function describeStep(tile: Tile, state: TileState, ctx: StepContext): string {
     ${hasPreview(tile.preview) ? renderPreview(tile.preview, ctx.draft) : ""}
     ${kept ? "" : bernard(tile.lines.sayNext)}
     <div class="wb-out">
-      ${kept ? "" : `<button type="button" class="btn btn-primary wb-cta" data-go="keep">Publish it →</button>`}
+      ${kept ? "" : `<button type="button" class="btn btn-primary wb-cta" data-go="keep">Publish it</button>`}
       <button type="button" class="inline-link" id="fix">${kept ? "Change something" : "Fix something first"}</button>
     </div>`;
 }

@@ -36,7 +36,11 @@ kbd { font-family: var(--font-mono); border: 1px solid var(--rule); padding: 1px
 .sp-refresh-btn:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
 .sp-refresh-meta { font-family: var(--font-mono); font-size: 10px; color: var(--muted); margin-left: 4px; }
 .inline-link { font: inherit; color: var(--accent-2); background: none; border: 0; padding: 0; text-decoration: underline; text-underline-offset: 2px; }
-.inline-link:hover { color: var(--ink); }
+.inline-link { text-decoration-thickness: 1px; }
+/* Hover carries no colour (see the hover lift): the link stays cobalt and its
+   underline thickens. Cobalt at rest says "link" before any hover, which a
+   phone never has. */
+.inline-link:hover { text-decoration-thickness: 2px; }
 
 /* Chips & pills */
 .chips { display: flex; flex-wrap: wrap; gap: var(--space-6); }

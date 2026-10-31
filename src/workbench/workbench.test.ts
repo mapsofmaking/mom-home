@@ -7,6 +7,8 @@ import { hexPosition, renderHexView, tileLabel } from "./hexview";
 import { locality, renderPreview } from "./previews";
 import { renderStep } from "./step";
 import { metWords, renderWords } from "./words";
+import { renderHexRow } from "./hexrow";
+import { fallbackName } from "./who";
 
 const tree = parseTree(readFileSync(join(__dirname, "../../public/onboarding.ttl"), "utf8"));
 const byId = Object.fromEntries(tree.tiles.map((t) => [t.id, t]));
@@ -123,7 +125,7 @@ describe("tile A, a feel of the form until 14.2", () => {
     expect(s.querySelector("form")).toBeNull();
     expect(s.textContent).toContain("Preview · nothing is published");
     expect(s.textContent).toContain("Atelier");
-    expect(s.querySelector('[data-go="keep"]')!.textContent).toBe("Publish it →");
+    expect(s.querySelector('[data-go="keep"]')!.textContent).toBe("Publish it");
   });
 
   it("reopens the form to fix something", () => {
@@ -183,5 +185,44 @@ describe("words you've met (AC5)", () => {
     expect(s.querySelector("[title]")).toBeNull();
     expect(chip.getAttribute("aria-pressed")).toBe("false");
     expect(html(renderWords(tree, new Set(["describe", "keep"]), "pod")).querySelector("button.wd")!.getAttribute("aria-pressed")).toBe("true");
+  });
+});
+
+describe("folded row (AC7)", () => {
+  const row = (variant: "pips" | "toolbar", ...done: string[]) =>
+    html(renderHexRow(tree.tiles, at(...done), "change", variant));
+
+  it("shows the tiles reached, in order, and counts the rest to discover", () => {
+    const r = row("toolbar", "describe", "keep");
+    const ids = [...r.querySelectorAll("button[data-tile]")].map((b) => b.getAttribute("data-tile"));
+    expect(ids).toEqual(["describe", "keep", "change", "join", "event", "answer", "second", "peers", "agenda", "handover"]);
+    expect(r.textContent).toContain("+ 3 to discover");
+    expect(r.querySelector(".hx-now")!.textContent).toContain("Update it once");
+    const toggle = r.querySelector("#unfold")!;
+    expect(toggle.textContent).toBe("Show all");
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("gives done and open tiles their picto in the toolbar, coming ones none", () => {
+    const r = row("toolbar", "describe", "keep");
+    expect(r.querySelector('[data-tile="keep"] .ico')).not.toBeNull();
+    expect(r.querySelector('[data-tile="change"] .ico')).not.toBeNull();
+    expect(r.querySelector('[data-tile="answer"] .ico')).toBeNull();
+    expect(r.querySelector('[data-tile="answer"]')!.getAttribute("aria-label")).toBe("Coming: Stop answering the same question");
+    expect(r.querySelector('[data-tile="change"]')!.getAttribute("aria-current")).toBe("step");
+  });
+
+  it("names a tile on hover or focus in the toolbar; the phone row is plain hexes", () => {
+    expect(row("toolbar", "describe").querySelector('[data-tile="describe"] .tip')!.textContent).toBe("Describe your space");
+    const pips = row("pips", "describe");
+    expect(pips.querySelector(".ico, .tip")).toBeNull();
+    expect(pips.querySelector(".hx.pip")).not.toBeNull();
+  });
+});
+
+describe("signed in as", () => {
+  it("falls back to the pod's own label when the profile has no name", () => {
+    expect(fallbackName("https://atelier.pod.mapsofmaking.org/profile/card#me")).toBe("atelier");
+    expect(fallbackName("https://pod.example.org/nicolas/profile/card#me")).toBe("nicolas");
   });
 });
