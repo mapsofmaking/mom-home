@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { tileStates } from "../tree/fog";
 import { parseTree } from "../tree/parse";
 import { hexPosition, renderHexView, tileLabel } from "./hexview";
-import { locality, renderPreview } from "./previews";
+import { renderPreview } from "./previews";
 import { renderStep } from "./step";
 import { metWords, renderWords } from "./words";
 import { renderHexRow } from "./hexrow";
@@ -79,7 +79,7 @@ describe("step panel", () => {
   });
 
   it("speaks the tree's lines, never its own", () => {
-    expect(step("describe").querySelector(".bernard-voice")!.textContent).toBe(`— ${byId.describe.lines.say}`);
+    expect(step("describe", "describe").querySelector(".bernard-voice")!.textContent).toBe(`— ${byId.describe.lines.saidDone}`);
     expect(step("keep", "describe").querySelector(".bernard-voice")!.textContent).toBe(`— ${byId.keep.lines.say}`);
     expect(step("keep", "describe", "keep").querySelector(".bernard-voice")!.textContent).toBe(
       `— ${byId.keep.lines.saidDone}`
@@ -120,20 +120,32 @@ describe("step panel", () => {
   });
 });
 
-describe("tile A, a feel of the form until 14.2", () => {
+describe("tile A (14.2)", () => {
   const ctx = (done: string[], editing = false) => ({ tiles: tree.tiles, states: at(...done), draft: { name: "Atelier" }, editing });
 
-  it("asks for five things, keeps what was typed, and says nothing is sent", () => {
+  it("asks name, then where, then the optional rest; keeps what was typed", () => {
     const s = html(renderStep(byId.describe, ctx([])));
-    expect([...s.querySelectorAll("input")].map((i) => i.name)).toEqual(["name", "address", "description", "email", "hours"]);
+    expect([...s.querySelectorAll("input")].map((i) => i.name)).toEqual([
+      "name", "street", "city", "description", "email", "matrix", "website", "logo",
+    ]);
+    expect([...s.querySelectorAll("input[required]")].map((i) => i.getAttribute("name"))).toEqual(["name", "city"]);
+    expect(s.querySelectorAll(".wb-optional input")).toHaveLength(5);
     expect((s.querySelector("#f-name") as HTMLInputElement).value).toBe("Atelier");
-    expect(s.textContent).toContain("Nothing is sent anywhere");
+  });
+
+  it("opens with the app's own lead, not Bernard (AC2)", () => {
+    const s = html(renderStep(byId.describe, ctx([])));
+    expect(s.querySelector(".bernard-voice")).toBeNull();
+    expect(s.querySelector(".wb-lead")!.textContent).toContain(byId.describe.lead!);
+    expect(s.querySelector(".wb-lead a")!.getAttribute("href")).toBe("https://mapsofmaking.org");
   });
 
   it("once done, shows the card it made, labelled, and one way on", () => {
     const s = html(renderStep(byId.describe, ctx(["describe"])));
     expect(s.querySelector("form")).toBeNull();
     expect(s.textContent).toContain("Preview · nothing is published");
+    // Bernard enters here, and names themselves once (AC6).
+    expect(s.querySelector(".bernard-voice")!.textContent).toMatch(/^— Hi, I'm Bernard \(they\/them\)/);
     expect(s.textContent).toContain("Atelier");
     expect(s.querySelector('[data-go="keep"]')!.textContent).toBe("Publish it");
   });
@@ -157,9 +169,9 @@ describe("previews show only what was typed", () => {
     expect(renderPreview("mapcard", {})).toContain("Your space");
     expect(renderPreview("mapcard", { name: "<b>Atelier</b>" })).toContain("&lt;b&gt;Atelier&lt;/b&gt;");
   });
-  it("reads the locality off an address", () => {
-    expect(locality("Rue du Canal 12, 1070 Anderlecht")).toBe("Anderlecht");
-    expect(locality("")).toBe("");
+  it("puts the city on the card, and a town placeholder until there is one", () => {
+    expect(renderPreview("mapcard", { city: "Anderlecht" })).toContain("Anderlecht");
+    expect(renderPreview("mapcard", {})).toContain("Where you are");
   });
 });
 

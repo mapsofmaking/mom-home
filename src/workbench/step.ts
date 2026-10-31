@@ -78,7 +78,12 @@ const head = (tile: Tile, state: TileState) => `
  * to the next tile in one step (design system: one way out).
  */
 function describeStep(tile: Tile, state: TileState, ctx: StepContext): string {
-  if (state !== "done" || ctx.editing) return head(tile, state) + bernard(tile.lines.say) + renderDescribeForm(ctx.draft);
+  if (state !== "done" || ctx.editing) {
+    const lead = tile.lead
+      ? `<p class="wb-lead">${esc(tile.lead)} <a class="inline-link" href="https://mapsofmaking.org" target="_blank" rel="noopener">See the map ↗</a></p>`
+      : "";
+    return head(tile, state) + lead + renderDescribeForm(ctx.draft);
+  }
   const kept = ctx.states.get("keep") === "done";
   return `${head(tile, state)}
     ${bernard(tile.lines.saidDone)}

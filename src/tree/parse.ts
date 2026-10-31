@@ -43,6 +43,8 @@ export interface Tile {
   act: string;
   preview: string | null;
   icon: string | null;
+  /** The tile's opening line in the app's own voice, not Bernard's (tile A: no guide yet). */
+  lead: string | null;
   unlocksWord: string | null;
   lines: Lines;
   doneWhen: string | null;
@@ -153,6 +155,7 @@ export function parseTree(turtle: string): Tree {
         act: get("act") ?? "none",
         preview: get("preview"),
         icon: get("icon"),
+        lead: get("lead"),
         unlocksWord: iris("unlocksWord")[0] ?? null,
         lines: lines(props),
         doneWhen: get("doneWhen"),

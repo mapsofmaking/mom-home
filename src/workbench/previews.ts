@@ -12,18 +12,17 @@ import { esc } from "./html";
 /** What the coordinator has typed so far. Signed out it lives in memory (AC4). */
 export interface Draft {
   name?: string;
-  address?: string;
+  street?: string;
+  city?: string;
   description?: string;
   email?: string;
+  matrix?: string;
+  website?: string;
+  logo?: string;
+  /** Tile C's (14.6): tile A doesn't ask for hours. */
   hours?: string;
   network?: string;
   event?: { title: string; date: string };
-}
-
-/** "Rue du Canal 12, 1070 Anderlecht" → "Anderlecht": the last part, postcode dropped. */
-export function locality(address: string | undefined): string {
-  const last = String(address ?? "").split(",").pop()!.trim();
-  return last.replace(/^[A-Z]{0,2}-?\d{4,5}\s+/, "") || last;
 }
 
 const name = (d: Draft) => esc(d.name || "Your space");
@@ -38,7 +37,7 @@ const PREVIEWS: Record<string, (d: Draft) => string> = {
     <div class="wb-frame">
       <div class="wb-popup">
         <div class="sp-hero"><span class="sp-name hand">${name(d)}</span>
-          <span class="sp-address">${esc(locality(d.address)) || "Where you are"}</span></div>
+          <span class="sp-address">${esc(d.city) || "Where you are"}</span></div>
         <div class="wb-popup-foot">Open on mapsofmaking.org ↗</div>
       </div>
     </div>
@@ -46,7 +45,7 @@ const PREVIEWS: Record<string, (d: Draft) => string> = {
   kept: (d) => `
     <div class="pv">
       <p class="pv-title">${name(d)}</p>
-      <p class="pv-meta">On the map, read from your own file. Anyone looking in ${esc(locality(d.address)) || "your town"} finds you.</p>
+      <p class="pv-meta">On the map, read from your own file. Anyone looking in ${esc(d.city) || "your town"} finds you.</p>
     </div>`,
   readers: (d) => `
     <div class="pv">
@@ -70,7 +69,7 @@ const PREVIEWS: Record<string, (d: Draft) => string> = {
     <div class="pv">
       <p class="pv-meta">Also listed on</p>
       <p class="pv-title">Open Hardware Manager</p>
-      <p class="pv-meta">${name(d)}${d.address ? ` · ${esc(locality(d.address))}` : ""}. It reads the same index as the map.</p>
+      <p class="pv-meta">${name(d)}${d.city ? ` · ${esc(d.city)}` : ""}. It reads the same index as the map.</p>
     </div>`,
   peers: (d) => `
     <div class="pv">

@@ -6,7 +6,7 @@ export function esc(value: unknown): string {
   );
 }
 
-/** One of Bernard's lines, from the tree. He opens with an em-dash (design system: Workbench, Type). */
+/** One of Bernard's lines, from the tree. They open with an em-dash (design system: Workbench, Type). */
 export function bernard(line: string | undefined): string {
   return line ? `<p class="bernard-voice">— ${esc(line)}</p>` : "";
 }

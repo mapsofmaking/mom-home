@@ -7,6 +7,7 @@
 # Draft vocabulary: onb: moves to the ontology repo once stable. The doneWhen queries
 # are illustrative: they show how an app would read progress from the pod; their
 # predicates are not settled. Copy reference: the "Onboard Storyboard" design canvas.
+# onb:lead is the app's own voice, not Bernard's: a tile's plain opening line (tile A has no guide yet).
 # onb:icon names the tile's picto in the folded row (inline SVG strokes, per the design system).
 
 # Lines that belong to the app, not to one tile.
@@ -18,8 +19,8 @@
   onb:title "Describe your space"@en ; onb:cue "Get on the map"@en ;
   onb:q 0 ; onb:r 0 ; onb:prio 1 ;
   onb:act "describe" ; onb:preview "mapcard" ;
-  onb:say "Hi, I'm Bernard (they/them) from Mother Sand. Let's get your space on the map."@en ;
-  onb:saidDone "That's you, the way a visitor will see it. For now it only lives in this browser. Nobody else can see it."@en ;
+  onb:lead "Maps of Making is a map of the places where people make things together: fablabs, hackerspaces, repair cafés, community workshops. Add yours. A name and a town are enough to start, and you see your card before anything goes public."@en ;
+  onb:saidDone "Hi, I'm Bernard (they/them), from Mother Sand. That's you, the way a visitor will see it. For now it only lives in this browser. Nobody else can see it."@en ;
   onb:sayNext "Want it out there for real?"@en ;
   onb:doneWhen """ASK { ?space a mom:Space ; schema:name ?n ; schema:address ?a }""" .
 

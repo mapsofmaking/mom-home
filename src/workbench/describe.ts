@@ -1,51 +1,83 @@
 /**
- * Tile A's form, as drawn on the storyboard's Main frame: a feel of the tile
- * before Story 14.2 brings genjson's tiers 0–2 (and their copy, into the
- * tree) in its place. Nothing here is sent anywhere: what is typed goes to
- * the in-memory draft the previews read (AC4, signed out).
+ * Tile A's form (Story 14.2): genjson's tier 0 as the gate (name, then where:
+ * street optional, city required) and its tier 1 as optional fields. The
+ * fields are the space file's (maps_of_making docs/reference/space-file.md);
+ * hours, networks and SDGs belong to later tiles. Labels and hints are the
+ * app's own words, from genjson's `bernard_copy.yaml` field hints; Bernard
+ * says nothing here (they enter at the card). Nothing typed is sent anywhere:
+ * it goes to the draft the previews read.
  */
 import { esc } from "./html";
 import type { Draft } from "./previews";
 
-type Key = "name" | "address" | "description" | "email" | "hours";
+type Key = "name" | "street" | "city" | "description" | "email" | "matrix" | "website" | "logo";
 
-const FIELDS: { key: Key; label: string; type?: string; placeholder?: string; hint?: string; autocomplete?: string }[] = [
-  { key: "name", label: "Name", placeholder: "The name your community knows", autocomplete: "organization" },
-  { key: "address", label: "Street Address", hint: "Street, number, postcode and town. The map puts your pin there.", autocomplete: "street-address" },
-  { key: "description", label: "Description", placeholder: "What kind of space is this?" },
-  { key: "email", label: "Contact email", type: "email", hint: "Not a personal inbox. Somewhere the space can be reached.", autocomplete: "email" },
-  { key: "hours", label: "Opening hours", placeholder: "Tu-Sa 10:00-18:00", hint: "OSM opening_hours format." },
+interface Field {
+  key: Key;
+  label: string;
+  type?: string;
+  placeholder?: string;
+  hint?: string;
+  autocomplete?: string;
+  required?: boolean;
+}
+
+/** Name, then where: the bedrock. A city is enough; the street sharpens the pin. */
+const BEDROCK: Field[] = [
+  { key: "name", label: "Space name", placeholder: "The name your community knows", autocomplete: "organization", required: true },
+  { key: "street", label: "Street address", placeholder: "e.g. Rue du Canal 12", hint: "Optional. Without it, the pin sits in the town's centre.", autocomplete: "address-line1" },
+  { key: "city", label: "City", hint: "The town or municipality.", autocomplete: "address-level2", required: true },
 ];
 
+/** The rest is the coordinator's to give, or not. */
+const OPTIONAL: Field[] = [
+  { key: "description", label: "Description", placeholder: "One or two sentences. What kind of space is this?" },
+  { key: "email", label: "Contact email", type: "email", placeholder: "hello@example.org", hint: "Not a personal inbox. Somewhere the space can be reached.", autocomplete: "email" },
+  { key: "matrix", label: "Matrix room", placeholder: "#yourspace:matrix.org", hint: "The space's room, not a personal account." },
+  { key: "website", label: "Website", type: "url", placeholder: "example.org", autocomplete: "url" },
+  { key: "logo", label: "Logo URL", type: "url", placeholder: "example.org/logo.png", hint: "Transparent PNG works best." },
+];
+
+const FIELDS = [...BEDROCK, ...OPTIONAL];
+
 /** "Fill in an example": a space that doesn't exist, so nothing typed is mistaken for real. */
-export const EXAMPLE: Required<Pick<Draft, Key>> = {
+export const EXAMPLE: Partial<Record<Key, string>> = {
   name: "Atelier du Canal",
-  address: "Rue du Canal 12, 1070 Anderlecht",
+  street: "Rue du Canal 12",
+  city: "Anderlecht",
   description: "Open workshop for repairs and prototypes. Beginners welcome on Thursdays.",
   email: "contact@atelierducanal.example",
-  hours: "Tu-Sa 10:00-18:00",
+  matrix: "#atelierducanal:matrix.org",
+  website: "https://atelierducanal.example",
 };
 
-export function renderDescribeForm(draft: Draft): string {
-  const fields = FIELDS.map((f) => {
-    const id = `f-${f.key}`;
-    const hint = f.hint ? `<span class="hint" id="${id}-hint">${esc(f.hint)}</span>` : "";
-    return `<label class="wb-field" for="${id}">${esc(f.label)}
+function field(f: Field, draft: Draft): string {
+  const id = `f-${f.key}`;
+  const hint = f.hint ? `<span class="hint" id="${id}-hint">${esc(f.hint)}</span>` : "";
+  return `<label class="wb-field" for="${id}">${esc(f.label)}
         <input id="${id}" name="${f.key}" type="${f.type ?? "text"}" value="${esc(draft[f.key] ?? "")}"
           ${f.placeholder ? `placeholder="${esc(f.placeholder)}"` : ""}
           ${f.autocomplete ? `autocomplete="${f.autocomplete}"` : ""}
+          ${f.required ? "required" : ""}
           ${f.hint ? `aria-describedby="${id}-hint"` : ""} />
         ${hint}
       </label>`;
-  }).join("");
+}
+
+export function renderDescribeForm(draft: Draft): string {
+  const [name, street, city] = BEDROCK.map((f) => field(f, draft));
   return `
     <form id="f-describe" class="wb-form" novalidate>
-      ${fields}
+      ${name}
+      <div class="wb-doors">${street}${city}</div>
+      <fieldset class="wb-optional">
+        <legend class="wf-label">Optional · change it any time</legend>
+        ${OPTIONAL.map((f) => field(f, draft)).join("")}
+      </fieldset>
       <div class="wb-out">
         <button type="submit" class="btn btn-primary wb-cta">Show me my card</button>
         <button type="button" class="inline-link" id="example">Fill in an example</button>
       </div>
-      <p class="wb-aside">Fields here are placeholders: the real ones come next. Nothing is sent anywhere.</p>
     </form>`;
 }
 
@@ -62,6 +94,6 @@ export function readDescribeForm(form: HTMLFormElement, draft: Draft): void {
 export function fillExample(form: HTMLFormElement): void {
   for (const f of FIELDS) {
     const input = form.elements.namedItem(f.key) as HTMLInputElement | null;
-    if (input) input.value = EXAMPLE[f.key];
+    if (input) input.value = EXAMPLE[f.key] ?? "";
   }
 }
