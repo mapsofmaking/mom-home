@@ -26,7 +26,7 @@ function name(tile: Tile, state: TileState): string {
 function hex(tile: Tile, state: TileState, selected: boolean): string {
   const cls = state === "ready" ? "cue" : state;
   const picto =
-    (state === "done" || state === "open") && ICONS[tile.icon ?? ""]
+    (state === "done" || state === "open") && (Object.hasOwn(ICONS, tile.icon ?? "") ? ICONS[tile.icon!] : undefined)
       ? `<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="${ICONS[tile.icon!]}"/></svg>`
       : "";
   const label = name(tile, state);
@@ -53,7 +53,7 @@ export function renderHexRow(
   const more = toDiscover ? `<span class="hx-more">+ ${toDiscover} to discover</span>` : "";
   const nowLine = `<span class="hx-now"><span><span class="k">Now:</span> <b>${esc(
     now ? name(now, states.get(now.id) ?? "fog") : ""
-  )}</b></span> <button type="button" class="btn wb-fold" id="unfold" aria-expanded="false" aria-controls="full">Show all</button></span>`;
+  )}</b></span> <button type="button" class="btn wb-fold" id="unfold" aria-expanded="false">Show all</button></span>`;
 
   return `<nav class="hx-bar" aria-label="What you can do"><span class="k">What you can do</span>${hexes}${more}${nowLine}</nav>`;
 }

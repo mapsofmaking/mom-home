@@ -21,14 +21,14 @@ import "./styles/home.css";
 import { completeLogin, loginWithIdentifier, logout } from "./lib/auth";
 import { describePodError, getPrimaryPodUrl, isAuthError } from "./lib/pod";
 import { APP_NAME, DEFAULT_IDENTIFIER } from "./config";
-import { focusView, trackInputModality } from "./ui/a11y";
+import { announce, focusView, trackInputModality } from "./ui/a11y";
 import { renderError, renderPending } from "./ui/patterns";
 import { loadTree } from "./tree/load";
-import { renderPage, type FoldState } from "./workbench/page";
+import { renderPage, type FoldState, type PageHandle } from "./workbench/page";
 import { displayName } from "./workbench/who";
 import { changeHomeSettings, readHomeSettings, type HomeSettings } from "./settings/home";
+import { forgetReads } from "./lib/read";
 import { readDone } from "./tiles/done";
-import { announce } from "./ui/a11y";
 import type { Draft } from "./workbench/previews";
 import type { Tree } from "./tree/parse";
 
@@ -73,8 +73,15 @@ const fold: FoldState = { folded: null };
 let podRoot: string | null = null;
 export const currentPod = (): string | null => podRoot;
 
+/** The page now drawn: undone before another is drawn into #app, so listeners and observers never stack. */
+let page: PageHandle | null = null;
+function show(options: Parameters<typeof renderPage>[2]): void {
+  page?.destroy();
+  page = renderPage(app, tree!, options);
+}
+
 function renderOnboardingView(): void {
-  renderPage(app, tree!, { mode: "onboarding", done, draft, fold, onSignIn: () => renderLoginView(), onSignOut: signOut });
+  show({ mode: "onboarding", done, draft, fold, onSignIn: () => renderLoginView(), onSignOut: signOut });
   focusView(app);
 }
 
@@ -84,12 +91,14 @@ function renderOnboardingView(): void {
  * signed-out tab; the fold comes from settings/mom-home.ttl and goes back there.
  * Without a pod (the dev preview) both stay in the tab.
  */
+let writes: Promise<void> = Promise.resolve();
+
 function renderWorkbenchView(
   name: string,
   pod: { webId: string; root: string; done: Set<string>; settings: HomeSettings } | null = null
 ): void {
   const wbFold: FoldState = pod ? { folded: pod.settings.folded } : fold;
-  renderPage(app, tree!, {
+  show({
     mode: "workbench",
     who: name,
     // Dev: `?done=` applies here too, to review the toolbar further along.
@@ -98,10 +107,17 @@ function renderWorkbenchView(
     fold: wbFold,
     onFold: pod
       ? (folded) => {
-          changeHomeSettings(pod.root, pod.webId, (s) => ({ ...s, folded })).catch((err) => {
-            console.warn("Could not keep the fold in settings/mom-home.ttl:", err);
-            announce("Your pod didn't take that change. It holds for this visit.");
-          });
+          // One write at a time, in the order of the clicks: the pod ends on the last toggle.
+          writes = writes
+            .then(() => changeHomeSettings(pod.root, pod.webId, (s) => ({ ...s, folded })))
+            .catch((err) => {
+              console.warn("Could not keep the fold in settings/mom-home.ttl:", err);
+              announce(
+                err?.name === "SettingsUnreadable"
+                  ? "Your settings file on the pod can't be read, so it was left alone. The fold holds for this visit."
+                  : "Your pod didn't take that change. It holds for this visit."
+              );
+            });
         }
       : undefined,
     onSignIn: () => renderLoginView(),
@@ -111,12 +127,31 @@ function renderWorkbenchView(
 }
 
 async function signOut(): Promise<void> {
-  await logout();
-  podRoot = null;
-  renderOnboardingView();
+  try {
+    await logout();
+  } catch (err) {
+    console.warn("Sign-out did not complete at the provider:", err);
+  } finally {
+    // Whatever the provider said, this tab forgets the person: pod data must not outlive the session.
+    podRoot = null;
+    forgetReads();
+    done.clear();
+    for (const k of Object.keys(draft)) delete (draft as Record<string, unknown>)[k];
+    fold.folded = null;
+    writes = Promise.resolve();
+    renderOnboardingView();
+  }
 }
 
 async function main(): Promise<void> {
+  // The return from the provider first: its ?code=&state= are spent on the
+  // first look, so a tree that fails to load must not lose them. A retry
+  // then finds the session already restored.
+  const state = await completeLogin().catch((err) => {
+    console.warn("Sign-in could not be completed:", err);
+    return null;
+  });
+
   try {
     tree = await loadTree();
   } catch (err) {
@@ -132,7 +167,10 @@ async function main(): Promise<void> {
     return;
   }
 
-  const state = await completeLogin();
+  if (!state) {
+    renderLoginView("Signing in did not complete. Try again.");
+    return;
+  }
 
   if (!state.loggedIn) {
     // Signed out, the page is onboarding (AC1b); a failed restore still says why.

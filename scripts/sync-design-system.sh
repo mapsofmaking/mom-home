@@ -21,10 +21,13 @@ set -euo pipefail
 
 commit="${1:?usage: $0 <commit> [design-system checkout]}"
 ds="${2:-$HOME/github/mom-design-system}"
-out="$(cd "$(dirname "$0")/.." && pwd)/src/styles/mom"
+dest="$(cd "$(dirname "$0")/.." && pwd)/src/styles/mom"
 
 git -C "$ds" cat-file -e "$commit^{commit}"
-rm -rf "$out"
+# Built beside the target and moved over it only when every step worked, so a
+# failure leaves src/styles/mom/ as it was.
+out="$(mktemp -d "$dest.XXXXXX")"
+trap 'rm -rf "$out"' EXIT
 mkdir -p "$out/fonts"
 
 for f in tokens.css components.css workbench.css workbench.md; do
@@ -36,8 +39,12 @@ sed -i -E 's/^:root(, \[data-theme="daylight"\])? \{$/.wb-page {/' "$out/tokens.
 sed -i -e '/^@import url(.https:\/\/fonts\.googleapis\.com/d' \
   -e '/^body {/d' -e '/^button {/d' -e '/^a {/d' "$out/components.css"
 
-git -C "$ds" ls-tree --name-only "$commit" tokens/fonts/ | while read -r f; do
+git -C "$ds" ls-tree --name-only "$commit" tokens/fonts/ | while IFS= read -r f; do
   git -C "$ds" show "$commit:$f" > "$out/fonts/$(basename "$f")"
 done
+
+rm -rf "$dest"
+mv "$out" "$dest"
+trap - EXIT
 
 echo "src/styles/mom/ now holds design-system $(git -C "$ds" rev-parse --short "$commit")"

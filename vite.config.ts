@@ -1,6 +1,6 @@
 import { defineConfig } from "vitest/config";
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { resolve, sep } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 /**
@@ -31,7 +31,7 @@ function devSkin() {
               ? resolve(ds, "tokens/fonts", url.slice("/fonts/skin/".length))
               : null;
         if (!file) return next();
-        if (!file.startsWith(ds) || !existsSync(file)) {
+        if (!file.startsWith(ds + sep) || !existsSync(file) || !statSync(file).isFile()) {
           res.statusCode = 404;
           return res.end();
         }

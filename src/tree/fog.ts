@@ -25,13 +25,26 @@ export function requirementsMet(tile: Tile, done: ReadonlySet<string>): boolean 
   );
 }
 
-export function tileStates(tiles: readonly Tile[], done: ReadonlySet<string>): Map<string, TileState> {
+/**
+ * `completable`: the tiles whose done check can say yes today (not a stub).
+ * They take the open slots first, so a stub tile can never hold a real one
+ * back as "ready" with a promise ("opens as soon as you clear one") that
+ * nothing could keep. Omitted: every tile counts as completable.
+ */
+export function tileStates(
+  tiles: readonly Tile[],
+  done: ReadonlySet<string>,
+  completable?: ReadonlySet<string>
+): Map<string, TileState> {
   const states = new Map<string, TileState>();
   for (const t of tiles) states.set(t.id, done.has(t.id) ? "done" : "fog");
 
   const candidates = tiles
     .filter((t) => !done.has(t.id) && requirementsMet(t, done))
-    .sort((a, b) => a.prio - b.prio);
+    .sort((a, b) => {
+      const real = (t: Tile) => (!completable || completable.has(t.id) ? 0 : 1);
+      return real(a) - real(b) || a.prio - b.prio;
+    });
   let opened = 0;
   for (const t of candidates) {
     if (t.emergent || t.planned) states.set(t.id, "cue");

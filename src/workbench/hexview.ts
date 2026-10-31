@@ -77,7 +77,7 @@ export function renderHexView(
           <polygon class="hx-shape" points="${HEX_POINTS}"/>
         </svg>
         ${
-          (state === "done" || state === "open") && ICONS[t.icon ?? ""]
+          (state === "done" || state === "open") && (Object.hasOwn(ICONS, t.icon ?? "") ? ICONS[t.icon!] : undefined)
             ? `<svg class="hx-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="${ICONS[t.icon!]}"/></svg>`
             : ""
         }
