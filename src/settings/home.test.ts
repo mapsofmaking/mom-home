@@ -19,7 +19,7 @@ const { join } = await import("node:path");
 
 const POD = "https://atelier.pod.example/";
 const WEBID = POD + "profile/card#me";
-const URL = POD + "settings/home.ttl";
+const URL = POD + "settings/mom-home.ttl";
 const CHANGE = "https://mapsofmaking.org/onboarding/space-coordinator#change";
 
 /** A fake pod: documents by URL, with ETags; records every request. */
@@ -48,7 +48,7 @@ beforeEach(() => {
   forgetReads();
 });
 
-describe("settings/home.ttl, the document", () => {
+describe("settings/mom-home.ttl, the document", () => {
   it("round-trips the fold and the tutorials seen", () => {
     const text = serializeHomeSettings({ folded: true, seen: [CHANGE] }, URL);
     expect(parseHomeSettings(text, URL)).toEqual({ folded: true, seen: [CHANGE] });
@@ -129,8 +129,10 @@ describe("done, read from the pod (AC4)", () => {
   it("has a check for every tile that can open; stubs never guess", async () => {
     const open = tree.tiles.filter((t) => !t.emergent && !t.planned).map((t) => t.id);
     expect(Object.keys(DONE_CHECKS).sort()).toEqual(open.sort());
-    const done = await readDone(tree, { webId: WEBID, podRoot: POD });
-    expect([...done].sort()).toEqual(["describe", "keep"]);
+    // A pod is not a published space: a person's own pod has storage too.
+    expect([...(await readDone(tree, { webId: WEBID, podRoot: POD, space: null }))]).toEqual([]);
+    const card = POD + "space.ttl#space";
+    expect([...(await readDone(tree, { webId: WEBID, podRoot: POD, space: card }))].sort()).toEqual(["describe", "keep"]);
   });
 
   it("counts a check that fails as not done", async () => {
@@ -140,7 +142,7 @@ describe("done, read from the pod (AC4)", () => {
       throw new Error("pod down");
     };
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect([...(await readDone(t, { webId: WEBID, podRoot: POD }))]).toEqual([]);
+    expect([...(await readDone(t, { webId: WEBID, podRoot: POD, space: POD + "space.ttl#space" }))]).toEqual([]);
     (DONE_CHECKS as Record<string, unknown>).keep = original;
     warn.mockRestore();
   });

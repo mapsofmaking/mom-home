@@ -17,7 +17,7 @@
  * (`foldForFirstTime`, 14.6), and whenever the coordinator uses the toggle,
  * "Fold" / "Show all", in the same corner of the hex panel. Picking a tile
  * never moves the layout. The shell keeps the state (`FoldState`): for the
- * tab signed out, in settings/home.ttl signed in (S6). Unset, a desktop
+ * tab signed out, in settings/mom-home.ttl signed in (S6). Unset, a desktop
  * arrives unfolded and a phone folded, so the form leads.
  *
  * The hex view scales to its panel, the way the dry run's does: the whole
@@ -47,7 +47,7 @@ export interface PageOptions {
   draft: Draft;
   /** Shared with the shell, so the fold outlives a redraw and a sign-in. */
   fold: FoldState;
-  /** The coordinator folded or unfolded: the shell keeps it (signed in, in settings/home.ttl). */
+  /** The coordinator folded or unfolded: the shell keeps it (signed in, in settings/mom-home.ttl). */
   onFold?: (folded: boolean) => void;
   onSignIn: () => void;
   onSignOut: () => void;

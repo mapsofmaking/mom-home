@@ -66,7 +66,7 @@ const done = new Set<string>(
   import.meta.env.DEV ? (new URLSearchParams(location.search).get("done") ?? "").split(",").filter(Boolean) : []
 );
 const draft: Draft = {};
-/** The hex panel's fold, one state for the page (page.ts). Signed in, S6 keeps it in settings/home.ttl. */
+/** The hex panel's fold, one state for the page (page.ts). Signed in, S6 keeps it in settings/mom-home.ttl. */
 const fold: FoldState = { folded: null };
 
 /** Signed in: the pod's root, for the done checks (S6). */
@@ -81,7 +81,7 @@ function renderOnboardingView(): void {
 /**
  * Signed in through the pod, the same page is the workbench (AC1b). What is
  * done is read from the pod (src/tiles/done.ts), never carried over from the
- * signed-out tab; the fold comes from settings/home.ttl and goes back there.
+ * signed-out tab; the fold comes from settings/mom-home.ttl and goes back there.
  * Without a pod (the dev preview) both stay in the tab.
  */
 function renderWorkbenchView(
@@ -99,7 +99,7 @@ function renderWorkbenchView(
     onFold: pod
       ? (folded) => {
           changeHomeSettings(pod.root, pod.webId, (s) => ({ ...s, folded })).catch((err) => {
-            console.warn("Could not keep the fold in settings/home.ttl:", err);
+            console.warn("Could not keep the fold in settings/mom-home.ttl:", err);
             announce("Your pod didn't take that change. It holds for this visit.");
           });
         }
@@ -155,9 +155,10 @@ async function main(): Promise<void> {
     // Settings that can't be read cost the remembered fold, not the page.
     const [name, doneOnPod, settings] = await Promise.all([
       displayName(webId),
-      readDone(tree!, { webId, podRoot: root }),
+      // No space is looked up yet (Type Index, 14.3/14.4): nothing counts as done.
+      readDone(tree!, { webId, podRoot: root, space: null }),
       readHomeSettings(root).catch((err): HomeSettings => {
-        console.warn("Could not read settings/home.ttl:", err);
+        console.warn("Could not read settings/mom-home.ttl:", err);
         return { folded: null, seen: [] };
       }),
     ]);

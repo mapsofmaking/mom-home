@@ -1,6 +1,10 @@
 /**
- * `settings/home.ttl`: what the home app remembers for a coordinator that the
- * pod can't say by itself (Story 14.1 AC4). Done is never kept here: it is
+ * `settings/mom-home.ttl` (named after the app's SESSION_ID, so a fork for
+ * another vertical gets its own file): what the home app remembers for the
+ * person signed in, that the pod can't say by itself (Story 14.1 AC4).
+ * Settings follow the person, done follows a space: the signer may be a
+ * person coordinating several spaces, or a space's own account
+ * (docs/explanation/home-people-and-spaces.md in maps_of_making). Done is never kept here: it is
  * derived from the space's own data (src/tiles/done.ts). Only what nothing
  * else records: the hex panel's fold, and which tutorials were seen (a tile's
  * first open is its tutorial; the next opens go straight to its tool).
@@ -18,6 +22,7 @@ import { DataFactory, Parser, Writer } from "n3";
 import { authFetch } from "../lib/auth";
 import { updateDocument, type ConditionalError } from "../lib/conditional";
 import { readTurtle } from "../lib/read";
+import { SESSION_ID } from "../config";
 import { ONB } from "../tree/parse";
 
 const { namedNode, literal, quad } = DataFactory;
@@ -41,8 +46,11 @@ export interface HomeSettings {
 
 export const EMPTY: HomeSettings = { folded: null, seen: [] };
 
+/** The app's own file in the shared settings/ folder: never a generic name another app could pick. */
+export const SETTINGS_FILE = `${SESSION_ID}.ttl`;
+
 export function homeSettingsUrl(podRoot: string): string {
-  return podRoot + "settings/home.ttl";
+  return podRoot + "settings/" + SETTINGS_FILE;
 }
 
 export function parseHomeSettings(text: string, url: string): HomeSettings {
@@ -109,7 +117,7 @@ export async function changeHomeSettings(
     if (!res.ok) throw new Error(`Could not create ${url} (${res.status}).`);
     await ensureSettingsReadme(podRoot);
     await registerInTypeIndex(webId, url).catch((e) =>
-      console.warn("settings/home.ttl was written but not registered in the Type Index:", e)
+      console.warn("settings/mom-home.ttl was written but not registered in the Type Index:", e)
     );
   }
 }
@@ -125,9 +133,9 @@ settings from the apps themselves.
 
 Maps of Making home (home.mapsofmaking.org) keeps one file here:
 
-- \`home.ttl\`: whether you keep "What you can do" folded, and which tile
-  tutorials you have already seen. What you have done is never kept here: the
-  app reads it from your space's own data.
+- \`${SETTINGS_FILE}\`: whether you keep "What you can do" folded, and which tile
+  tutorials you have already seen. What your space has done is never kept
+  here: the app reads it from the space's own data.
 `;
 
 /** Writes `settings/README.md` unless something is already there: once there, it is yours. */

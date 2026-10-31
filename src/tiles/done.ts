@@ -1,6 +1,9 @@
 /**
- * Done is read from the pod, never stored (Story 14.1 AC4: "the pod is the
- * map"). One check per tile id; each reads the space's own data and answers
+ * Done is read from the space's own data, never stored (Story 14.1 AC4: "the
+ * pod is the map"). Done belongs to a space, not to whoever signs in: the
+ * signer may be a person coordinating several spaces, or none yet, so every
+ * check takes the space as an input (docs/explanation/home-people-and-spaces.md
+ * in maps_of_making). One check per tile id; each reads the space's own data and answers
  * true only on proof. `onb:doneWhen` in the tree says, as documentation, what
  * each check looks for; SPARQL/SHACL evaluation is out of scope.
  *
@@ -12,9 +15,16 @@
 import type { Tree } from "../tree/parse";
 
 export interface DoneContext {
+  /** Who signed in: a person, or a space's own account. Never assumed to be the space. */
   webId: string;
-  /** The pod's root, from the profile's pim:storage (kit getPrimaryPodUrl). */
+  /** The signer's pod root (kit getPrimaryPodUrl): where their settings live, not the space's data. */
   podRoot: string;
+  /**
+   * The space being worked on: its card's IRI, registered as a mom:Space in a
+   * Type Index. null while none is found (the lookup and the card come with
+   * 14.3/14.4; several spaces per person = a picker, later).
+   */
+  space: string | null;
 }
 
 export type DoneCheck = (ctx: DoneContext) => Promise<boolean>;
@@ -22,15 +32,14 @@ export type DoneCheck = (ctx: DoneContext) => Promise<boolean>;
 const notYet: DoneCheck = async () => false;
 
 export const DONE_CHECKS: Readonly<Record<string, DoneCheck>> = {
-  // keep, "Publish it": doneWhen ASK { <> pim:storage ?pod }. Signed in, the
-  // shell already found the pod's storage in the profile, or it would not be
-  // here. (The self-hosted door, "the map knows the space's URL", comes with
-  // 14.3/14.4.)
-  keep: async (ctx) => ctx.podRoot !== "",
-  // describe: nobody publishes without describing, so a published space was
-  // described. The card's own check (name and address in the space's file)
-  // replaces this once 14.2/14.3 settle where the file lives.
-  describe: async (ctx) => ctx.podRoot !== "",
+  // keep, "Publish it": a space is published when its card is registered and
+  // readable. Having a pod proves nothing: a person's own pod has storage too
+  // (that false positive shipped in S6 and was caught the same day). The
+  // card's address and the self-hosted door come with 14.3/14.4.
+  keep: async (ctx) => ctx.space !== null,
+  // describe: nobody publishes without describing. The card's own check (name
+  // and address in it) replaces this with 14.2/14.3.
+  describe: async (ctx) => ctx.space !== null,
   change: notYet, // → 14.6: hours modified after the card was created
   join: notYet, // → its story: org:memberOf a network
   event: notYet,

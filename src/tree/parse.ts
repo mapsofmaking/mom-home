@@ -25,7 +25,7 @@ export type Lines = Readonly<Record<string, string>>;
 
 export interface Tile {
   id: string;
-  /** The tile's IRI in the tree, as settings/home.ttl names it. */
+  /** The tile's IRI in the tree, as settings/mom-home.ttl names it. */
   iri: string;
   title: string;
   cue: string;
