@@ -20,7 +20,8 @@ The home app (`home.mapsofmaking.org`) is where a coordinator puts their space o
 ## Colour
 
 - Daylight only, from the map's tokens. `done-tint` (green printed thin over white) marks what is done: the done hex and the ✓ step marker. It is not a state colour and never carries text.
-- **Riso red (`accent`) only for focus and errors.** The step to take now is `ink` at 2.5px (`.sp-unlock-marker.now`), not red. An error shows a red outline on the field and a `broken` `StatusLabel` ("Address taken"); the words stay ink.
+- **Riso red (`accent`) only for errors.** An error shows a red outline on the field and a `broken` `StatusLabel` ("Address taken"); the words stay ink. The step to take now is `ink` at 2.5px (`.sp-unlock-marker.now`), not red.
+- **Focus is riso blue (`accent-2`)**, 2.5px, offset 2px: never red, so a focused field never reads as an error, and never ink, so a focused hex never reads as the selected one (ink, 4px). Cobalt is 4.3:1 on paper, above the 3:1 a focus ring needs (decided 2026-10-31).
 - Hex tiles never share the panel's background: open tiles are `surface-white`, coming tiles `paper`, undiscovered ones `paper-2` with halftone dots.
 
 ## A step, top to bottom

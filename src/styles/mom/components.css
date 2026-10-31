@@ -1,7 +1,7 @@
 /* Maps of Making — component styles, lifted from web/maps-of-making.html (mom-demo).
    Values come from tokens.css; class names are the map's own so the CSS drops into the SPA. */
 
-:focus-visible { outline: var(--stroke-focus) solid var(--accent); outline-offset: 2px; border-radius: var(--radius); }
+:focus-visible { outline: var(--stroke-focus) solid var(--accent-2); outline-offset: 2px; border-radius: var(--radius); }
 .mono { font-family: var(--font-mono); font-size: 11px; }
 .hand { font-family: var(--font-hand); font-weight: 700; }
 .wf-label { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }

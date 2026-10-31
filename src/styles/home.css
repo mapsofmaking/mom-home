@@ -71,3 +71,9 @@
 .pv-facts dt { color: var(--muted); }
 .pv-facts dd { margin: 0; }
 .pv-empty { color: var(--faint); font-style: normal; }
+
+/* Focus is riso blue (design system, 2026-10-31). The kit's :focus-visible
+   (core.css, loaded after the design system) reads --accent, which inside
+   .wb-page is riso red: restate the design system's ring here. Hexes keep
+   their stroke-only focus (workbench.css). */
+.wb-page :focus-visible:not(.hx) { outline: var(--stroke-focus) solid var(--accent-2); outline-offset: 2px; }
