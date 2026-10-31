@@ -73,6 +73,11 @@ describe("step panel", () => {
     }
   });
 
+  it("flags tile A's form with no chip while open, and Done once done", () => {
+    expect(step("describe").querySelector(".status-label")).toBeNull();
+    expect(step("describe", "describe").querySelector(".status-label")!.textContent).toBe("Done");
+  });
+
   it("speaks the tree's lines, never its own", () => {
     expect(step("describe").querySelector(".bernard-voice")!.textContent).toBe(`— ${byId.describe.lines.say}`);
     expect(step("keep", "describe").querySelector(".bernard-voice")!.textContent).toBe(`— ${byId.keep.lines.say}`);

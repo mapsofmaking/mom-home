@@ -12,7 +12,7 @@ type Key = "name" | "address" | "description" | "email" | "hours";
 const FIELDS: { key: Key; label: string; type?: string; placeholder?: string; hint?: string; autocomplete?: string }[] = [
   { key: "name", label: "Name", placeholder: "The name your community knows", autocomplete: "organization" },
   { key: "address", label: "Street Address", hint: "Street, number, postcode and town. The map puts your pin there.", autocomplete: "street-address" },
-  { key: "description", label: "Description", placeholder: "One or two sentences. What kind of space is this?" },
+  { key: "description", label: "Description", placeholder: "What kind of space is this?" },
   { key: "email", label: "Contact email", type: "email", hint: "Not a personal inbox. Somewhere the space can be reached.", autocomplete: "email" },
   { key: "hours", label: "Opening hours", placeholder: "Tu-Sa 10:00-18:00", hint: "OSM opening_hours format." },
 ];
