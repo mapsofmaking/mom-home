@@ -56,7 +56,8 @@ describe("step panel", () => {
 
   it("labels every preview, with the chip COMING (AC6)", () => {
     const all = tree.tiles.map((t) => t.id);
-    for (const t of tree.tiles.filter((t) => t.preview)) {
+    // Tile A shows its form while open; its preview comes once done (below).
+    for (const t of tree.tiles.filter((t) => t.preview && t.act !== "describe")) {
       const done = all.filter((id) => id !== t.id && !["discord", "mentor", "bridge"].includes(id));
       const s = step(t.id, ...done);
       if (t.emergent || t.planned) continue;
@@ -66,8 +67,7 @@ describe("step panel", () => {
   });
 
   it("speaks the tree's lines, never its own", () => {
-    // Tile A has no say line in the tree (its form copy comes with 14.2): no line, not a made-up one.
-    expect(step("describe").querySelector(".bernard-voice")).toBeNull();
+    expect(step("describe").querySelector(".bernard-voice")!.textContent).toBe(`— ${byId.describe.lines.say}`);
     expect(step("keep", "describe").querySelector(".bernard-voice")!.textContent).toBe(`— ${byId.keep.lines.say}`);
     expect(step("keep", "describe", "keep").querySelector(".bernard-voice")!.textContent).toBe(
       `— ${byId.keep.lines.saidDone}`
@@ -104,6 +104,38 @@ describe("step panel", () => {
   it("lets a planned tile say why it won't open", () => {
     const s = step("discord", "describe", "keep", "change", "answer");
     expect(s.querySelector(".bernard-voice")!.textContent).toContain("Not built yet");
+  });
+});
+
+describe("tile A, a feel of the form until 14.2", () => {
+  const ctx = (done: string[], editing = false) => ({ tiles: tree.tiles, states: at(...done), draft: { name: "Atelier" }, editing });
+
+  it("asks for five things, keeps what was typed, and says nothing is sent", () => {
+    const s = html(renderStep(byId.describe, ctx([])));
+    expect([...s.querySelectorAll("input")].map((i) => i.name)).toEqual(["name", "address", "description", "email", "hours"]);
+    expect((s.querySelector("#f-name") as HTMLInputElement).value).toBe("Atelier");
+    expect(s.textContent).toContain("Nothing is sent anywhere");
+  });
+
+  it("once done, shows the card it made, labelled, and one way on", () => {
+    const s = html(renderStep(byId.describe, ctx(["describe"])));
+    expect(s.querySelector("form")).toBeNull();
+    expect(s.textContent).toContain("Preview · nothing is published");
+    expect(s.textContent).toContain("Atelier");
+    expect(s.querySelector('[data-go="keep"]')!.textContent).toBe("Publish it →");
+  });
+
+  it("reopens the form to fix something", () => {
+    expect(html(renderStep(byId.describe, ctx(["describe"], true))).querySelector("form")).not.toBeNull();
+  });
+
+  it("reads the form back, and fills the example", async () => {
+    const { fillExample, readDescribeForm, EXAMPLE } = await import("./describe");
+    const form = html(renderStep(byId.describe, ctx([]))).querySelector("form")!;
+    fillExample(form);
+    const draft = {};
+    readDescribeForm(form, draft);
+    expect(draft).toEqual(EXAMPLE);
   });
 });
 

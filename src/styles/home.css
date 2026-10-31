@@ -36,11 +36,16 @@
 .wb-mark .logo { color: var(--ink); text-decoration: none; }
 .wb-panel-head h1 { margin: 0; flex: 1; font: 600 20px/1.2 var(--font-display); text-wrap: balance; }
 
-/* The hex view: tiles placed by the tree's q/r, centred in the panel. */
-/* margin: auto, not justify/align center: a centred child that overflows
-   loses its top and left edge to the scroll origin. */
-.wb-hex-body { flex: 1; overflow: auto; }
-.hx-view { position: relative; flex-shrink: 0; margin: auto; }
+/* The hex view: tiles placed by the tree's q/r, scaled to the stage by
+   page.ts (fit), centred. */
+.wb-hex-body { flex: 1; overflow: hidden; position: relative; }
+/* The legend sits over the stage's top-left corner, as in the dry run: the
+   hexes get the panel's whole height. Stacked, it is a row above them. */
+@media (min-width: 901px) { .wb-hex-body .hx-legend { position: absolute; z-index: 1; } }
+.hx-stage { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.hx-view { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+/* Stacked, the stage takes the height fit() gives it, not a share of none. */
+@media (max-width: 900px) { .hx-stage { flex: none; } }
 .hx-view .hx { position: absolute; }
 .hx-view button.hx { border: 0; background: none; cursor: pointer; font: inherit; }
 
@@ -49,6 +54,7 @@
 .wb-step-title { margin: 0; flex: 1; font: 600 20px/1.2 var(--font-display); text-wrap: balance; }
 .wb-step-title:focus { outline: none; }
 .wb-needs { list-style: none; margin: 0; padding: 0; }
+.wb-form { display: flex; flex-direction: column; gap: var(--space-14); }
 .wb-preview { display: flex; flex-direction: column; gap: var(--space-8); }
 
 /* Previews: plain cards on paper-2, never mistaken for the live map. */

@@ -14,6 +14,7 @@ export interface Draft {
   name?: string;
   address?: string;
   description?: string;
+  email?: string;
   hours?: string;
   network?: string;
   event?: { title: string; date: string };

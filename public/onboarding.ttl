@@ -18,6 +18,7 @@
   onb:title "Describe your space"@en ; onb:cue "Get on the map"@en ;
   onb:q 0 ; onb:r 0 ; onb:prio 1 ;
   onb:act "describe" ; onb:preview "mapcard" ;
+  onb:say "Hi, I'm Bernard (they/them) from Mother Sands. Let's get your space on the map."@en ;
   onb:saidDone "That's you, the way a visitor will see it. For now it only lives in this browser. Nobody else can see it."@en ;
   onb:sayNext "Want it out there for real?"@en ;
   onb:doneWhen """ASK { ?space a mom:Space ; schema:name ?n ; schema:address ?a }""" .

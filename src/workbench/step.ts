@@ -10,6 +10,7 @@
  */
 import type { TileState } from "../tree/fog";
 import type { Tile } from "../tree/parse";
+import { renderDescribeForm } from "./describe";
 import { bernard, esc } from "./html";
 import { hasPreview, renderPreview, type Draft } from "./previews";
 
@@ -17,6 +18,8 @@ export interface StepContext {
   tiles: readonly Tile[];
   states: ReadonlyMap<string, TileState>;
   draft: Draft;
+  /** Tile A reopened with "Fix something first". */
+  editing?: boolean;
 }
 
 function waitsFor(tile: Tile, ctx: StepContext): string {
@@ -50,17 +53,37 @@ function comingStep(tile: Tile, state: TileState, ctx: StepContext): string {
       : (never ? bernard(tile.lines.say) : "") + waitsFor(tile, ctx);
   return `
     <p class="wf-label">Coming</p>
-    <h2 class="wb-step-title">${esc(tile.cue)}</h2>
+    <h2 class="wb-step-title" tabindex="-1">${esc(tile.cue)}</h2>
     ${body}`;
 }
 
-function openStep(tile: Tile, state: TileState, ctx: StepContext): string {
-  const line = state === "done" ? (tile.lines.saidDone ?? tile.lines.say) : tile.lines.say;
-  return `
+const head = (tile: Tile, state: TileState) => `
     <div class="wb-step-head">
-      <h2 class="wb-step-title">${esc(tile.title)}</h2>
+      <h2 class="wb-step-title" tabindex="-1">${esc(tile.title)}</h2>
       ${state === "done" ? `<span class="status-label shut">Done</span>` : `<span class="status-label">Coming</span>`}
-    </div>
+    </div>`;
+
+/**
+ * Tile A ("describe"): the form, then the card it makes. Done, it hands over
+ * to the next tile in one step (design system: one way out).
+ */
+function describeStep(tile: Tile, state: TileState, ctx: StepContext): string {
+  if (state !== "done" || ctx.editing) return head(tile, state) + bernard(tile.lines.say) + renderDescribeForm(ctx.draft);
+  const kept = ctx.states.get("keep") === "done";
+  return `${head(tile, state)}
+    ${bernard(tile.lines.saidDone)}
+    ${hasPreview(tile.preview) ? renderPreview(tile.preview, ctx.draft) : ""}
+    ${kept ? "" : bernard(tile.lines.sayNext)}
+    <div class="wb-out">
+      ${kept ? "" : `<button type="button" class="btn btn-primary wb-cta" data-go="keep">Publish it →</button>`}
+      <button type="button" class="inline-link" id="fix">${kept ? "Change something" : "Fix something first"}</button>
+    </div>`;
+}
+
+function openStep(tile: Tile, state: TileState, ctx: StepContext): string {
+  if (tile.act === "describe") return describeStep(tile, state, ctx);
+  const line = state === "done" ? (tile.lines.saidDone ?? tile.lines.say) : tile.lines.say;
+  return `${head(tile, state)}
     ${bernard(line)}
     ${hasPreview(tile.preview) ? renderPreview(tile.preview, ctx.draft) : ""}
     <div class="wb-out">
@@ -71,6 +94,6 @@ function openStep(tile: Tile, state: TileState, ctx: StepContext): string {
 export function renderStep(tile: Tile, ctx: StepContext): string {
   const state = ctx.states.get(tile.id) ?? "fog";
   if (state === "cue" || state === "ready") return comingStep(tile, state, ctx);
-  if (state === "fog") return `<h2 class="wb-step-title">Still to discover</h2>`;
+  if (state === "fog") return `<h2 class="wb-step-title" tabindex="-1">Still to discover</h2>`;
   return openStep(tile, state, ctx);
 }
