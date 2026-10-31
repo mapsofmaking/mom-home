@@ -44,6 +44,10 @@ const options = (mode: PageOptions["mode"], done = new Set<string>()): PageOptio
 const submit = (root: HTMLElement) => {
   root.querySelector<HTMLInputElement>("#f-name")!.value = "Atelier";
   root.querySelector<HTMLInputElement>("#f-city")!.value = "Anderlecht";
+  // The pin, as where.ts leaves it in the form.
+  for (const [name, v] of [["lat", "50.84"], ["lon", "4.33"], ["country", "BE"]]) {
+    (root.querySelector("form")!.elements.namedItem(name) as HTMLInputElement).value = v;
+  }
   root.querySelector("form")!.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
 };
 
@@ -64,6 +68,15 @@ describe("renderPage", () => {
     renderPage(root, tree, options("onboarding", done));
     submit(root);
     expect(done.has("describe")).toBe(true);
+  });
+
+  it("signed out, the card's way on takes the focus", () => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    renderPage(root, tree, options("onboarding", new Set<string>()));
+    submit(root);
+    expect(document.activeElement).toBe(root.querySelector('[data-go="keep"]'));
+    root.remove();
   });
 
   it("signed out, tile A's form without a city draws no card and goes to the city", () => {

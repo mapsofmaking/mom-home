@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { tileStates } from "../tree/fog";
 import { parseTree } from "../tree/parse";
 import { hexPosition, renderHexView, tileLabel } from "./hexview";
@@ -73,9 +73,10 @@ describe("step panel", () => {
     }
   });
 
-  it("flags tile A's form with no chip while open, and Done once done", () => {
+  it("never shows a Done chip: the hexes say it (Nicolas, 14.2)", () => {
     expect(step("describe").querySelector(".status-label")).toBeNull();
-    expect(step("describe", "describe").querySelector(".status-label")!.textContent).toBe("Done");
+    expect(step("describe", "describe").querySelector(".status-label")).toBeNull();
+    expect(step("keep", "describe", "keep").querySelector(".status-label")).toBeNull();
   });
 
   it("speaks the tree's lines, never its own", () => {
@@ -125,7 +126,8 @@ describe("tile A (14.2)", () => {
 
   it("asks name, then where, then the optional rest; keeps what was typed", () => {
     const s = html(renderStep(byId.describe, ctx([])));
-    expect([...s.querySelectorAll("input")].map((i) => i.name)).toEqual([
+    const typed = [...s.querySelectorAll<HTMLInputElement>("input:not([type=hidden])")].filter((i) => !i.closest("[data-manual]"));
+    expect(typed.map((i) => i.name)).toEqual([
       "name", "street", "city", "description", "email", "matrix", "website", "logo",
     ]);
     expect([...s.querySelectorAll("input[required]")].map((i) => i.getAttribute("name"))).toEqual(["name", "city"]);
@@ -237,8 +239,133 @@ describe("tile A's keyboard flow (14.2 AC4)", async () => {
     expect(missing(form)).toBe(field("name"));
     fillExample(form);
     expect(beat("rest").hasAttribute("inert")).toBe(false);
-    expect(missing(form)).toBeNull();
-    expect(document.querySelector<HTMLButtonElement>(".wb-cta")!.disabled).toBe(false);
+    // Name and city in, no pin yet: the card waits for the geocoder (S3).
+    expect(missing(form)).toBe(field("city"));
+    expect(document.querySelector<HTMLButtonElement>(".wb-cta")!.disabled).toBe(true);
+  });
+});
+
+describe("where: the pin from the geocoder (14.2 AC5)", async () => {
+  const { renderDescribeForm, syncCta, readDescribeForm } = await import("./describe");
+  const { locate, shortPlace, timing, SAY, unpin, pinByHand } = await import("./where");
+  timing.minWait = 0;
+  timing.retryGap = 0;
+  timing.tick = 0;
+  const ANDERLECHT = {
+    lat: 50.8390983, lon: 4.3296526, country_code: "BE", postcode: "1070",
+    display_name: "Anderlecht, Brussel-Hoofdstad - Bruxelles-Capitale, Région de Bruxelles-Capitale - Brussels Hoofdstedelijk Gewest, 1070, België / Belgique / Belgien",
+  };
+  const NONE = { lat: null, lon: null, country_code: null, postcode: null, display_name: null };
+  const answers = (...bodies: (object | number)[]) => {
+    const fetch = vi.fn(async (_url: string, _init?: RequestInit) => {
+      const b = bodies.shift()!;
+      return typeof b === "number" ? new Response("", { status: b }) : Response.json(b);
+    });
+    vi.stubGlobal("fetch", fetch);
+    return fetch;
+  };
+  afterEach(() => vi.unstubAllGlobals());
+  const mount = (draft = {}) => {
+    document.body.innerHTML = renderDescribeForm({ name: "Atelier", ...draft });
+    return document.querySelector<HTMLFormElement>("#f-describe")!;
+  };
+  const val = (name: string) => (document.querySelector(`[name="${name}"]`) as HTMLInputElement).value;
+  const pin = () => document.querySelector("#f-pin")!;
+  const shown = (which: string) => !document.querySelector<HTMLElement>(`[data-manual="${which}"]`)!.hidden;
+  const cta = () => document.querySelector<HTMLButtonElement>(".wb-cta")!;
+
+  it("shortens Nominatim's place to three readable parts", () => {
+    expect(shortPlace(ANDERLECHT.display_name)).toBe("Anderlecht, Brussel-Hoofdstad, Région de Bruxelles-Capitale");
+    expect(shortPlace("Springfield Garage, Canal Street, Long Eaton, City of Nottingham")).toBe("Springfield Garage, Canal Street, Long Eaton");
+  });
+
+  it("a city alone is enough: the pin, the postcode and the country come from the answer, and the card opens", async () => {
+    const fetch = answers(ANDERLECHT);
+    const form = mount({ city: "Anderlecht" });
+    await locate(form, () => syncCta(form));
+    expect(JSON.parse(fetch.mock.calls[0][1]!.body as string)).toEqual({ address: "", city: "Anderlecht", postcode: "", country_code: "" });
+    expect(fetch.mock.calls[0][0]).toBe("/api/geocode");
+    expect([val("lat"), val("lon"), val("postcode"), val("country")]).toEqual(["50.8390983", "4.3296526", "1070", "BE"]);
+    expect(pin().textContent).toBe(`${SAY.found} 50.8391, 4.3297 · Anderlecht, Brussel-Hoofdstad, Région de Bruxelles-Capitale · 1070 · BE`);
+    expect(cta().disabled).toBe(false);
+    const draft = {};
+    readDescribeForm(form, draft);
+    expect(draft).toMatchObject({ city: "Anderlecht", country: "BE", lat: "50.8390983", place: "Anderlecht, Brussel-Hoofdstad, Région de Bruxelles-Capitale" });
+  });
+
+  it("a street it can't find falls back to the city, and says so", async () => {
+    const fetch = answers(NONE, ANDERLECHT);
+    const form = mount({ street: "Rue du Canal 12", city: "Anderlecht" });
+    await locate(form);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(fetch.mock.calls[1][1]!.body as string).address).toBe("");
+    expect(pin().querySelector(".wb-pin-note")!.textContent).toBe(SAY.streetMissed("Anderlecht"));
+    expect(pin().textContent).toContain(`${SAY.found} 50.8391, 4.3297`);
+  });
+
+  it("asks once per address", async () => {
+    const fetch = answers(ANDERLECHT);
+    const form = mount({ city: "Anderlecht" });
+    await locate(form);
+    await locate(form);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("no country in the answer: a two-letter field, and the card waits for it", async () => {
+    answers({ ...ANDERLECHT, country_code: null });
+    const form = mount({ city: "Anderlecht" });
+    await locate(form, () => syncCta(form));
+    expect(shown("country")).toBe(true);
+    expect(cta().disabled).toBe(true);
+    (form.elements.namedItem("country") as HTMLInputElement).value = "BE";
+    syncCta(form);
+    expect(cta().disabled).toBe(false);
+  });
+
+  it("nothing found: names the geocoder, opens the coordinates and the country, keeps what was typed", async () => {
+    answers(NONE);
+    const form = mount({ city: "Nowhere" });
+    await locate(form, () => syncCta(form));
+    expect(pin().textContent).toBe(SAY.noResult);
+    expect(pin().className).toContain("error");
+    expect(shown("coords") && shown("country")).toBe(true);
+    expect(val("city")).toBe("Nowhere");
+    (form.elements.namedItem("lat") as HTMLInputElement).value = "50.84";
+    (form.elements.namedItem("lon") as HTMLInputElement).value = "4.33";
+    (form.elements.namedItem("country") as HTMLInputElement).value = "BE";
+    pinByHand(form);
+    syncCta(form);
+    expect(pin().textContent).toBe(`${SAY.byHand} 50.84, 4.33 · BE`);
+    expect(cta().disabled).toBe(false);
+  });
+
+  it("the geocoder down or busy: says which, never blames the coordinator", async () => {
+    answers(503);
+    let form = mount({ city: "Anderlecht" });
+    await locate(form);
+    expect(pin().textContent).toBe(SAY.unavailable);
+    expect(shown("coords")).toBe(true);
+    answers(429);
+    form = mount({ city: "Anderlecht" });
+    await locate(form);
+    expect(pin().textContent).toBe(SAY.rate);
+    expect(shown("coords")).toBe(false);
+  });
+
+  it("typing in the address drops the old pin", async () => {
+    answers(ANDERLECHT);
+    const form = mount({ city: "Anderlecht" });
+    await locate(form, () => syncCta(form));
+    unpin(form);
+    syncCta(form);
+    expect([val("lat"), val("country"), pin().textContent]).toEqual(["", "", ""]);
+    expect(cta().disabled).toBe(true);
+  });
+
+  it("a draft with a pin opens with its line and the card on", () => {
+    mount({ city: "Anderlecht", lat: "50.84", lon: "4.33", country: "BE", place: "Anderlecht" });
+    expect(pin().textContent).toBe(`${SAY.found} 50.84, 4.33 · Anderlecht · BE`);
+    expect(cta().disabled).toBe(false);
   });
 });
 

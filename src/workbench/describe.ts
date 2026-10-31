@@ -14,6 +14,7 @@
  */
 import { esc } from "./html";
 import type { Draft } from "./previews";
+import { pinLine, pinned } from "./where";
 
 type Key = "name" | "street" | "city" | "description" | "email" | "matrix" | "website" | "logo";
 
@@ -44,6 +45,8 @@ const OPTIONAL: Field[] = [
 ];
 
 const FIELDS = [...BEDROCK, ...OPTIONAL];
+/** What where.ts writes into the form: read back into the draft with the fields. */
+const WHERE = ["country", "lat", "lon", "postcode", "place"] as const;
 const REST = OPTIONAL.map((f) => f.key);
 
 type Beat = "where" | "rest";
@@ -75,12 +78,37 @@ function field(f: Field, draft: Draft): string {
       </label>`;
 }
 
+/**
+ * Under street and city: the pin line, and the two fallbacks where.ts opens
+ * when the geocoder can't answer for everything (a country, the coordinates).
+ */
+function whereOut(draft: Draft): string {
+  const line = pinLine(draft);
+  const needCountry = !!draft.lat && !draft.country;
+  return `
+        <p class="wb-pin${line ? " ok" : ""}" id="f-pin" role="status">${line ? `<span class="wb-pin-line">${esc(line)}</span>` : ""}</p>
+        <div data-manual="country"${needCountry ? "" : " hidden"}>
+          <label class="wb-field" for="f-country">Country code
+            <input id="f-country" name="country" type="text" maxlength="2" class="wb-country" value="${esc(draft.country ?? "")}"
+              placeholder="e.g. BE" autocomplete="country" aria-describedby="f-country-hint" />
+            <span class="hint" id="f-country-hint">Two letters, ISO. e.g. DE, FR, BE.</span>
+          </label>
+        </div>
+        <div class="wb-doors" data-manual="coords" hidden>
+          <label class="wb-field" for="f-lat">Latitude<input id="f-lat" name="lat" type="number" step="any" min="-90" max="90" value="${esc(draft.lat ?? "")}" placeholder="e.g. 50.84" /></label>
+          <label class="wb-field" for="f-lon">Longitude<input id="f-lon" name="lon" type="number" step="any" min="-180" max="180" value="${esc(draft.lon ?? "")}" placeholder="e.g. 4.33" /></label>
+        </div>
+        <input type="hidden" name="postcode" value="${esc(draft.postcode ?? "")}" />
+        <input type="hidden" name="place" value="${esc(draft.place ?? "")}" />`;
+}
+
 export function renderDescribeForm(draft: Draft): string {
   const [name, street, city] = BEDROCK.map((f) => field(f, draft));
+  const ready = !!(draft.name && draft.city && draft.lat && draft.lon && draft.country);
   return `
     <form id="f-describe" class="wb-form" novalidate>
       ${name}
-      ${beat("where", !!draft.name, `<div class="wb-doors">${street}${city}</div>`)}
+      ${beat("where", !!draft.name, `<div class="wb-doors">${street}${city}</div>${whereOut(draft)}`)}
       ${beat(
         "rest",
         !!draft.name && !!draft.city,
@@ -90,7 +118,7 @@ export function renderDescribeForm(draft: Draft): string {
         </fieldset>`
       )}
       <div class="wb-out">
-        <button type="submit" class="btn btn-primary wb-cta"${draft.name && draft.city ? "" : " disabled"}>Show me my card</button>
+        <button type="submit" class="btn btn-primary wb-cta"${ready ? "" : " disabled"}>Show me my card</button>
         <button type="button" class="inline-link" id="example">Fill in an example</button>
       </div>
     </form>`;
@@ -99,10 +127,10 @@ export function renderDescribeForm(draft: Draft): string {
 /** Reads the form back into the draft. Only what was typed: empty stays empty. */
 export function readDescribeForm(form: HTMLFormElement, draft: Draft): void {
   const data = new FormData(form);
-  for (const f of FIELDS) {
-    const value = String(data.get(f.key) ?? "").trim();
-    if (value) draft[f.key] = value;
-    else delete draft[f.key];
+  for (const key of [...FIELDS.map((f) => f.key), ...WHERE]) {
+    const value = String(data.get(key) ?? "").trim();
+    if (value) draft[key] = value;
+    else delete draft[key];
   }
 }
 
@@ -127,10 +155,10 @@ export function reveal(form: HTMLFormElement, name: Beat): void {
   el.classList.add("open");
 }
 
-/** The card needs a name and a city; until then the button says so by being off. */
+/** The card needs a name, a city and a pin; until then the button says so by being off. */
 export function syncCta(form: HTMLFormElement): void {
   const cta = form.querySelector<HTMLButtonElement>("button[type=submit]");
-  if (cta) cta.disabled = !(filled(form, "name") && filled(form, "city"));
+  if (cta) cta.disabled = !(filled(form, "name") && filled(form, "city") && pinned(form));
 }
 
 /** The first required field still empty, to send focus to; null when the card can be drawn. */
@@ -138,6 +166,14 @@ export function missing(form: HTMLFormElement): HTMLInputElement | null {
   if (!filled(form, "name")) return input(form, "name");
   if (!filled(form, "city")) {
     reveal(form, "where"); // an inert field can't take focus
+    return input(form, "city");
+  }
+  if (!pinned(form)) {
+    // A fallback that is open names its own field; otherwise the city, whose leaving asks again.
+    const open = (which: string) => !form.querySelector<HTMLElement>(`[data-manual="${which}"]`)?.hidden;
+    const by = (name: string) => form.elements.namedItem(name) as HTMLInputElement;
+    if (open("country") && !/^[A-Z]{2}$/.test(by("country").value.trim())) return by("country");
+    if (open("coords")) return by(by("lat").value.trim() ? "lon" : "lat");
     return input(form, "city");
   }
   return null;
@@ -178,7 +214,7 @@ export function describeKeydown(form: HTMLFormElement, event: KeyboardEvent): vo
       reveal(form, "rest");
       go("description");
     } else if (enter) event.preventDefault();
-  } else if (enter) {
+  } else if (enter && REST.includes(key)) {
     // An optional field: Enter goes to the next; on the last one it submits (the card).
     const next = REST[REST.indexOf(key) + 1];
     if (next) go(next);

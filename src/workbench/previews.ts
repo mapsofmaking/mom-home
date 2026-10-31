@@ -14,6 +14,13 @@ export interface Draft {
   name?: string;
   street?: string;
   city?: string;
+  /** Worked out by the geocoder (where.ts), or typed by hand when it found nothing. */
+  country?: string;
+  postcode?: string;
+  lat?: string;
+  lon?: string;
+  /** The place the geocoder found, short ("Anderlecht, Brussel-Hoofdstad, 1070"). */
+  place?: string;
   description?: string;
   email?: string;
   matrix?: string;

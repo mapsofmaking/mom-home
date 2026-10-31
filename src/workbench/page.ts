@@ -31,6 +31,7 @@ import { completableIds } from "../tiles/done";
 import { announce } from "../ui/a11y";
 import type { Tree } from "../tree/parse";
 import { describeCommit, describeKeydown, fillExample, missing, readDescribeForm, syncCta } from "./describe";
+import { locate, pinByHand, unpin } from "./where";
 import { esc } from "./html";
 import { renderHexRow } from "./hexrow";
 import { renderHexView } from "./hexview";
@@ -272,7 +273,8 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     opts.done.add("describe");
     editing = false;
     draw();
-    step.querySelector<HTMLElement>(".wb-step-title")?.focus();
+    // The card's one way on (Nicolas, 14.2 S2): focus lands on "Publish it", the title when there is none.
+    (step.querySelector<HTMLElement>('[data-go="keep"]') ?? step.querySelector<HTMLElement>(".wb-step-title"))?.focus();
   });
 
   // Tile A's keyboard flow (14.2 AC4); the form is redrawn with the step, so listen here.
@@ -281,20 +283,33 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     const form = describeForm(event);
     if (form) describeKeydown(form, event);
   });
+  // Leaving street or city asks the geocoder (where.ts); typing in them drops the old pin.
+  const where = new Set(["street", "city", "country"]);
   step.addEventListener("focusout", (event) => {
     const form = describeForm(event);
-    if (form) describeCommit(form, event.target);
+    if (!form) return;
+    describeCommit(form, event.target);
+    const name = (event.target as HTMLInputElement).name;
+    if (where.has(name)) void locate(form, () => syncCta(form));
   });
   step.addEventListener("input", (event) => {
     const form = describeForm(event);
-    if (form) syncCta(form);
+    if (!form) return;
+    const target = event.target as HTMLInputElement;
+    if (target.name === "country") target.value = target.value.toUpperCase();
+    if (target.name === "street" || target.name === "city") unpin(form);
+    if (target.name === "lat" || target.name === "lon") pinByHand(form);
+    syncCta(form);
   });
 
   step.addEventListener("click", (event) => {
     const target = (event.target as Element).closest<HTMLElement>("button");
     if (!target) return;
     if (target.id === "example") {
-      fillExample(step.querySelector<HTMLFormElement>("#f-describe")!);
+      const form = step.querySelector<HTMLFormElement>("#f-describe")!;
+      fillExample(form);
+      unpin(form);
+      void locate(form, () => syncCta(form));
     } else if (target.id === "fix") {
       editing = true;
       draw();

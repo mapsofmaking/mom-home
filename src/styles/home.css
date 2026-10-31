@@ -69,7 +69,20 @@
 .wb-beat.open { grid-template-rows: 1fr; opacity: 1; }
 /* Padding lets the focus ring show inside the clip. */
 .wb-beat-inner { overflow: hidden; min-height: 0; padding: 4px; margin: -4px; }
-.wb-lead { margin: 0; max-width: 60ch; font-size: 15px; line-height: 1.5; color: var(--ink-soft); }
+/* The pin line (14.2 AC5): muted while the geocoder works, the done tint's ink when found, riso red when it can't. */
+/* A fallback closed stays closed, whatever layout class it carries (.wb-doors is a grid). */
+.wb-form [hidden] { display: none !important; }
+.wb-pin-note { display: block; color: var(--muted); }
+.wb-pin { margin: 0; min-height: 1.4em; font: 400 13px/1.4 var(--font-mono); color: var(--muted); }
+.wb-pin:empty { display: none; }
+.wb-pin.ok { color: var(--ink); }
+.wb-pin.ok .wb-pin-line::before { content: ""; display: inline-block; width: 9px; height: 9px; margin-right: 8px; border-radius: 50%; background: var(--state-confirmed); border: 1px solid var(--ink); vertical-align: 0; }
+.wb-pin.error { color: var(--accent); }
+.wb-country { max-width: 6rem; text-transform: uppercase; }
+/* The lead takes the panel's width (Nicolas, 14.2): theme.css caps every <p> at 65ch. */
+.wb-lead { margin: 0 0 var(--space-8); max-width: none; font-size: 15px; line-height: 1.6; color: var(--ink-soft); }
+/* "What you'd get" left, "Preview · nothing is published" right, across the frame. */
+.wb-frame-label { max-width: none; }
 /* Tile A's optional fields: a group with its own label, no box (design system: Workbench). */
 .wb-optional { display: flex; flex-direction: column; gap: var(--space-14); margin: 0; padding: var(--space-12) 0 0; border: 0; border-top: 1px dashed var(--rule); min-width: 0; }
 .wb-optional legend { float: left; width: 100%; padding: 0; margin: 0 0 var(--space-4); }

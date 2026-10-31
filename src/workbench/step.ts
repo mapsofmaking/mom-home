@@ -59,13 +59,12 @@ function comingStep(tile: Tile, state: TileState, ctx: StepContext): string {
     ${body}`;
 }
 
-/** Done, or Coming for a preview of a tile not built yet (AC6). Tile A is real: nothing to flag until done. */
+/**
+ * Coming, for a preview of a tile not built yet (AC6). Tile A is real: no chip.
+ * No "Done" chip either (Nicolas, 14.2): the hexes already say it, and the step's content shows it.
+ */
 const chip = (tile: Tile, state: TileState) =>
-  state === "done"
-    ? `<span class="status-label shut">Done</span>`
-    : tile.act === "describe"
-      ? ""
-      : `<span class="status-label">Coming</span>`;
+  state === "done" || tile.act === "describe" ? "" : `<span class="status-label">Coming</span>`;
 
 const head = (tile: Tile, state: TileState) => `
     <div class="wb-step-head">
