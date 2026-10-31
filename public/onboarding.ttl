@@ -33,7 +33,7 @@
   onb:saidDone "There you are. Anyone looking for a workshop in {locality} can find you now."@en ;
   onb:sayNext "That's the hard part done. But hours change, things happen: when something's different, update it once. Here, or later at home.mapsofmaking.org."@en ;
   onb:sayPod "Three things: a name for your Personal Online Datastore (pod), the space's mailbox and a passphrase to secure it."@en ;
-  onb:sayConsent "Heads up. After \"Create it\", your pod's own page asks if home.mapsofmaking.org may use it. That's this page, asking to write your profile there. Say yes."@en ;
+  onb:sayConsent "Your pod opens its own page now. If it asks for your passphrase, use the one you just made. Then press Authorize for home.mapsofmaking.org."@en ;
   onb:sayTaken "The pod server said that address is taken. Nothing you did wrong. Pick another one."@en ;
   onb:saidDoneSelf "You've got the file. Now it needs an address. Some use GitLab, it gives you one, free, in about five minutes."@en ;
   onb:doneWhen """ASK { <> pim:storage ?pod }  # or: the map knows the space's own URL""" .
