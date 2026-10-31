@@ -138,7 +138,15 @@ describe("first-paint script", () => {
     ["contrast", [], "light"],
   ];
 
-  for (const file of ["index.html", "styleguide.html", "guidelines.html"]) {
+  // The app itself is Daylight only (Maps of Making): no theme script there.
+  it("index.html stamps light and nothing changes it", () => {
+    const html = readFileSync(join(__dirname, "../..", "index.html"), "utf8");
+    expect(html).toContain('<html lang="en" data-theme="light">');
+    expect(html).not.toContain(THEME_STORAGE_KEY);
+  });
+
+  // The kit's styleguide and guidelines pages keep every theme.
+  for (const file of ["styleguide.html", "guidelines.html"]) {
     const html = readFileSync(join(__dirname, "../..", file), "utf8");
     const script = html.match(/<script>([\s\S]*?)<\/script>/)![1];
 

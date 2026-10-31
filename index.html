@@ -14,39 +14,10 @@
     />
     <title>Maps of Making · home</title>
     <!--
-      The stored theme choice, applied before first paint (see
-      src/ui/theme.ts). It cannot wait for the module script: a dark choice
-      would flash light on every load. Light needs nothing: it is stamped on
-      <html> above. "system" is resolved here, contrast first, and followed
-      while the page is open. Keep the key, the choices and the resolution in
-      step with theme.ts: its test runs this script to check.
+      Daylight only (Maps of Making, decided 2026-10-31): light is stamped on
+      <html> above and nothing changes it. No stored choice, no device
+      setting: the kit's theme script and button are left out of this page.
     -->
-    <script>
-      (function () {
-        var root = document.documentElement;
-        function stored() {
-          try { return localStorage.getItem("solid-kit:theme"); } catch (e) { return null; }
-        }
-        function device() {
-          if (!window.matchMedia) return "light";
-          if (matchMedia("(prefers-contrast: more)").matches) return "contrast";
-          if (matchMedia("(prefers-color-scheme: dark)").matches) return "dark";
-          return "light";
-        }
-        function apply() {
-          var c = stored();
-          if (c === "dark") root.dataset.theme = "dark";
-          else if (c === "system") root.dataset.theme = device();
-        }
-        apply();
-        if (!window.matchMedia) return;
-        ["(prefers-contrast: more)", "(prefers-color-scheme: dark)"].forEach(function (q) {
-          var m = matchMedia(q);
-          if (m.addEventListener)
-            m.addEventListener("change", function () { if (stored() === "system") apply(); });
-        });
-      })();
-    </script>
   </head>
   <body>
     <!--

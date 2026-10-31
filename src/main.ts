@@ -6,9 +6,9 @@
  * view and the workbench replace `renderHome` and the signed-out screen in
  * Story 14.1's next slices.
  */
-// The design system first (pinned copy, README.md), so the kit's slot-based
-// rules after it keep the page theme-aware; the Workbench classes (wb-, hx-)
-// don't collide with the kit's.
+// The design system first (pinned copy, README.md), so the kit's rules after
+// it win on the kit's own screens (the skin colours them); the Workbench
+// classes (wb-, hx-) don't collide with the kit's.
 import "./styles/mom/tokens.css";
 import "./styles/mom/components.css";
 import "./styles/mom/workbench.css";
@@ -23,7 +23,6 @@ import { describePodError, getPrimaryPodUrl, isAuthError } from "./lib/pod";
 import { APP_NAME, DEFAULT_IDENTIFIER } from "./config";
 import { focusView, trackInputModality } from "./ui/a11y";
 import { renderError, renderPending } from "./ui/patterns";
-import { renderThemeButton, wireThemeButton } from "./ui/theme";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
@@ -45,19 +44,6 @@ function appHeader(right = ""): string {
       <span class="app-name">home</span>
       <span class="app-head-right">${right}</span>
     </header>`;
-}
-
-/**
- * The theme button, at the foot of every screen a person can stop at — Light
- * by default, then Dark, then the device's own setting (ADR 008). Part of the shell,
- * not of `renderHome`, so an app keeps it when the placeholder is replaced.
- */
-function themeFooter(): string {
-  return `
-    <footer class="stack">
-      <hr />
-      <div>${renderThemeButton()}</div>
-    </footer>`;
 }
 
 async function main(): Promise<void> {
@@ -101,7 +87,6 @@ function renderLoginView(message?: string): void {
         <div><button type="submit">Sign in</button></div>
       </form>
       ${message ? `<p class="error">${esc(message)}</p>` : ""}
-      ${themeFooter()}
     </main>
   `;
 
@@ -155,7 +140,6 @@ function renderErrorView(webId: string, err: unknown): void {
         technical: err instanceof Error ? err.message : String(err),
       })}
       <p class="meta">Signed in as <code>${esc(webId)}</code>.</p>
-      ${themeFooter()}
     </main>
   `;
   document.querySelector<HTMLButtonElement>("#logout")!.addEventListener("click", async () => {
@@ -217,7 +201,6 @@ async function renderHome(webId: string, podUrl: string): Promise<void> {
         </p>
         <p class="hint">This block goes when you replace <code>renderHome</code>.</p>
       </nav>
-      ${themeFooter()}
     </main>
   `;
   document.querySelector<HTMLButtonElement>("#logout")!.addEventListener("click", async () => {
@@ -229,6 +212,4 @@ async function renderHome(webId: string, podUrl: string): Promise<void> {
 }
 
 trackInputModality();
-// Once, on the container: every screen replaces its contents, switch included.
-wireThemeButton(app);
 main();

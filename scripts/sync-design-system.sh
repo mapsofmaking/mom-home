@@ -6,9 +6,12 @@
 #
 #   scripts/sync-design-system.sh <commit> [path to a design-system checkout]
 #
-# One change on the way in: components.css's Google Fonts @import is dropped.
-# tokens.css already declares the same faces from fonts/, and the app makes
-# no third-party request.
+# Two changes on the way in, both in components.css:
+# - its Google Fonts @import is dropped: tokens.css already declares the same
+#   faces from fonts/, and the app makes no third-party request;
+# - its bare body, button and a rules are dropped: the kit owns base elements
+#   (core.css) and the skin colours them; the map's resets stripped the kit's
+#   buttons. Classes (.btn, .status-label, ...) and :focus-visible stay.
 set -euo pipefail
 
 commit="${1:?usage: $0 <commit> [design-system checkout]}"
@@ -22,7 +25,8 @@ mkdir -p "$out/fonts"
 for f in tokens.css components.css workbench.css workbench.md; do
   git -C "$ds" show "$commit:tokens/$f" > "$out/$f"
 done
-sed -i '/^@import url(.https:\/\/fonts\.googleapis\.com/d' "$out/components.css"
+sed -i -e '/^@import url(.https:\/\/fonts\.googleapis\.com/d' \
+  -e '/^body {/d' -e '/^button {/d' -e '/^a {/d' "$out/components.css"
 
 git -C "$ds" ls-tree --name-only "$commit" tokens/fonts/ | while read -r f; do
   git -C "$ds" show "$commit:$f" > "$out/fonts/$(basename "$f")"
