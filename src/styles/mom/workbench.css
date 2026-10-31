@@ -31,10 +31,13 @@
 .hx-shape { stroke-linejoin: round; vector-effect: non-scaling-stroke; fill: var(--surface-white); stroke: var(--ink); stroke-width: 2.5px; }
 .hx-tint { display: none; fill: var(--done-tint); transform: translate(-4px, 4px); }
 .hx-label { position: relative; padding: 0 var(--space-14); font-size: 12px; line-height: 1.25; font-weight: 600; }
-.hx-tick { display: none; font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
-.hx.done { grid-template-rows: auto auto; align-content: center; gap: 3px; }
-.hx.done .hx-tint, .hx.done .hx-tick { display: block; }
-.hx.done .hx-tick { position: relative; }
+/* TilePicto above the label, on done and open tiles only: coming and undiscovered tiles stay without, so
+   the progression holds. No ✓ on a done tile: the green print says it (2026-10-31). Specific enough to
+   beat .hx > svg, which fills the hex with its shape. */
+.hx > svg.hx-ico { display: none; position: relative; inset: auto; width: 16px; height: 16px; fill: none; stroke: var(--ink); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.hx.done, .hx.open { grid-template-rows: auto auto; align-content: center; gap: 5px; }
+.hx.done .hx-tint { display: block; }
+.hx.done > svg.hx-ico, .hx.open > svg.hx-ico { display: block; }
 .hx.done .hx-shape { fill: none; stroke-width: 1.5px; }
 .hx.done .hx-label { font-weight: 500; }
 .hx.cue .hx-shape { fill: var(--paper); stroke: var(--muted); stroke-width: 1.5px; stroke-dasharray: 5 4; }
@@ -59,7 +62,7 @@
 .hx-pips { display: flex; align-items: center; gap: var(--space-6); flex-wrap: wrap; }
 .hx.pip { width: 22px; height: 25px; }
 .hx.pip .hx-tint { transform: translate(-9px, 9px); }
-.hx.pip .hx-tick, .hx.pip .hx-label { display: none; }
+.hx.pip > svg.hx-ico, .hx.pip .hx-label { display: none; }
 .hx-more { font-family: var(--font-mono); font-size: 11px; color: var(--muted); margin-left: 4px; }
 .hx-now { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-10); font-size: 13px; }
 .hx-now .k { color: var(--muted); }

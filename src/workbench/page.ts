@@ -188,7 +188,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
       selected = (tree.tiles.find((t) => states.get(t.id) === "open") ?? tree.tiles[0]).id;
     }
     hexes.innerHTML = renderHexView(tree.tiles, states, selected);
-    row.innerHTML = renderHexRow(tree.tiles, states, selected, workbench ? "toolbar" : "pips");
+    row.innerHTML = renderHexRow(tree.tiles, states, selected);
     if (!row.hidden) alignTips(row);
     // A word unlocks right after its tile (AC5): say so once, politely.
     const nowMet = metWords(tree, opts.done);

@@ -89,7 +89,7 @@
    above the step; the full view is hidden with its words. ---- */
 .wb-page.is-folded .wb-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
 .wb-row-panel[hidden] { display: none; }
-.hx-row button.hx, .hx-bar button.hx { border: 0; background: none; padding: 0; cursor: pointer; font: inherit; }
+.hx-bar button.hx { border: 0; background: none; padding: 0; cursor: pointer; font: inherit; }
 /* In the right half of the row a tile name opens leftward (page.ts alignTips). */
 .hx.tool.tip-end .tip { left: auto; right: 0; }
 /* The toolbar never scrolls (a scroller would clip the tile names' tips);
@@ -98,7 +98,7 @@
   .hx-bar { flex-wrap: wrap; height: auto; min-height: 52px; padding-block: var(--space-8); row-gap: var(--space-8); }
   .hx-bar > .k { display: none; }
 }
-.hx-row .hx-now b, .hx-bar .hx-now b { font-weight: 600; }
+.hx-bar .hx-now b { font-weight: 600; }
 
 /* The toggle sits in one corner of the hex region in both states. */
 .wb-hex-panel[hidden] { display: none; }

@@ -6,10 +6,13 @@
  * placement rules in maps_of_making docs/explanation/home-hex-view.md). Each
  * tile is a button except fog: still to discover is halftone dots, no label,
  * nothing to click, read once as "still to discover" by a screen reader.
+ * Done and open tiles carry their picto above the label, the same as in the
+ * folded row; a done tile has no ✓, the green print says it (2026-10-31).
  */
 import type { TileState } from "../tree/fog";
 import type { Tile } from "../tree/parse";
 import { esc } from "./html";
+import { ICONS } from "./icons";
 
 /** HexTile's box (tokens/workbench.css `.hx`): 104 × 120, pointy-top. */
 export const HEX_W = 104;
@@ -73,7 +76,11 @@ export function renderHexView(
           <polygon class="hx-tint" points="${HEX_POINTS}"/>
           <polygon class="hx-shape" points="${HEX_POINTS}"/>
         </svg>
-        ${state === "done" ? `<span class="hx-tick" aria-hidden="true">✓</span>` : ""}
+        ${
+          (state === "done" || state === "open") && ICONS[t.icon ?? ""]
+            ? `<svg class="hx-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="${ICONS[t.icon!]}"/></svg>`
+            : ""
+        }
         <span class="hx-label" aria-hidden="true">${esc(tileLabel(t, state))}</span>
       </button>`;
     })

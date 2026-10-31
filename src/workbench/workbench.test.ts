@@ -42,10 +42,14 @@ describe("hex view (AC7)", () => {
     expect(view.textContent).toContain("11 more still to discover");
   });
 
-  it("draws done with its tick, and ready as a cue", () => {
+  it("gives done and open tiles their picto, no tick; ready is drawn as a cue", () => {
     const view = html(renderHexView(tree.tiles, at("describe", "keep"), null));
     expect(view.querySelector('[data-tile="keep"]')!.className).toContain("done");
-    expect(view.querySelector('[data-tile="keep"] .hx-tick')).not.toBeNull();
+    expect(view.querySelector('[data-tile="keep"] .hx-ico')).not.toBeNull();
+    expect(view.querySelector('[data-tile="change"] .hx-ico')).not.toBeNull();
+    expect(view.querySelector('[data-tile="answer"] .hx-ico')).toBeNull(); // coming
+    expect(view.querySelector(".hx-tick")).toBeNull();
+    expect(view.textContent).not.toContain("✓");
     expect(view.querySelector('[data-tile="second"]')!.className).toContain("cue");
     expect(view.querySelector('[data-tile="second"]')!.getAttribute("aria-label")).toBe(
       "Coming: More maps, no extra work, ready"
@@ -189,11 +193,10 @@ describe("words you've met (AC5)", () => {
 });
 
 describe("folded row (AC7)", () => {
-  const row = (variant: "pips" | "toolbar", ...done: string[]) =>
-    html(renderHexRow(tree.tiles, at(...done), "change", variant));
+  const row = (...done: string[]) => html(renderHexRow(tree.tiles, at(...done), "change"));
 
   it("shows the tiles reached, in order, and counts the rest to discover", () => {
-    const r = row("toolbar", "describe", "keep");
+    const r = row("describe", "keep");
     const ids = [...r.querySelectorAll("button[data-tile]")].map((b) => b.getAttribute("data-tile"));
     expect(ids).toEqual(["describe", "keep", "change", "join", "event", "answer", "second", "peers", "agenda", "handover"]);
     expect(r.textContent).toContain("+ 3 to discover");
@@ -204,7 +207,7 @@ describe("folded row (AC7)", () => {
   });
 
   it("gives done and open tiles their picto in the toolbar, coming ones none", () => {
-    const r = row("toolbar", "describe", "keep");
+    const r = row("describe", "keep");
     expect(r.querySelector('[data-tile="keep"] .ico')).not.toBeNull();
     expect(r.querySelector('[data-tile="change"] .ico')).not.toBeNull();
     expect(r.querySelector('[data-tile="answer"] .ico')).toBeNull();
@@ -212,11 +215,8 @@ describe("folded row (AC7)", () => {
     expect(r.querySelector('[data-tile="change"]')!.getAttribute("aria-current")).toBe("step");
   });
 
-  it("names a tile on hover or focus in the toolbar; the phone row is plain hexes", () => {
-    expect(row("toolbar", "describe").querySelector('[data-tile="describe"] .tip')!.textContent).toBe("Describe your space");
-    const pips = row("pips", "describe");
-    expect(pips.querySelector(".ico, .tip")).toBeNull();
-    expect(pips.querySelector(".hx.pip")).not.toBeNull();
+  it("names a tile on hover or focus", () => {
+    expect(row("describe").querySelector('[data-tile="describe"] .tip')!.textContent).toBe("Describe your space");
   });
 });
 

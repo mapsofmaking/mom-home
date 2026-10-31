@@ -24,6 +24,7 @@ The home app (`home.mapsofmaking.org`) is where a coordinator puts their space o
 - **Hover lifts, it doesn't colour:** a pressable control keeps its colours and gains the hard `shadow`, 1px up-left; pressed, it lands. Hover only says "you can press this" (decided 2026-10-31).
 - **Links are cobalt at rest, underlined;** on hover the underline thickens, the colour stays (2026-10-31). A link must read as one before any hover: phones have none.
 - **Focus is riso blue (`accent-2`)**, 2.5px, offset 2px: never red, so a focused field never reads as an error, and never ink, so a focused hex never reads as the selected one (ink, 4px). Cobalt is 4.3:1 on paper, above the 3:1 a focus ring needs (decided 2026-10-31).
+- A `HexTile` that is done or open carries its `TilePicto` above the label, the same picto as in the folded row, so a tile is known before the first fold. A done tile has no ✓: the green print says done. Coming and undiscovered tiles carry no picto, so the progression holds (2026-10-31).
 - Hex tiles never share the panel's background: open tiles are `surface-white`, coming tiles `paper`, undiscovered ones `paper-2` with halftone dots.
 
 ## A step, top to bottom
