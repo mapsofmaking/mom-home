@@ -23,6 +23,8 @@ import { describePodError, getPrimaryPodUrl, isAuthError } from "./lib/pod";
 import { APP_NAME, DEFAULT_IDENTIFIER } from "./config";
 import { focusView, trackInputModality } from "./ui/a11y";
 import { renderError, renderPending } from "./ui/patterns";
+import { loadTree } from "./tree/load";
+import type { Tree } from "./tree/parse";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
@@ -46,7 +48,18 @@ function appHeader(right = ""): string {
     </header>`;
 }
 
+/** The tile tree, read once at load. The hex view and the workbench draw from it (S3). */
+let tree: Tree | null = null;
+export const currentTree = (): Tree | null => tree;
+
 async function main(): Promise<void> {
+  try {
+    tree = await loadTree();
+  } catch (err) {
+    renderTreeErrorView(err);
+    return;
+  }
+
   const state = await completeLogin();
 
   if (!state.loggedIn) {
@@ -147,6 +160,29 @@ function renderErrorView(webId: string, err: unknown): void {
     renderLoginView();
   });
 
+  focusView(app);
+}
+
+/**
+ * The tree didn't load or didn't parse (AC2): never a blank map. Nothing the
+ * coordinator typed is at stake yet; the tree is ours, so the copy says so.
+ */
+function renderTreeErrorView(err: unknown): void {
+  app.innerHTML = `
+    <main class="screen stack">
+      ${appHeader()}
+      ${renderError({
+        title: "This page didn't load properly",
+        detail: "The list of what you can do here didn't come through. That's on our side, not yours.",
+        recovery: "Nothing you typed is lost. Try again in a minute; if it keeps happening, the map at mapsofmaking.org still works.",
+        action: { label: "Try again", id: "retry" },
+        technical: err instanceof Error ? err.message : String(err),
+      })}
+    </main>
+  `;
+  document.querySelector<HTMLButtonElement>("#retry")!.addEventListener("click", () => {
+    void main();
+  });
   focusView(app);
 }
 
