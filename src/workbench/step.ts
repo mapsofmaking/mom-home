@@ -5,12 +5,12 @@
  * No tile is real yet (Stories 14.2–14.6 make them real one at a time): an
  * open tile shows its preview, labelled, with the chip COMING (AC6). A
  * coming tile shows its outcome and what it waits for, never its mechanism
- * (AC3). Bernard's lines come from the tree; the system's own words (labels,
- * hints) are here.
+ * (AC3). Bernard's lines come from the tree; so do tile A's own words (14.2
+ * AC8, describe.ts). The rest of the system's words (chips, asides) are here.
  */
 import type { TileState } from "../tree/fog";
 import type { Tile } from "../tree/parse";
-import { renderDescribeForm } from "./describe";
+import { describeWords, renderDescribeForm, type DescribeWords } from "./describe";
 import { bernard, esc } from "./html";
 import { hasPreview, renderPreview, type Draft } from "./previews";
 
@@ -20,6 +20,8 @@ export interface StepContext {
   draft: Draft;
   /** Tile A reopened with "Fix something first". */
   editing?: boolean;
+  /** Tile A's words; the page passes its one reader (read from the tile when absent). */
+  words?: DescribeWords;
 }
 
 function waitsFor(tile: Tile, ctx: StepContext): string {
@@ -77,20 +79,27 @@ const head = (tile: Tile, state: TileState) => `
  * to the next tile in one step (design system: one way out).
  */
 function describeStep(tile: Tile, state: TileState, ctx: StepContext): string {
+  const w = ctx.words ?? describeWords(tile);
   if (state !== "done" || ctx.editing) {
+    // A phone gets the shorter lead (AC2); home.css shows one of the two by width.
+    const words = tile.leadShort
+      ? `<span class="lead-full">${esc(tile.lead ?? "")}</span><span class="lead-short">${esc(tile.leadShort)}</span>`
+      : esc(tile.lead ?? "");
     const lead = tile.lead
-      ? `<p class="wb-lead">${esc(tile.lead)} <a class="inline-link" href="https://mapsofmaking.org" target="_blank" rel="noopener">See the map ↗</a></p>`
+      ? `<p class="wb-lead">${words} <a class="inline-link" href="https://mapsofmaking.org" target="_blank" rel="noopener">${esc(w.ui("uiSeeMap"))}</a></p>`
       : "";
-    return head(tile, state) + lead + renderDescribeForm(ctx.draft);
+    return head(tile, state) + lead + renderDescribeForm(ctx.draft, w);
   }
   const kept = ctx.states.get("keep") === "done";
+  // The way on is the next tile, by its own name.
+  const next = ctx.tiles.find((t) => t.id === "keep");
   return `${head(tile, state)}
     ${bernard(tile.lines.saidDone)}
     ${hasPreview(tile.preview) ? renderPreview(tile.preview, ctx.draft) : ""}
     ${kept ? "" : bernard(tile.lines.sayNext)}
     <div class="wb-out">
-      ${kept ? "" : `<button type="button" class="btn btn-primary wb-cta" data-go="keep">Publish it</button>`}
-      <button type="button" class="inline-link" id="fix">${kept ? "Change something" : "Fix something first"}</button>
+      ${kept || !next ? "" : `<button type="button" class="btn btn-primary wb-cta" data-go="keep">${esc(next.title)}</button>`}
+      <button type="button" class="inline-link" id="fix">${esc(w.ui(kept ? "uiChange" : "uiFix"))}</button>
     </div>`;
 }
 

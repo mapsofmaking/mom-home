@@ -3,11 +3,14 @@
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
 # The home app's tile tree (home.mapsofmaking.org, Epic 14). Single source of every
-# line Bernard speaks in the app: another vertical forks the app by swapping this file.
+# line Bernard speaks in the app, and of tile A's own words (14.2 AC8): another
+# vertical forks the app by swapping this file.
 # Draft vocabulary: onb: moves to the ontology repo once stable. The doneWhen queries
 # are illustrative: they show how an app would read progress from the pod; their
 # predicates are not settled. Copy reference: the "Onboard Storyboard" design canvas.
-# onb:lead is the app's own voice, not Bernard's: a tile's plain opening line (tile A has no guide yet).
+# onb:lead is the app's own voice, not Bernard's: a tile's plain opening line (tile A has no guide yet);
+# onb:leadShort is the same on a phone. onb:ui* lines and onb:field nodes are the app's own
+# words on a tile (labels, hints, buttons, messages); Bernard's lines are onb:say*/said*.
 # onb:icon names the tile's picto in the folded row (inline SVG strokes, per the design system).
 
 # Lines that belong to the app, not to one tile.
@@ -20,8 +23,54 @@
   onb:q 0 ; onb:r 0 ; onb:prio 1 ;
   onb:act "describe" ; onb:preview "mapcard" ;
   onb:lead "Maps of Making is a map of the places where people make things together: fablabs, hackerspaces, repair cafés, community workshops. Add yours. A name and a town are enough to start, and you see your card before anything goes public."@en ;
+  onb:leadShort "A map of the places where people make things together. Add yours: a name and a town are enough. You see your card before anything goes public."@en ;
   onb:saidDone "Hi, I'm Bernard (they/them), from Mother Sand. That's you, the way a visitor will see it. For now it only lives in this browser. Nobody else can see it."@en ;
   onb:sayNext "Want it out there for real?"@en ;
+  onb:uiSeeMap "See the map ↗"@en ;
+  onb:uiOptional "Optional · change it any time"@en ;
+  onb:uiMore "Add more: description, contact, website, logo"@en ;
+  onb:uiCta "Show me my card"@en ;
+  onb:uiExample "Fill in an example"@en ;
+  onb:uiStartOver "Start over"@en ;
+  onb:uiStartOverAsk "This clears everything typed here, in this browser."@en ;
+  onb:uiClear "Clear it"@en ;
+  onb:uiKeepIt "Keep it"@en ;
+  onb:uiCleared "Cleared. Nothing typed is kept in this browser."@en ;
+  onb:uiFix "Fix something first"@en ;
+  onb:uiChange "Change something"@en ;
+  onb:uiNotOnPod "This step isn't connected to your pod yet, so nothing was saved or marked done."@en ;
+  onb:uiPinWorking "Working out where that is."@en ;
+  onb:uiPinFound "Dropping the pin here:"@en ;
+  onb:uiPinByHand "Pin set by hand:"@en ;
+  onb:uiStreetMissed "No match for the street, so the pin sits in the centre of {city}."@en ;
+  onb:uiNoResult "The geocoder (OpenStreetMap) can't place that. Check the city, or enter the coordinates below."@en ;
+  onb:uiUnavailable "The geocoder isn't answering right now. Enter the coordinates below, or leave the city field again in a moment."@en ;
+  onb:uiRate "Too many requests to the geocoder. Wait a moment, then leave the city field again."@en ;
+  onb:uiAddedScheme "Added https://. Change it if that's wrong."@en ;
+  onb:uiAddedRoom "Added # for a room. Change it to + if it's a community."@en ;
+  # The form's fields, in no order (the code orders them). onb:example fills "Fill in an
+  # example": a space that doesn't exist, so nothing typed is mistaken for real. Its street
+  # doesn't exist either: the pin falls back to the Marolles, and the pin line says so.
+  onb:field
+    [ onb:key "name" ; onb:label "Space name"@en ; onb:placeholder "The name your community knows"@en ;
+      onb:hint "Tab or Enter to move on."@en ; onb:example "Weld Done" ] ,
+    [ onb:key "street" ; onb:label "Street address"@en ; onb:placeholder "e.g. Rue du Canal 12"@en ;
+      onb:hint "Optional. Without it, the pin sits in the town's centre."@en ; onb:example "Rue de l'Étincelle 12" ] ,
+    [ onb:key "city" ; onb:label "City"@en ; onb:hint "The town or municipality."@en ; onb:example "Marolles, Bruxelles" ] ,
+    [ onb:key "description" ; onb:label "Description"@en ; onb:placeholder "One or two sentences. What kind of space is this?"@en ;
+      onb:example "Metal shop with two welding stations. Gloves provided, sparks included."@en ] ,
+    [ onb:key "email" ; onb:label "Contact email"@en ; onb:placeholder "hello@example.org"@en ;
+      onb:hint "Not a personal inbox. Somewhere the space can be reached."@en ; onb:example "hello@welddone.example" ] ,
+    [ onb:key "matrix" ; onb:label "Matrix room"@en ; onb:placeholder "#yourspace:matrix.org"@en ;
+      onb:hint "The space's room, not a personal account."@en ; onb:example "#welddone:matrix.org" ] ,
+    [ onb:key "website" ; onb:label "Website"@en ; onb:placeholder "example.org"@en ;
+      onb:hint "The space's main web page."@en ; onb:example "https://welddone.example" ] ,
+    [ onb:key "logo" ; onb:label "Logo URL"@en ; onb:placeholder "example.org/logo.png"@en ;
+      onb:hint "Transparent PNG works best."@en ] ,
+    [ onb:key "country" ; onb:label "Country code"@en ; onb:placeholder "e.g. BE"@en ;
+      onb:hint "Two letters, ISO. e.g. DE, FR, BE."@en ] ,
+    [ onb:key "lat" ; onb:label "Latitude"@en ; onb:placeholder "e.g. 50.84"@en ] ,
+    [ onb:key "lon" ; onb:label "Longitude"@en ; onb:placeholder "e.g. 4.33"@en ] ;
   onb:doneWhen """ASK { ?space a mom:Space ; schema:name ?n ; schema:address ?a }""" .
 
 :keep a onb:Tile ;

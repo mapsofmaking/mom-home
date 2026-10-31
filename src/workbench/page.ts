@@ -23,14 +23,27 @@
  * The hex view scales to its panel, the way the dry run's does: the whole
  * tree is always in sight, larger on a large screen, never a scrollbar.
  *
- * Signed out, what is done lives in memory (AC4). Tile A's form is a feel of
- * the tile until 14.2: "Show me my card" marks it done here, in this tab.
+ * Signed out, what is done lives in memory (AC4): "Show me my card" marks
+ * tile A done here, in this tab. What was typed outlives the tab: the shell
+ * keeps the draft in this browser for 30 days (14.2 AC7, `onDraft`).
  */
 import { tally, tileStates } from "../tree/fog";
 import { completableIds } from "../tiles/done";
 import { announce } from "../ui/a11y";
 import type { Tree } from "../tree/parse";
-import { describeCommit, describeKeydown, fillExample, missing, readDescribeForm, syncCta } from "./describe";
+import {
+  askStartOver,
+  describeWords,
+  showMore,
+  describeCommit,
+  describeEdited,
+  describeKeydown,
+  describeNormalise,
+  fillExample,
+  missing,
+  readDescribeForm,
+  syncCta,
+} from "./describe";
 import { locate, pinByHand, unpin } from "./where";
 import { esc } from "./html";
 import { renderHexRow } from "./hexrow";
@@ -47,6 +60,8 @@ export interface PageOptions {
   /** Mutable: tiles done. Signed out, in this tab only (AC4); signed in, read from the pod (S6). */
   done: Set<string>;
   draft: Draft;
+  /** Signed out, the draft changed: the shell keeps it in this browser (14.2 AC7). Empty: it was cleared. */
+  onDraft?: (draft: Draft) => void;
   /** Shared with the shell, so the fold outlives a redraw and a sign-in. */
   fold: FoldState;
   /** The coordinator folded or unfolded: the shell keeps it (signed in, in settings/mom-home.ttl). */
@@ -120,6 +135,8 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   const life = new AbortController();
   const observers: ResizeObserver[] = [];
   const completable = completableIds(tree);
+  /** Tile A's words, from the tree (14.2 AC8): one reader for the page, so a missing line warns once. */
+  const words = describeWords(tree.tiles.find((t) => t.act === "describe"));
 
   const who = workbench
     ? `<span>Signed in as <b>${esc(opts.who ?? "")}</b></span>
@@ -189,7 +206,9 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     opts.fold.folded = value;
     layout();
     opts.onFold?.(value);
-    root.querySelector<HTMLButtonElement>(value ? "#unfold" : "#fold")?.focus();
+    // Folded, the way back is whichever bar the width shows (hexrow.ts: toolbar or phone strip).
+    const back = [...root.querySelectorAll<HTMLElement>("[data-unfold]")].find((b) => b.getClientRects().length);
+    (value ? (back ?? root.querySelector<HTMLElement>("#unfold")) : root.querySelector<HTMLElement>("#fold"))?.focus();
   };
 
   const draw = () => {
@@ -215,7 +234,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     drawWords();
     fit(hexes);
     const tile = tree.tiles.find((t) => t.id === selected)!;
-    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing });
+    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, words });
     step.scrollTop = 0;
   };
 
@@ -244,7 +263,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   row.addEventListener("click", (event) => {
     const target = (event.target as Element).closest<HTMLButtonElement>("button");
     if (!target) return;
-    if (target.id === "unfold") {
+    if (target.hasAttribute("data-unfold")) {
       setFolded(false);
       return;
     }
@@ -264,10 +283,12 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
       empty.focus();
       return;
     }
+    // Enter in the last field submits without leaving it: tidy every field first.
+    for (const el of [...form.elements]) describeNormalise(form, el, words);
     readDescribeForm(form, opts.draft);
     if (workbench) {
       // Done is read from the pod, never carried here (AC4); tile A is not connected to the pod until 14.2.
-      announce("This step isn't connected to your pod yet, so nothing was saved or marked done.");
+      announce(words.ui("uiNotOnPod"));
       return;
     }
     opts.done.add("describe");
@@ -279,6 +300,17 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
 
   // Tile A's keyboard flow (14.2 AC4); the form is redrawn with the step, so listen here.
   const describeForm = (event: Event) => (event.target as Element).closest<HTMLFormElement>("#f-describe");
+  /** What the form holds now goes to the draft, and the shell keeps it (AC7). Never in the workbench: tile A isn't on the pod yet. */
+  const keep = (form: HTMLFormElement) => {
+    // A geocoder answer can land after the form was cleared or redrawn: a detached form is old news.
+    if (workbench || !form.isConnected) return;
+    readDescribeForm(form, opts.draft);
+    opts.onDraft?.(opts.draft);
+  };
+  const located = (form: HTMLFormElement) => () => {
+    syncCta(form);
+    keep(form);
+  };
   step.addEventListener("keydown", (event) => {
     const form = describeForm(event);
     if (form) describeKeydown(form, event);
@@ -289,8 +321,9 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     const form = describeForm(event);
     if (!form) return;
     describeCommit(form, event.target);
+    if (describeNormalise(form, event.target, words)) keep(form);
     const name = (event.target as HTMLInputElement).name;
-    if (where.has(name)) void locate(form, () => syncCta(form));
+    if (where.has(name)) void locate(form, words, located(form));
   });
   step.addEventListener("input", (event) => {
     const form = describeForm(event);
@@ -298,8 +331,10 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     const target = event.target as HTMLInputElement;
     if (target.name === "country") target.value = target.value.toUpperCase();
     if (target.name === "street" || target.name === "city") unpin(form);
-    if (target.name === "lat" || target.name === "lon") pinByHand(form);
+    if (target.name === "lat" || target.name === "lon") pinByHand(form, words);
+    describeEdited(form, target);
     syncCta(form);
+    keep(form);
   });
 
   step.addEventListener("click", (event) => {
@@ -307,9 +342,26 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     if (!target) return;
     if (target.id === "example") {
       const form = step.querySelector<HTMLFormElement>("#f-describe")!;
-      fillExample(form);
+      fillExample(form, words);
       unpin(form);
-      void locate(form, () => syncCta(form));
+      keep(form);
+      void locate(form, words, located(form));
+    } else if (target.id === "more") {
+      const form = step.querySelector<HTMLFormElement>("#f-describe")!;
+      showMore(form, true);
+      // The fold's button goes away with it: focus goes to what it opened.
+      form.querySelector<HTMLInputElement>("#f-description")?.focus();
+    } else if (target.id === "start-over" || target.id === "clear-no") {
+      askStartOver(step.querySelector<HTMLFormElement>("#f-describe")!, target.id === "start-over");
+    } else if (target.id === "clear-yes") {
+      for (const k of Object.keys(opts.draft)) delete (opts.draft as Record<string, unknown>)[k];
+      opts.onDraft?.(opts.draft);
+      // Signed out, a card with nothing behind it isn't done either.
+      if (!workbench) opts.done.delete("describe");
+      editing = false;
+      draw();
+      step.querySelector<HTMLInputElement>("#f-name")?.focus();
+      announce(words.ui("uiCleared"));
     } else if (target.id === "fix") {
       editing = true;
       draw();

@@ -29,6 +29,7 @@ import { displayName } from "./workbench/who";
 import { changeHomeSettings, readHomeSettings, type HomeSettings } from "./settings/home";
 import { forgetReads } from "./lib/read";
 import { readDone } from "./tiles/done";
+import { makeDraftStore } from "./lib/draft";
 import type { Draft } from "./workbench/previews";
 import type { Tree } from "./tree/parse";
 
@@ -65,7 +66,24 @@ export const currentTree = (): Tree | null => tree;
 const done = new Set<string>(
   import.meta.env.DEV ? (new URLSearchParams(location.search).get("done") ?? "").split(",").filter(Boolean) : []
 );
-const draft: Draft = {};
+/**
+ * What was typed signed out, kept in this browser (14.2 AC7) for 30 days: a
+ * coordinator who comes back next week finds the form as they left it. Not
+ * genjson's `genjson_draft`: that one lives on the map's origin.
+ */
+const DRAFT_DAYS = 30;
+const drafts = makeDraftStore<Draft>("mom-home:draft", DRAFT_DAYS * 24 * 60 * 60 * 1000);
+const DRAFT_ID = "space";
+/** A stored draft is read as text fields only: an older or damaged entry costs the draft, never the page. */
+function loadDraft(): Draft {
+  const raw: unknown = drafts.load(DRAFT_ID);
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw)) if (typeof v === "string") out[k] = v;
+  return out as Draft;
+}
+const draft: Draft = loadDraft();
+const keepDraft = (d: Draft) => (Object.keys(d).length ? drafts.save(DRAFT_ID, d) : drafts.clear(DRAFT_ID));
 /** The hex panel's fold, one state for the page (page.ts). Signed in, S6 keeps it in settings/mom-home.ttl. */
 const fold: FoldState = { folded: null };
 
@@ -81,7 +99,7 @@ function show(options: Parameters<typeof renderPage>[2]): void {
 }
 
 function renderOnboardingView(): void {
-  show({ mode: "onboarding", done, draft, fold, onSignIn: () => renderLoginView(), onSignOut: signOut });
+  show({ mode: "onboarding", done, draft, onDraft: keepDraft, fold, onSignIn: () => renderLoginView(), onSignOut: signOut });
   focusView(app);
 }
 
@@ -137,6 +155,7 @@ async function signOut(): Promise<void> {
     forgetReads();
     done.clear();
     for (const k of Object.keys(draft)) delete (draft as Record<string, unknown>)[k];
+    drafts.clear(DRAFT_ID);
     fold.folded = null;
     writes = Promise.resolve();
     renderOnboardingView();

@@ -6,12 +6,15 @@ import { parseTree } from "../tree/parse";
 import { hexPosition, renderHexView, tileLabel } from "./hexview";
 import { renderPreview } from "./previews";
 import { renderStep } from "./step";
+import { describeWords, renderDescribeForm as renderDescribeFormFor } from "./describe";
 import { metWords, renderWords } from "./words";
 import { renderHexRow } from "./hexrow";
 import { fallbackName } from "./who";
 
 const tree = parseTree(readFileSync(join(__dirname, "../../public/onboarding.ttl"), "utf8"));
 const byId = Object.fromEntries(tree.tiles.map((t) => [t.id, t]));
+/** Tile A's words, as the page reads them from the tree. */
+const W = describeWords(byId.describe);
 const at = (...done: string[]) => tileStates(tree.tiles, new Set(done));
 const html = (s: string) => {
   const div = document.createElement("div");
@@ -157,19 +160,24 @@ describe("tile A (14.2)", () => {
   });
 
   it("reads the form back, and fills the example", async () => {
-    const { fillExample, readDescribeForm, EXAMPLE } = await import("./describe");
+    const { fillExample, readDescribeForm } = await import("./describe");
     const form = html(renderStep(byId.describe, ctx([]))).querySelector("form")!;
-    fillExample(form);
+    fillExample(form, W);
     const draft = {};
     readDescribeForm(form, draft);
-    expect(draft).toEqual(EXAMPLE);
+    // The tree's example: a space that doesn't exist (14.2 AC8).
+    expect(draft).toEqual({
+      name: "Weld Done", street: "Rue de l'Étincelle 12", city: "Marolles, Bruxelles",
+      description: "Metal shop with two welding stations. Gloves provided, sparks included.",
+      email: "hello@welddone.example", matrix: "#welddone:matrix.org", website: "https://welddone.example",
+    });
   });
 });
 
 describe("tile A's keyboard flow (14.2 AC4)", async () => {
   const { describeCommit, describeKeydown, fillExample, missing, renderDescribeForm } = await import("./describe");
   const mount = (draft = {}) => {
-    document.body.innerHTML = renderDescribeForm(draft);
+    document.body.innerHTML = renderDescribeForm(draft, W);
     const form = document.querySelector<HTMLFormElement>("#f-describe")!;
     form.addEventListener("keydown", (e) => describeKeydown(form, e));
     return form;
@@ -237,7 +245,7 @@ describe("tile A's keyboard flow (14.2 AC4)", async () => {
     expect(beat("rest").hasAttribute("inert")).toBe(false);
     const form = mount();
     expect(missing(form)).toBe(field("name"));
-    fillExample(form);
+    fillExample(form, W);
     expect(beat("rest").hasAttribute("inert")).toBe(false);
     // Name and city in, no pin yet: the card waits for the geocoder (S3).
     expect(missing(form)).toBe(field("city"));
@@ -247,7 +255,7 @@ describe("tile A's keyboard flow (14.2 AC4)", async () => {
 
 describe("where: the pin from the geocoder (14.2 AC5)", async () => {
   const { renderDescribeForm, syncCta, readDescribeForm } = await import("./describe");
-  const { locate, shortPlace, timing, SAY, unpin, pinByHand } = await import("./where");
+  const { locate, shortPlace, timing, unpin, pinByHand } = await import("./where");
   timing.minWait = 0;
   timing.retryGap = 0;
   timing.tick = 0;
@@ -266,7 +274,7 @@ describe("where: the pin from the geocoder (14.2 AC5)", async () => {
   };
   afterEach(() => vi.unstubAllGlobals());
   const mount = (draft = {}) => {
-    document.body.innerHTML = renderDescribeForm({ name: "Atelier", ...draft });
+    document.body.innerHTML = renderDescribeForm({ name: "Atelier", ...draft }, W);
     return document.querySelector<HTMLFormElement>("#f-describe")!;
   };
   const val = (name: string) => (document.querySelector(`[name="${name}"]`) as HTMLInputElement).value;
@@ -282,11 +290,11 @@ describe("where: the pin from the geocoder (14.2 AC5)", async () => {
   it("a city alone is enough: the pin, the postcode and the country come from the answer, and the card opens", async () => {
     const fetch = answers(ANDERLECHT);
     const form = mount({ city: "Anderlecht" });
-    await locate(form, () => syncCta(form));
+    await locate(form, W, () => syncCta(form));
     expect(JSON.parse(fetch.mock.calls[0][1]!.body as string)).toEqual({ address: "", city: "Anderlecht", postcode: "", country_code: "" });
     expect(fetch.mock.calls[0][0]).toBe("/api/geocode");
     expect([val("lat"), val("lon"), val("postcode"), val("country")]).toEqual(["50.8390983", "4.3296526", "1070", "BE"]);
-    expect(pin().textContent).toBe(`${SAY.found} 50.8391, 4.3297 · Anderlecht, Brussel-Hoofdstad, Région de Bruxelles-Capitale · 1070 · BE`);
+    expect(pin().textContent).toBe(`${W.ui("uiPinFound")} 50.8391, 4.3297 · Anderlecht, Brussel-Hoofdstad, Région de Bruxelles-Capitale · 1070 · BE`);
     expect(cta().disabled).toBe(false);
     const draft = {};
     readDescribeForm(form, draft);
@@ -296,25 +304,25 @@ describe("where: the pin from the geocoder (14.2 AC5)", async () => {
   it("a street it can't find falls back to the city, and says so", async () => {
     const fetch = answers(NONE, ANDERLECHT);
     const form = mount({ street: "Rue du Canal 12", city: "Anderlecht" });
-    await locate(form);
+    await locate(form, W);
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(JSON.parse(fetch.mock.calls[1][1]!.body as string).address).toBe("");
-    expect(pin().querySelector(".wb-pin-note")!.textContent).toBe(SAY.streetMissed("Anderlecht"));
-    expect(pin().textContent).toContain(`${SAY.found} 50.8391, 4.3297`);
+    expect(pin().querySelector(".wb-pin-note")!.textContent).toBe(W.ui("uiStreetMissed", { city: "Anderlecht" }));
+    expect(pin().textContent).toContain(`${W.ui("uiPinFound")} 50.8391, 4.3297`);
   });
 
   it("asks once per address", async () => {
     const fetch = answers(ANDERLECHT);
     const form = mount({ city: "Anderlecht" });
-    await locate(form);
-    await locate(form);
+    await locate(form, W);
+    await locate(form, W);
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it("no country in the answer: a two-letter field, and the card waits for it", async () => {
     answers({ ...ANDERLECHT, country_code: null });
     const form = mount({ city: "Anderlecht" });
-    await locate(form, () => syncCta(form));
+    await locate(form, W, () => syncCta(form));
     expect(shown("country")).toBe(true);
     expect(cta().disabled).toBe(true);
     (form.elements.namedItem("country") as HTMLInputElement).value = "BE";
@@ -325,37 +333,37 @@ describe("where: the pin from the geocoder (14.2 AC5)", async () => {
   it("nothing found: names the geocoder, opens the coordinates and the country, keeps what was typed", async () => {
     answers(NONE);
     const form = mount({ city: "Nowhere" });
-    await locate(form, () => syncCta(form));
-    expect(pin().textContent).toBe(SAY.noResult);
+    await locate(form, W, () => syncCta(form));
+    expect(pin().textContent).toBe(W.ui("uiNoResult"));
     expect(pin().className).toContain("error");
     expect(shown("coords") && shown("country")).toBe(true);
     expect(val("city")).toBe("Nowhere");
     (form.elements.namedItem("lat") as HTMLInputElement).value = "50.84";
     (form.elements.namedItem("lon") as HTMLInputElement).value = "4.33";
     (form.elements.namedItem("country") as HTMLInputElement).value = "BE";
-    pinByHand(form);
+    pinByHand(form, W);
     syncCta(form);
-    expect(pin().textContent).toBe(`${SAY.byHand} 50.84, 4.33 · BE`);
+    expect(pin().textContent).toBe(`${W.ui("uiPinByHand")} 50.84, 4.33 · BE`);
     expect(cta().disabled).toBe(false);
   });
 
   it("the geocoder down or busy: says which, never blames the coordinator", async () => {
     answers(503);
     let form = mount({ city: "Anderlecht" });
-    await locate(form);
-    expect(pin().textContent).toBe(SAY.unavailable);
+    await locate(form, W);
+    expect(pin().textContent).toBe(W.ui("uiUnavailable"));
     expect(shown("coords")).toBe(true);
     answers(429);
     form = mount({ city: "Anderlecht" });
-    await locate(form);
-    expect(pin().textContent).toBe(SAY.rate);
+    await locate(form, W);
+    expect(pin().textContent).toBe(W.ui("uiRate"));
     expect(shown("coords")).toBe(false);
   });
 
   it("typing in the address drops the old pin", async () => {
     answers(ANDERLECHT);
     const form = mount({ city: "Anderlecht" });
-    await locate(form, () => syncCta(form));
+    await locate(form, W, () => syncCta(form));
     unpin(form);
     syncCta(form);
     expect([val("lat"), val("country"), pin().textContent]).toEqual(["", "", ""]);
@@ -364,7 +372,7 @@ describe("where: the pin from the geocoder (14.2 AC5)", async () => {
 
   it("a draft with a pin opens with its line and the card on", () => {
     mount({ city: "Anderlecht", lat: "50.84", lon: "4.33", country: "BE", place: "Anderlecht" });
-    expect(pin().textContent).toBe(`${SAY.found} 50.84, 4.33 · Anderlecht · BE`);
+    expect(pin().textContent).toBe(`${W.ui("uiPinFound")} 50.84, 4.33 · Anderlecht · BE`);
     expect(cta().disabled).toBe(false);
   });
 });
@@ -447,5 +455,143 @@ describe("signed in as", () => {
   it("falls back to the pod's own label when the profile has no name", () => {
     expect(fallbackName("https://atelier.pod.mapsofmaking.org/profile/card#me")).toBe("atelier");
     expect(fallbackName("https://pod.example.org/nicolas/profile/card#me")).toBe("nicolas");
+  });
+});
+
+describe("tile A keeps the draft and tidies what it can (14.2 AC7, normalisers)", async () => {
+  const { describeEdited, describeNormalise, normalizeMatrix, normalizeUrl, renderDescribeForm, syncCta } = await import("./describe");
+  const mount = (draft = {}) => {
+    document.body.innerHTML = renderDescribeForm(draft, W);
+    return document.querySelector<HTMLFormElement>("#f-describe")!;
+  };
+  const field = (name: string) => document.querySelector<HTMLInputElement>(`[name="${name}"]`)!;
+  const hint = (name: string) => document.querySelector<HTMLElement>(`#f-${name}-hint`)!;
+  const shown = (sel: string) => !document.querySelector<HTMLElement>(sel)!.hidden;
+
+  it("adds the scheme to a URL and the sigil to a room, nothing else", () => {
+    expect(normalizeUrl("welddone.example")).toBe("https://welddone.example");
+    expect(normalizeUrl("localhost:3000/x")).toBe("https://localhost:3000/x");
+    expect(normalizeUrl("http://a.example")).toBe("http://a.example");
+    expect(normalizeUrl("data:image/png;base64,AA")).toBe("data:image/png;base64,AA");
+    expect(normalizeUrl("")).toBe("");
+    expect(normalizeMatrix("welddone:matrix.org")).toBe("#welddone:matrix.org");
+    expect(normalizeMatrix("+welddone:matrix.org")).toBe("+welddone:matrix.org");
+    expect(normalizeMatrix("welddone")).toBe("welddone");
+    expect(normalizeMatrix("https://matrix.to/#/#welddone:matrix.org")).toBe("https://matrix.to/#/#welddone:matrix.org");
+  });
+
+  it("says what it added, until the field is edited again", () => {
+    const form = mount({ name: "Weld Done", city: "Marolles" });
+    const before = hint("website").textContent;
+    field("website").value = "welddone.example";
+    expect(describeNormalise(form, field("website"), W)).toBe(true);
+    expect(field("website").value).toBe("https://welddone.example");
+    expect(hint("website").textContent).toContain("Added https://");
+    expect(hint("website").classList.contains("is-changed")).toBe(true);
+    // Leaving it again changes nothing more.
+    expect(describeNormalise(form, field("website"), W)).toBe(false);
+    describeEdited(form, field("website"));
+    expect(hint("website").textContent).toBe(before);
+    expect(hint("website").classList.contains("is-changed")).toBe(false);
+
+    field("matrix").value = "welddone:matrix.org";
+    expect(describeNormalise(form, field("matrix"), W)).toBe(true);
+    expect(hint("matrix").textContent).toContain("Added #");
+    // Fields without a rule are left as typed.
+    field("email").value = "hello";
+    expect(describeNormalise(form, field("email"), W)).toBe(false);
+  });
+
+  it("a resumed draft opens as it was left, and doesn't ask the geocoder again", () => {
+    const form = mount({ name: "Weld Done", city: "Marolles, Bruxelles", lat: "50.8371", lon: "4.3458", country: "BE", place: "Marolles" });
+    expect(shown('[data-beat="where"]') && document.querySelector('[data-beat="rest"]')!.classList.contains("open")).toBe(true);
+    expect(document.querySelector("#f-pin")!.textContent).toContain("50.8371, 4.3458");
+    expect(form.dataset.located).toBe("|Marolles, Bruxelles|");
+    expect(shown('[data-manual="coords"]')).toBe(false);
+    expect((form.querySelector(".wb-cta") as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("a pin set by hand reopens the fields it was typed in", () => {
+    mount({ name: "Weld Done", city: "Nowhere", lat: "50.1", lon: "4.2", country: "BE" });
+    expect(shown('[data-manual="coords"]')).toBe(true);
+    expect(shown('[data-manual="country"]')).toBe(true);
+  });
+
+  it("offers the example while nothing is typed, then Start over", () => {
+    const form = mount();
+    expect(shown("#example")).toBe(true);
+    expect(shown("#start-over")).toBe(false);
+    field("name").value = "W";
+    syncCta(form);
+    expect(shown("#example")).toBe(false);
+    expect(shown("#start-over")).toBe(true);
+    expect(shown("#start-over-confirm")).toBe(false);
+    mount({ name: "Weld Done" });
+    expect(shown("#start-over")).toBe(true);
+  });
+});
+
+describe("on a phone (14.2 S5)", async () => {
+  const { renderDescribeForm, showMore, fillExample } = await import("./describe");
+
+  it("folds the row into one strip: six hexes at most, the rest counted, one button to unfold", () => {
+    const r = html(renderHexRow(tree.tiles, at("describe", "keep"), "change"));
+    const strip = r.querySelector<HTMLButtonElement>("button.hx-bar.compact")!;
+    expect(strip.hasAttribute("data-unfold")).toBe(true);
+    expect(strip.querySelectorAll(".hx.tool")).toHaveLength(6);
+    // Ten reached, six shown: seven left of thirteen.
+    expect(strip.querySelector(".hx-more")!.textContent).toBe("+7");
+    expect(strip.querySelector("button, [data-tile]")).toBeNull();
+    expect(strip.getAttribute("aria-label")).toBe("What you can do: 10 reached, 3 to discover. See all");
+    expect(strip.querySelector("[data-current]")).not.toBeNull();
+  });
+
+  it("names the Enter key: next, and done on the last field of a beat", () => {
+    document.body.innerHTML = renderDescribeForm({}, W);
+    const hint = (n: string) => document.querySelector(`[name="${n}"]`)!.getAttribute("enterkeyhint");
+    expect(["name", "street", "city", "description", "website", "logo"].map(hint)).toEqual(["next", "next", "done", "next", "next", "done"]);
+  });
+
+  it("folds the optional fields behind Add more until something optional is typed", () => {
+    document.body.innerHTML = renderDescribeForm({ name: "Weld Done", city: "Marolles" }, W);
+    const form = document.querySelector<HTMLFormElement>("#f-describe")!;
+    const more = form.querySelector("#more")!;
+    expect(more.textContent).toBe("Add more: description, contact, website, logo");
+    expect(more.getAttribute("aria-controls")).toBe("f-optional");
+    expect(form.classList.contains("more-open")).toBe(false);
+    showMore(form, true);
+    expect(form.classList.contains("more-open")).toBe(true);
+    expect(more.getAttribute("aria-expanded")).toBe("true");
+    document.body.innerHTML = renderDescribeForm({ name: "Weld Done", city: "Marolles", website: "https://a.example" }, W);
+    expect(document.querySelector("#f-describe")!.classList.contains("more-open")).toBe(true);
+    document.body.innerHTML = renderDescribeForm({}, W);
+    fillExample(document.querySelector<HTMLFormElement>("#f-describe")!, W);
+    expect(document.querySelector("#f-describe")!.classList.contains("more-open")).toBe(true);
+  });
+
+  it("has a shorter lead for a phone, from the tree", () => {
+    expect(byId.describe.leadShort).toMatch(/^A map of the places/);
+    const s = html(renderStep(byId.describe, { tiles: tree.tiles, states: at(), draft: {} }));
+    expect(s.querySelector(".lead-full")!.textContent).toBe(byId.describe.lead);
+    expect(s.querySelector(".lead-short")!.textContent).toBe(byId.describe.leadShort);
+  });
+});
+
+describe("tile A's words come from the tree (14.2 AC8)", () => {
+  it("draws labels, hints and buttons from onboarding.ttl", () => {
+    document.body.innerHTML = renderDescribeFormFor({}, W);
+    expect(document.querySelector('label[for="f-name"]')!.textContent).toContain(byId.describe.fields.name.label);
+    expect(document.querySelector("#f-street-hint")!.textContent).toBe(byId.describe.fields.street.hint);
+    expect(document.querySelector(".wb-cta")!.textContent).toBe(byId.describe.ui.uiCta);
+  });
+
+  it("fills a {name} in a line, and says so when a line is missing", () => {
+    expect(W.ui("uiStreetMissed", { city: "Marolles" })).toContain("the centre of Marolles.");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const bare = describeWords({ ui: {}, fields: {} });
+    expect(bare.ui("uiCta")).toBe("");
+    expect(bare.field("name").label).toBe("name");
+    expect(warn).toHaveBeenCalledTimes(2);
+    warn.mockRestore();
   });
 });

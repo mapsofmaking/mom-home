@@ -107,3 +107,87 @@ describe("renderPage", () => {
     expect(root.querySelector(".wb-step-title")!.textContent).not.toBe("Still to discover");
   });
 });
+
+describe("renderPage keeps the draft (14.2 AC7)", () => {
+  const type = (root: HTMLElement, name: string, value: string) => {
+    const input = root.querySelector<HTMLInputElement>(`[name="${name}"]`)!;
+    input.value = value;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+
+  it("signed out, every edit goes to the shell", () => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    const onDraft = vi.fn();
+    renderPage(root, tree, { ...options("onboarding"), onDraft });
+    type(root, "name", "Weld Done");
+    expect(onDraft).toHaveBeenLastCalledWith(expect.objectContaining({ name: "Weld Done" }));
+    root.remove();
+  });
+
+  it("signed in, nothing is kept: tile A isn't on the pod yet", () => {
+    const root = document.createElement("div");
+    const onDraft = vi.fn();
+    renderPage(root, tree, { ...options("workbench"), onDraft });
+    type(root, "name", "Weld Done");
+    expect(onDraft).not.toHaveBeenCalled();
+  });
+
+  it("Start over asks in the page, then clears the draft and the card", () => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    const draft = { name: "Weld Done", city: "Marolles" };
+    const done = new Set<string>();
+    const onDraft = vi.fn();
+    renderPage(root, tree, { ...options("onboarding", done), draft, onDraft });
+    const click = (id: string) => root.querySelector<HTMLButtonElement>(`#${id}`)!.click();
+    click("start-over");
+    expect(root.querySelector<HTMLElement>("#start-over-confirm")!.hidden).toBe(false);
+    expect(document.activeElement).toBe(root.querySelector("#clear-yes"));
+    click("clear-no");
+    expect(root.querySelector<HTMLElement>("#start-over-confirm")!.hidden).toBe(true);
+    expect(draft).toEqual({ name: "Weld Done", city: "Marolles" });
+    click("start-over");
+    click("clear-yes");
+    expect(draft).toEqual({});
+    expect(onDraft).toHaveBeenLastCalledWith({});
+    expect(root.querySelector<HTMLInputElement>("#f-name")!.value).toBe("");
+    expect(document.activeElement).toBe(root.querySelector("#f-name"));
+    root.remove();
+  });
+});
+
+describe("renderPage, review fixes (14.2)", () => {
+  it("a geocoder answer that lands after Start over doesn't bring the draft back", async () => {
+    const { timing } = await import("./where");
+    Object.assign(timing, { minWait: 0, retryGap: 0, tick: 0 });
+    let answer!: (r: Response) => void;
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((r) => (answer = r))));
+    const root = document.createElement("div");
+    document.body.append(root);
+    const draft: Record<string, string> = {};
+    const onDraft = vi.fn();
+    renderPage(root, tree, { ...options("onboarding"), draft, onDraft });
+    const city = root.querySelector<HTMLInputElement>("#f-city")!;
+    root.querySelector<HTMLInputElement>("#f-name")!.value = "Weld Done";
+    city.value = "Marolles";
+    city.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+    root.querySelector<HTMLButtonElement>("#start-over")!.click();
+    root.querySelector<HTMLButtonElement>("#clear-yes")!.click();
+    answer(Response.json({ lat: 50.8, lon: 4.3, country_code: "be", postcode: "1000", display_name: "Marolles, Bruxelles" }));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(draft).toEqual({});
+    expect(onDraft).toHaveBeenLastCalledWith({});
+    root.remove();
+    vi.unstubAllGlobals();
+  });
+
+  it("tidies the field Enter submitted from", () => {
+    const root = document.createElement("div");
+    const draft: Record<string, string> = {};
+    renderPage(root, tree, { ...options("onboarding"), draft });
+    root.querySelector<HTMLInputElement>("#f-logo")!.value = "welddone.example/logo.png";
+    submit(root);
+    expect(draft.logo).toBe("https://welddone.example/logo.png");
+  });
+});

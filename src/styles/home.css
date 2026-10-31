@@ -132,3 +132,38 @@
 @media (max-width: 700px), (pointer: coarse) {
   button.inline-link { min-height: 32px; min-width: 32px; display: inline-flex; align-items: center; }
 }
+
+/* A normaliser added something (14.2): the hint says what, with an amber
+   mark, until the field is edited (genjson). Amber marks, ink reads: amber
+   text on paper fails contrast. */
+.wb-field .hint.is-changed { color: var(--ink); }
+.wb-field .hint.is-changed::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--bernard-amber); border: 1px solid var(--ink); }
+/* "Start over" asks in the page. */
+.wb-confirm { display: flex; flex-wrap: wrap; gap: var(--space-10); align-items: center; padding: var(--space-12); border: var(--stroke-rule) solid var(--rule); background: var(--surface-white); }
+.wb-confirm p { margin: 0; flex-basis: 100%; }
+
+/* ---- Phone (14.2 S5, storyboard "A1 on a phone"). ---- */
+/* The folded row: the toolbar above a phone's width, the slim strip below it (hexrow.ts). */
+.hx-bar.compact { display: none; }
+@media (max-width: 700px) {
+  .hx-bar.full { display: none; }
+  .hx-bar.compact {
+    display: flex; width: 100%; min-height: 48px; height: auto; gap: 5px; padding-block: var(--space-6);
+    border: 0; background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer;
+  }
+  .hx-bar.compact .hx.tool { width: 26px; height: 30px; cursor: inherit; }
+  .hx-bar.compact .hx.tool > svg.ico { width: 12px; height: 12px; }
+  .hx-bar.compact [data-current] .hx-shape { stroke-width: 3.5px; }
+  .hx-see { margin-left: auto; font-weight: 600; font-size: 14px; white-space: nowrap; color: var(--accent-2); text-decoration: underline; }
+}
+/* The lead: the full one above a phone's width, the short one below (AC2). */
+.wb-lead .lead-short { display: none; }
+/* "Add more" (AC3): a phone folds the optional fields behind it. */
+.wb-more { display: none; }
+@media (max-width: 700px) {
+  .wb-lead .lead-full { display: none; }
+  .wb-lead .lead-short { display: inline; }
+  .wb-more { display: inline-flex; align-self: flex-start; }
+  .wb-form:not(.more-open) .wb-optional { display: none; }
+  .wb-form.more-open .wb-more { display: none; }
+}

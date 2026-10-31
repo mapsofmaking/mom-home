@@ -14,6 +14,12 @@
  * naming the tile: a half-read tree would draw a map that lies. `onb:level`
  * is not read (dropped, AC2); `onb:doneWhen` is kept as documentation only
  * (AC4).
+ *
+ * The app's own words for a tile (Story 14.2 AC8) live there too, apart from
+ * Bernard's: `onb:ui*` lines (buttons, messages) under their local name
+ * (`uiCta`, `uiPinFound`), and `onb:field` nodes, one per
+ * form field, keyed by `onb:key`. The code keeps what a field does (type,
+ * required); the tree keeps what it says.
  */
 import { Parser, type Quad, type Term } from "n3";
 
@@ -45,9 +51,24 @@ export interface Tile {
   icon: string | null;
   /** The tile's opening line in the app's own voice, not Bernard's (tile A: no guide yet). */
   lead: string | null;
+  /** The lead on a phone, shorter (14.2 AC2); the full lead when there is none. */
+  leadShort: string | null;
   unlocksWord: string | null;
   lines: Lines;
+  /** The app's own words on this tile: `uiCta`, `uiPinFound`, ... (14.2 AC8). */
+  ui: Lines;
+  /** The tile's form fields' words, by `onb:key`. */
+  fields: Readonly<Record<string, FieldWords>>;
   doneWhen: string | null;
+}
+
+/** What a form field says (14.2 AC8). The code keeps what it does. */
+export interface FieldWords {
+  label: string;
+  placeholder: string | null;
+  hint: string | null;
+  /** "Fill in an example": a space that doesn't exist. */
+  example: string | null;
 }
 
 export interface Word {
@@ -86,14 +107,29 @@ function text(terms: Term[] | undefined): string | null {
   return pick ? pick.value : null;
 }
 
-function lines(props: Props): Lines {
+function lines(props: Props, prefix = /^(say|said)([A-Z]|$)/): Lines {
   const out: Record<string, string> = {};
   for (const [p, terms] of props) {
     if (!p.startsWith(ONB)) continue;
     const name = local(p);
-    if (!/^(say|said)([A-Z]|$)/.test(name)) continue;
+    if (!prefix.test(name)) continue;
     const value = text(terms);
     if (value !== null) out[name] = value;
+  }
+  return out;
+}
+
+/** A tile's `onb:field` nodes, by key. A field with no key or no label is refused: it would draw a blank. */
+function fieldsOf(tile: string, terms: Term[], subjects: Map<string, Props>): Record<string, FieldWords> {
+  const out: Record<string, FieldWords> = {};
+  for (const term of terms) {
+    const props = subjects.get(term.value);
+    const get = (name: string) => text(props?.get(ONB + name));
+    const key = get("key");
+    const label = get("label");
+    if (!key || !label) throw new TreeError(`Tile "${tile}" has a field with no onb:key or no onb:label.`);
+    if (out[key]) throw new TreeError(`Tile "${tile}" has two fields called "${key}".`);
+    out[key] = { label, placeholder: get("placeholder"), hint: get("hint"), example: get("example") };
   }
   return out;
 }
@@ -156,8 +192,11 @@ export function parseTree(turtle: string): Tree {
         preview: get("preview"),
         icon: get("icon"),
         lead: get("lead"),
+        leadShort: get("leadShort"),
         unlocksWord: iris("unlocksWord")[0] ?? null,
         lines: lines(props),
+        ui: lines(props, /^ui[A-Z]/),
+        fields: fieldsOf(id, props.get(ONB + "field") ?? [], subjects),
         doneWhen: get("doneWhen"),
       });
     } else if (types.includes(ONB + "Word")) {

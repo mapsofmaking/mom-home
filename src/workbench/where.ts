@@ -12,21 +12,13 @@
  * coordinates by hand. Everything typed is kept.
  *
  * The form holds the result in its own inputs (country, lat, lon, postcode,
- * place), so the draft reads it back like any field.
+ * place), so the draft reads it back like any field. What the pin line says
+ * is the tree's (`onb:uiPin*`, 14.2 AC8).
  */
+import type { DescribeWords } from "./describe";
 
 /** The wait has a floor so the pin reads as worked out, not magicked (genjson). */
 export const timing = { minWait: 2300, retryGap: 1100, tick: 110 };
-
-export const SAY = {
-  working: "Working out where that is.",
-  found: "Dropping the pin here:",
-  byHand: "Pin set by hand:",
-  streetMissed: (city: string) => `No match for the street, so the pin sits in ${city}'s centre.`,
-  noResult: "The geocoder (OpenStreetMap) can't place that. Check the city, or enter the coordinates below.",
-  unavailable: "The geocoder isn't answering right now. Enter the coordinates below, or leave the city field again in a moment.",
-  rate: "Too many requests to the geocoder. Wait a moment, then leave the city field again.",
-};
 
 interface Answer {
   lat: number | null;
@@ -66,12 +58,15 @@ export function shortPlace(displayName: string | null | undefined): string {
 }
 
 /** The pin line for a draft or the form's own values. Empty until there is a pin. */
-export function pinLine(v: { lat?: string; lon?: string; place?: string; postcode?: string; country?: string }): string {
+export function pinLine(
+  v: { lat?: string; lon?: string; place?: string; postcode?: string; country?: string },
+  w: DescribeWords
+): string {
   if (!v.lat || !v.lon) return "";
   const tail = [v.place, v.postcode, v.country].filter(Boolean).join(" · ");
   // Four decimals is about 10 m: enough to read, the inputs keep the full value.
   const short = (n: string) => (Number.isFinite(Number(n)) ? String(Math.round(Number(n) * 1e4) / 1e4) : n);
-  return `${v.place ? SAY.found : SAY.byHand} ${short(v.lat)}, ${short(v.lon)}${tail ? ` · ${tail}` : ""}`;
+  return `${w.ui(v.place ? "uiPinFound" : "uiPinByHand")} ${short(v.lat)}, ${short(v.lon)}${tail ? ` · ${tail}` : ""}`;
 }
 
 const field = (form: HTMLFormElement, name: string) => form.elements.namedItem(name) as HTMLInputElement | null;
@@ -105,14 +100,15 @@ function say(form: HTMLFormElement, text: string, tone: "" | "ok" | "error" | "w
 }
 
 /** Bernard's labour made visible: a bar that cycles while the geocoder works. Reduced motion: the words alone. */
-function meter(form: HTMLFormElement): () => void {
+function meter(form: HTMLFormElement, w: DescribeWords): () => void {
   const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-  say(form, SAY.working, "working");
+  const working = w.ui("uiPinWorking");
+  say(form, working, "working");
   if (reduce || !timing.tick) return () => {};
   let n = 0;
   const id = setInterval(() => {
     n = (n + 1) % 12;
-    say(form, `${SAY.working} ${"▰".repeat(n)}${"▱".repeat(11 - n)}`, "working");
+    say(form, `${working} ${"▰".repeat(n)}${"▱".repeat(11 - n)}`, "working");
   }, timing.tick);
   return () => clearInterval(id);
 }
@@ -137,9 +133,9 @@ export function unpin(form: HTMLFormElement): void {
 }
 
 /** The coordinates typed by hand: the pin line follows them, with no place (nothing was found). */
-export function pinByHand(form: HTMLFormElement): void {
+export function pinByHand(form: HTMLFormElement, w: DescribeWords): void {
   set(form, "place", "");
-  say(form, pinLine({ lat: value(form, "lat"), lon: value(form, "lon"), country: value(form, "country") }), pinned(form) ? "ok" : "");
+  say(form, pinLine({ lat: value(form, "lat"), lon: value(form, "lon"), country: value(form, "country") }, w), pinned(form) ? "ok" : "");
 }
 
 /**
@@ -147,7 +143,7 @@ export function pinByHand(form: HTMLFormElement): void {
  * ask makes an older answer moot. `done` runs when the form changed (the
  * button may turn on).
  */
-export async function locate(form: HTMLFormElement, done: () => void = () => {}): Promise<void> {
+export async function locate(form: HTMLFormElement, w: DescribeWords, done: () => void = () => {}): Promise<void> {
   const street = value(form, "street");
   const city = value(form, "city");
   // The country sharpens the ask only when typed by hand; a derived one would make every ask new.
@@ -159,7 +155,7 @@ export async function locate(form: HTMLFormElement, done: () => void = () => {})
   form.dataset.located = key;
 
   const started = Date.now();
-  const stop = meter(form);
+  const stop = meter(form, w);
   let answer = await ask(street, city, country);
   let missed = false;
   if (typeof answer === "object" && answer.lat === null && street) {
@@ -172,7 +168,7 @@ export async function locate(form: HTMLFormElement, done: () => void = () => {})
   if (form.dataset.located !== key) return; // something newer was typed
 
   if (answer === "rate" || answer === "unavailable" || answer.lat === null || answer.lon === null) {
-    const text = answer === "rate" ? SAY.rate : answer === "unavailable" ? SAY.unavailable : SAY.noResult;
+    const text = w.ui(answer === "rate" ? "uiRate" : answer === "unavailable" ? "uiUnavailable" : "uiNoResult");
     say(form, text, "error");
     if (answer !== "rate") {
       show(form, "coords", true);
@@ -198,7 +194,7 @@ export async function locate(form: HTMLFormElement, done: () => void = () => {})
     place: shortPlace(answer.display_name),
     postcode: answer.postcode ?? "",
     country: value(form, "country"),
-  });
-  say(form, line, "ok", missed ? SAY.streetMissed(city) : "");
+  }, w);
+  say(form, line, "ok", missed ? w.ui("uiStreetMissed", { city }) : "");
   done();
 }

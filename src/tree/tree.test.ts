@@ -80,6 +80,11 @@ describe("parseTree refuses a tree that would draw a lie", () => {
     refuses(tile("a", "; onb:unlocksWord :ghost"), /unlocks "ghost"/));
   it("refuses two tiles in one hex", () =>
     refuses(tile("a") + tile("b"), /"a" and "b" share the hex/));
+  it("refuses a field with no key or no label, and two fields with one key (14.2 AC8)", () => {
+    refuses(tile("a", `; onb:field [ onb:label "Name" ]`), /"a" has a field with no onb:key/);
+    refuses(tile("a", `; onb:field [ onb:key "name" ]`), /"a" has a field with no onb:key or no onb:label/);
+    refuses(tile("a", `; onb:field [ onb:key "n" ; onb:label "A" ] , [ onb:key "n" ; onb:label "B" ]`), /two fields called "n"/);
+  });
 
   it("refuses a dependency cycle, and a tree with no way in", () => {
     refuses(tile("a", "; onb:requiresAll :b", 0, 0) + tile("b", "; onb:requiresAll :a", 1, 0), /No tile can open/);
