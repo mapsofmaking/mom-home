@@ -117,6 +117,10 @@ async function signOut(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  // TEMPORARY, spike 14.0 (OD-2): `/?spike` hands the page to src/spike.ts. Removed after the run.
+  const spike = await import("./spike");
+  if (spike.spikeRequested()) return spike.runSpike();
+
   try {
     tree = await loadTree();
   } catch (err) {
