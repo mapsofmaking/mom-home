@@ -24,6 +24,8 @@ import { APP_NAME, DEFAULT_IDENTIFIER } from "./config";
 import { focusView, trackInputModality } from "./ui/a11y";
 import { renderError, renderPending } from "./ui/patterns";
 import { loadTree } from "./tree/load";
+import { renderOnboarding } from "./workbench/page";
+import type { Draft } from "./workbench/previews";
 import type { Tree } from "./tree/parse";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
@@ -52,6 +54,20 @@ function appHeader(right = ""): string {
 let tree: Tree | null = null;
 export const currentTree = (): Tree | null => tree;
 
+/**
+ * Signed out, what is done and what was typed live in memory (AC4). In dev,
+ * `?done=describe,keep` starts further along, to review the fog by eye.
+ */
+const done = new Set<string>(
+  import.meta.env.DEV ? (new URLSearchParams(location.search).get("done") ?? "").split(",").filter(Boolean) : []
+);
+const draft: Draft = {};
+
+function renderOnboardingView(): void {
+  renderOnboarding(app, tree!, { done, draft, onSignIn: () => renderLoginView() });
+  focusView(app);
+}
+
 async function main(): Promise<void> {
   try {
     tree = await loadTree();
@@ -63,11 +79,14 @@ async function main(): Promise<void> {
   const state = await completeLogin();
 
   if (!state.loggedIn) {
-    renderLoginView(
-      state.offline
-        ? "Could not reach the identity layer from here — check the connection, or try again from the app's own address."
-        : undefined
-    );
+    // Signed out, the page is onboarding (AC1b); a failed restore still says why.
+    if (state.offline) {
+      renderLoginView(
+        "Could not reach the identity layer from here — check the connection, or try again from the app's own address."
+      );
+    } else {
+      renderOnboardingView();
+    }
     return;
   }
 
@@ -100,8 +119,10 @@ function renderLoginView(message?: string): void {
         <div><button type="submit">Sign in</button></div>
       </form>
       ${message ? `<p class="error">${esc(message)}</p>` : ""}
+      <p><button type="button" class="ghost" id="not-yet">Not on the map yet? Start here</button></p>
     </main>
   `;
+  document.querySelector("#not-yet")!.addEventListener("click", () => renderOnboardingView());
 
   const form = document.querySelector<HTMLFormElement>("#login-form")!;
   form.addEventListener("submit", async (event) => {

@@ -1,5 +1,5 @@
 /* Maps of Making — generated from tokens.json */
-:root, [data-theme="daylight"] {
+.wb-page {
   --paper: #f7f2e7;
   --paper-2: #efe9d9;
   --drawer-bg: #faf6ea;
@@ -88,7 +88,7 @@
   --state-stroke-dead: #3a3a42;
   --state-stroke-zombie: #3a3a42;
 }
-:root {
+.wb-page {
   --space-4: 4px;
   --space-6: 6px;
   --space-8: 8px;

@@ -1,0 +1,119 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { tileStates } from "../tree/fog";
+import { parseTree } from "../tree/parse";
+import { hexPosition, renderHexView, tileLabel } from "./hexview";
+import { locality, renderPreview } from "./previews";
+import { renderStep } from "./step";
+
+const tree = parseTree(readFileSync(join(__dirname, "../../public/onboarding.ttl"), "utf8"));
+const byId = Object.fromEntries(tree.tiles.map((t) => [t.id, t]));
+const at = (...done: string[]) => tileStates(tree.tiles, new Set(done));
+const html = (s: string) => {
+  const div = document.createElement("div");
+  div.innerHTML = s;
+  return div;
+};
+
+describe("hex view (AC7)", () => {
+  it("places neighbours a row apart, half a hex across", () => {
+    const a = hexPosition(0, 0);
+    const b = hexPosition(0, 1);
+    expect(b.y - a.y).toBeCloseTo(94.5);
+    expect(b.x - a.x).toBeCloseTo(hexPosition(1, 0).x / 2);
+  });
+
+  it("labels by state: title when open or done, cue while coming, nothing in the fog", () => {
+    expect(tileLabel(byId.describe, "open")).toBe("Describe your space");
+    expect(tileLabel(byId.keep, "cue")).toBe("Out there for real");
+    expect(tileLabel(byId.peers, "fog")).toBe("");
+  });
+
+  it("makes every tile but fog a button, and marks the selected one", () => {
+    const view = html(renderHexView(tree.tiles, at(), "describe"));
+    const buttons = [...view.querySelectorAll("button[data-tile]")].map((b) => b.getAttribute("data-tile"));
+    expect(buttons).toEqual(["describe", "keep"]);
+    expect(view.querySelector('[aria-current="step"]')?.getAttribute("data-tile")).toBe("describe");
+    expect(view.querySelectorAll(".hx.fog[aria-hidden]")).toHaveLength(11);
+    expect(view.textContent).toContain("11 more still to discover");
+  });
+
+  it("draws done with its tick, and ready as a cue", () => {
+    const view = html(renderHexView(tree.tiles, at("describe", "keep"), null));
+    expect(view.querySelector('[data-tile="keep"]')!.className).toContain("done");
+    expect(view.querySelector('[data-tile="keep"] .hx-tick')).not.toBeNull();
+    expect(view.querySelector('[data-tile="second"]')!.className).toContain("cue");
+    expect(view.querySelector('[data-tile="second"]')!.getAttribute("aria-label")).toBe(
+      "Coming: More maps, no extra work, ready"
+    );
+  });
+});
+
+describe("step panel", () => {
+  const step = (id: string, ...done: string[]) =>
+    html(renderStep(byId[id], { tiles: tree.tiles, states: at(...done), draft: {} }));
+
+  it("labels every preview, with the chip COMING (AC6)", () => {
+    const all = tree.tiles.map((t) => t.id);
+    for (const t of tree.tiles.filter((t) => t.preview)) {
+      const done = all.filter((id) => id !== t.id && !["discord", "mentor", "bridge"].includes(id));
+      const s = step(t.id, ...done);
+      if (t.emergent || t.planned) continue;
+      expect(s.textContent, t.id).toContain("Preview · nothing is published");
+      expect(s.querySelector(".status-label")!.textContent).toBe("Coming");
+    }
+  });
+
+  it("speaks the tree's lines, never its own", () => {
+    // Tile A has no say line in the tree (its form copy comes with 14.2): no line, not a made-up one.
+    expect(step("describe").querySelector(".bernard-voice")).toBeNull();
+    expect(step("keep", "describe").querySelector(".bernard-voice")!.textContent).toBe(`— ${byId.keep.lines.say}`);
+    expect(step("keep", "describe", "keep").querySelector(".bernard-voice")!.textContent).toBe(
+      `— ${byId.keep.lines.saidDone}`
+    );
+  });
+
+  it("shows a coming tile's outcome and what it waits for, not how it works", () => {
+    const s = step("keep");
+    expect(s.querySelector("h2")!.textContent).toBe("Out there for real");
+    expect(s.querySelector(".wb-needs")!.textContent).toContain("Describe your space");
+    expect(s.textContent).not.toContain(byId.keep.lines.say);
+  });
+
+  it("names a requirement still in the fog without naming it", () => {
+    const t = (id: string, all: string[] = []) => ({ ...byId.describe, id, title: `${id} title`, requiresAll: all });
+    const tiles = [t("a"), t("b", ["a"]), t("c", ["b"]), t("x", ["a", "c"])];
+    const states = tileStates(tiles, new Set(["a"]));
+    expect(states.get("c")).toBe("cue"); // next to b, which is open
+    expect(states.get("x")).toBe("cue"); // next to a, which is done
+    const s = html(renderStep(tiles[3], { tiles, states, draft: {} })).textContent!;
+    expect(s).toContain("a title");
+    expect(s).toContain("c title"); // a cue is seen on the map, so it is named
+    const fogged = tileStates([t("a"), t("b", ["a"]), t("c", ["b"]), t("x", ["a", "c"])], new Set(["a"]));
+    fogged.set("c", "fog");
+    const hidden = html(renderStep(tiles[3], { tiles, states: fogged, draft: {} })).textContent!;
+    expect(hidden).toContain("Something still to discover");
+    expect(hidden).not.toContain("c title");
+  });
+
+  it("says ready when only the limit holds a tile", () => {
+    expect(step("second", "describe", "keep").textContent).toContain("three at a time");
+  });
+
+  it("lets a planned tile say why it won't open", () => {
+    const s = step("discord", "describe", "keep", "change", "answer");
+    expect(s.querySelector(".bernard-voice")!.textContent).toContain("Not built yet");
+  });
+});
+
+describe("previews show only what was typed", () => {
+  it("says 'Your space' until a name is typed, and escapes it after", () => {
+    expect(renderPreview("mapcard", {})).toContain("Your space");
+    expect(renderPreview("mapcard", { name: "<b>Atelier</b>" })).toContain("&lt;b&gt;Atelier&lt;/b&gt;");
+  });
+  it("reads the locality off an address", () => {
+    expect(locality("Rue du Canal 12, 1070 Anderlecht")).toBe("Anderlecht");
+    expect(locality("")).toBe("");
+  });
+});
