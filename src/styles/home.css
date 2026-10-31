@@ -62,6 +62,13 @@
 .wb-step-title:focus { outline: none; }
 .wb-needs { list-style: none; margin: 0; padding: 0; }
 .wb-form { display: flex; flex-direction: column; gap: var(--space-14); }
+/* Tile A's beats (14.2 AC4): a beat opens by its grid row, 0fr → 1fr; the
+   inner box clips while it grows. Reduced motion: core.css cuts the transition. */
+.wb-beat { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 0.4s cubic-bezier(.2,.8,.2,1), opacity 0.4s ease; }
+.wb-beat:not(.open) { margin-top: calc(-1 * var(--space-14)); }
+.wb-beat.open { grid-template-rows: 1fr; opacity: 1; }
+/* Padding lets the focus ring show inside the clip. */
+.wb-beat-inner { overflow: hidden; min-height: 0; padding: 4px; margin: -4px; }
 .wb-lead { margin: 0; max-width: 60ch; font-size: 15px; line-height: 1.5; color: var(--ink-soft); }
 /* Tile A's optional fields: a group with its own label, no box (design system: Workbench). */
 .wb-optional { display: flex; flex-direction: column; gap: var(--space-14); margin: 0; padding: var(--space-12) 0 0; border: 0; border-top: 1px dashed var(--rule); min-width: 0; }

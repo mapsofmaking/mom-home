@@ -164,6 +164,84 @@ describe("tile A (14.2)", () => {
   });
 });
 
+describe("tile A's keyboard flow (14.2 AC4)", async () => {
+  const { describeCommit, describeKeydown, fillExample, missing, renderDescribeForm } = await import("./describe");
+  const mount = (draft = {}) => {
+    document.body.innerHTML = renderDescribeForm(draft);
+    const form = document.querySelector<HTMLFormElement>("#f-describe")!;
+    form.addEventListener("keydown", (e) => describeKeydown(form, e));
+    return form;
+  };
+  const field = (name: string) => document.querySelector<HTMLInputElement>(`[name="${name}"]`)!;
+  const beat = (name: string) => document.querySelector<HTMLElement>(`[data-beat="${name}"]`)!;
+  const key = (name: string, k: string, shiftKey = false) => {
+    const e = new KeyboardEvent("keydown", { key: k, shiftKey, bubbles: true, cancelable: true });
+    field(name).dispatchEvent(e);
+    return e;
+  };
+
+  it("opens with the name only; what isn't reached is inert", () => {
+    mount();
+    expect(beat("where").hasAttribute("inert")).toBe(true);
+    expect(beat("rest").hasAttribute("inert")).toBe(true);
+    expect(document.querySelector<HTMLButtonElement>(".wb-cta")!.disabled).toBe(true);
+    expect(document.querySelector("#f-name-hint")!.textContent).toBe("Tab or Enter to move on.");
+  });
+
+  it("an empty name doesn't move on with Enter, and Tab leaves it as usual", () => {
+    mount();
+    expect(key("name", "Enter").defaultPrevented).toBe(true);
+    expect(key("name", "Tab").defaultPrevented).toBe(false);
+    expect(beat("where").hasAttribute("inert")).toBe(true);
+  });
+
+  it("name, Tab: where opens and focus goes to the street; Enter in the street goes to the city", () => {
+    mount();
+    field("name").value = "Atelier";
+    expect(key("name", "Tab").defaultPrevented).toBe(true);
+    expect(beat("where").hasAttribute("inert")).toBe(false);
+    expect(document.activeElement).toBe(field("street"));
+    key("street", "Enter");
+    expect(document.activeElement).toBe(field("city"));
+  });
+
+  it("the city opens the rest; Enter walks the optional fields", () => {
+    mount({ name: "Atelier" });
+    field("city").value = "Anderlecht";
+    key("city", "Enter");
+    expect(beat("rest").hasAttribute("inert")).toBe(false);
+    expect(document.activeElement).toBe(field("description"));
+    key("description", "Enter");
+    expect(document.activeElement).toBe(field("email"));
+    // The last one submits: Enter is left alone.
+    expect(key("logo", "Enter").defaultPrevented).toBe(false);
+  });
+
+  it("Shift+Tab is never touched", () => {
+    mount();
+    field("name").value = "Atelier";
+    expect(key("name", "Tab", true).defaultPrevented).toBe(false);
+  });
+
+  it("leaving a field commits it without moving focus", () => {
+    const form = mount();
+    field("name").value = "Atelier";
+    describeCommit(form, field("name"));
+    expect(beat("where").hasAttribute("inert")).toBe(false);
+  });
+
+  it("a draft with the values opens its beats; the example opens them all", () => {
+    mount({ name: "Atelier", city: "Anderlecht" });
+    expect(beat("rest").hasAttribute("inert")).toBe(false);
+    const form = mount();
+    expect(missing(form)).toBe(field("name"));
+    fillExample(form);
+    expect(beat("rest").hasAttribute("inert")).toBe(false);
+    expect(missing(form)).toBeNull();
+    expect(document.querySelector<HTMLButtonElement>(".wb-cta")!.disabled).toBe(false);
+  });
+});
+
 describe("previews show only what was typed", () => {
   it("says 'Your space' until a name is typed, and escapes it after", () => {
     expect(renderPreview("mapcard", {})).toContain("Your space");

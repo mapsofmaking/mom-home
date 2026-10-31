@@ -43,6 +43,7 @@ const options = (mode: PageOptions["mode"], done = new Set<string>()): PageOptio
 
 const submit = (root: HTMLElement) => {
   root.querySelector<HTMLInputElement>("#f-name")!.value = "Atelier";
+  root.querySelector<HTMLInputElement>("#f-city")!.value = "Anderlecht";
   root.querySelector("form")!.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
 };
 
@@ -63,6 +64,18 @@ describe("renderPage", () => {
     renderPage(root, tree, options("onboarding", done));
     submit(root);
     expect(done.has("describe")).toBe(true);
+  });
+
+  it("signed out, tile A's form without a city draws no card and goes to the city", () => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    const done = new Set<string>();
+    renderPage(root, tree, options("onboarding", done));
+    root.querySelector<HTMLInputElement>("#f-name")!.value = "Atelier";
+    root.querySelector("form")!.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+    expect(done.size).toBe(0);
+    expect(document.activeElement).toBe(root.querySelector("#f-city"));
+    root.remove();
   });
 
   it("signed in, tile A's form never marks anything done: the pod is the map (AC4)", () => {

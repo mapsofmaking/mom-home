@@ -30,7 +30,7 @@ import { tally, tileStates } from "../tree/fog";
 import { completableIds } from "../tiles/done";
 import { announce } from "../ui/a11y";
 import type { Tree } from "../tree/parse";
-import { fillExample, readDescribeForm } from "./describe";
+import { describeCommit, describeKeydown, fillExample, missing, readDescribeForm, syncCta } from "./describe";
 import { esc } from "./html";
 import { renderHexRow } from "./hexrow";
 import { renderHexView } from "./hexview";
@@ -258,6 +258,11 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     const form = event.target as HTMLFormElement;
     if (form.id !== "f-describe") return;
     event.preventDefault();
+    const empty = missing(form);
+    if (empty) {
+      empty.focus();
+      return;
+    }
     readDescribeForm(form, opts.draft);
     if (workbench) {
       // Done is read from the pod, never carried here (AC4); tile A is not connected to the pod until 14.2.
@@ -268,6 +273,21 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     editing = false;
     draw();
     step.querySelector<HTMLElement>(".wb-step-title")?.focus();
+  });
+
+  // Tile A's keyboard flow (14.2 AC4); the form is redrawn with the step, so listen here.
+  const describeForm = (event: Event) => (event.target as Element).closest<HTMLFormElement>("#f-describe");
+  step.addEventListener("keydown", (event) => {
+    const form = describeForm(event);
+    if (form) describeKeydown(form, event);
+  });
+  step.addEventListener("focusout", (event) => {
+    const form = describeForm(event);
+    if (form) describeCommit(form, event.target);
+  });
+  step.addEventListener("input", (event) => {
+    const form = describeForm(event);
+    if (form) syncCta(form);
   });
 
   step.addEventListener("click", (event) => {
