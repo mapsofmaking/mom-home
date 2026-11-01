@@ -182,6 +182,38 @@ describe("renderPage, review fixes (14.2)", () => {
     vi.unstubAllGlobals();
   });
 
+  it("a draft with a town and no pin asks the geocoder when the page opens (forwarded from genjson, 14.8)", async () => {
+    const { timing } = await import("./where");
+    Object.assign(timing, { minWait: 0, retryGap: 0, tick: 0 });
+    const fetchMock = vi.fn(async () =>
+      Response.json({ lat: 50.8, lon: 4.3, country_code: "be", postcode: "1000", display_name: "Marolles, Bruxelles" })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const root = document.createElement("div");
+    document.body.append(root);
+    const draft: Record<string, string> = { name: "Weld Done", street: "Rue Haute 12", city: "Bruxelles" };
+    renderPage(root, tree, { ...options("onboarding"), draft });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(draft.lat).toBe("50.8");
+    expect(draft.country).toBe("BE");
+    root.remove();
+    vi.unstubAllGlobals();
+  });
+
+  it("a draft that already has its pin doesn't ask again", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const root = document.createElement("div");
+    document.body.append(root);
+    const draft = { name: "Weld Done", city: "Bruxelles", lat: "50.8", lon: "4.3", country: "BE", place: "Marolles" };
+    renderPage(root, tree, { ...options("onboarding"), draft });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(fetchMock).not.toHaveBeenCalled();
+    root.remove();
+    vi.unstubAllGlobals();
+  });
+
   it("tidies the field Enter submitted from", () => {
     const root = document.createElement("div");
     const draft: Record<string, string> = {};

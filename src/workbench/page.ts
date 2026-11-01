@@ -44,7 +44,7 @@ import {
   readDescribeForm,
   syncCta,
 } from "./describe";
-import { locate, pinByHand, unpin } from "./where";
+import { locate, pinByHand, pinned, unpin } from "./where";
 import { esc } from "./html";
 import { renderHexRow } from "./hexrow";
 import { renderHexView } from "./hexview";
@@ -311,6 +311,11 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     syncCta(form);
     keep(form);
   };
+  // A draft with a town and no pin (forwarded from genjson, 14.8; or left before the answer came) asks now.
+  const resumed = step.querySelector<HTMLFormElement>("#f-describe");
+  if (resumed && !workbench && resumed.querySelector<HTMLInputElement>("#f-city")?.value.trim() && !pinned(resumed)) {
+    void locate(resumed, words, located(resumed));
+  }
   step.addEventListener("keydown", (event) => {
     const form = describeForm(event);
     if (form) describeKeydown(form, event);

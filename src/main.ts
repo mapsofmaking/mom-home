@@ -30,6 +30,7 @@ import { changeHomeSettings, readHomeSettings, type HomeSettings } from "./setti
 import { forgetReads } from "./lib/read";
 import { readDone } from "./tiles/done";
 import { makeDraftStore } from "./lib/draft";
+import { hasForwarded, readForwarded } from "./lib/forwarded";
 import type { Draft } from "./workbench/previews";
 import type { Tree } from "./tree/parse";
 
@@ -84,6 +85,21 @@ function loadDraft(): Draft {
 }
 const draft: Draft = loadDraft();
 const keepDraft = (d: Draft) => (Object.keys(d).length ? drafts.save(DRAFT_ID, d) : drafts.clear(DRAFT_ID));
+/**
+ * A draft forwarded from the old genjson wizard (14.8 AC2) arrives in the
+ * fragment. It is taken once, and only when this browser has no draft of its
+ * own: what was typed here is newer. The fragment leaves the address either way.
+ */
+function takeForwarded(): void {
+  if (!hasForwarded(location.hash)) return;
+  const forwarded = readForwarded(location.hash);
+  if (forwarded && !Object.keys(draft).length) {
+    Object.assign(draft, forwarded);
+    keepDraft(draft);
+  }
+  history.replaceState(null, "", location.pathname + location.search);
+}
+takeForwarded();
 /** The hex panel's fold, one state for the page (page.ts). Signed in, S6 keeps it in settings/mom-home.ttl. */
 const fold: FoldState = { folded: null };
 
