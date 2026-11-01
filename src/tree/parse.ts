@@ -79,7 +79,8 @@ export interface Word {
 }
 
 export interface Tree {
-  app: { lines: Lines };
+  /** The app's own: Bernard's lines, and `onb:ui*` words (the work-in-progress notice). */
+  app: { lines: Lines; ui: Lines };
   tiles: Tile[];
   words: Word[];
 }
@@ -153,7 +154,7 @@ export function parseTree(turtle: string): Tree {
 
   const tiles: Tile[] = [];
   const words: Word[] = [];
-  let app: Tree["app"] = { lines: {} };
+  let app: Tree["app"] = { lines: {}, ui: {} };
 
   for (const [iri, props] of subjects) {
     const types = (props.get(RDF_TYPE) ?? []).map((t) => t.value);
@@ -207,7 +208,7 @@ export function parseTree(turtle: string): Tree {
         prio: num("prio", "Word"),
       });
     } else if (types.includes(ONB + "App")) {
-      app = { lines: lines(props) };
+      app = { lines: lines(props), ui: lines(props, /^ui[A-Z]/) };
     }
   }
 

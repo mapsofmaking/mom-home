@@ -21,6 +21,7 @@ function everyLine(): [string, string][] {
   const out: [string, string][] = [];
   const add = (where: string, text: string | null | undefined) => text && out.push([where, text]);
   for (const [k, v] of Object.entries(tree.app.lines)) add(`app.${k}`, v);
+  for (const [k, v] of Object.entries(tree.app.ui)) add(`app.${k}`, v);
   for (const t of tree.tiles) {
     add(`${t.id}.title`, t.title);
     add(`${t.id}.cue`, t.cue);

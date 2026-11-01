@@ -36,6 +36,26 @@ import type { Tree } from "./tree/parse";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
+/**
+ * "Work in progress", on every screen: the app is built in the open and says
+ * so. Its words are the tree's (`onb:uiWip*`); it sits outside #app so no
+ * screen redraw removes it, and the page height makes room for it (home.css).
+ */
+function showWipNote(ui: Record<string, string>): void {
+  if (document.querySelector("#wip") || !ui.uiWip || !ui.uiWipText) return;
+  const note = document.createElement("aside");
+  note.id = "wip";
+  note.className = "wip-note";
+  note.setAttribute("role", "note");
+  note.innerHTML = `<strong>${esc(ui.uiWip)}</strong> <span>${esc(ui.uiWipText)}</span>${
+    ui.uiWipLink ? ` <a href="https://mapsofmaking.org/">${esc(ui.uiWipLink)}</a>` : ""
+  }`;
+  app.before(note);
+  const fit = () => document.documentElement.style.setProperty("--wip-h", `${note.offsetHeight}px`);
+  fit();
+  new ResizeObserver(fit).observe(note);
+}
+
 /** Escapes text before it goes into innerHTML — WebIDs and errors are inputs. */
 function esc(value: string): string {
   const div = document.createElement("div");
@@ -193,6 +213,7 @@ async function main(): Promise<void> {
     renderTreeErrorView(err);
     return;
   }
+  showWipNote(tree.app.ui);
 
   // Dev only: `?workbench=<name>` draws the signed-in page without a session,
   // to review the workbench by eye. Production ignores it.

@@ -23,13 +23,25 @@
   align-items: center;
 }
 
+/* "Work in progress", above every screen. Not dismissible: it stays true until the next stories land. */
+.wip-note {
+  padding: var(--space-2) max(var(--space-4), env(safe-area-inset-left, 0px));
+  background: var(--surface-recessed);
+  border-bottom: 2px solid var(--warn-line);
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  line-height: 1.4;
+}
+.wip-note strong { margin-right: var(--space-1); }
+.wip-note a { white-space: nowrap; }
+
 /* ---- The workbench page (Story 14.1 S3): design system Workbench layer,
    tokens/workbench.css, plus what the page needs around it. ---- */
 
 /* One screen on desktop: the hex column holds still, the step scrolls. */
-.wb-page { min-height: 100dvh; }
+.wb-page { min-height: calc(100dvh - var(--wip-h, 0px)); }
 @media (min-width: 901px) {
-  .wb-page { height: 100dvh; }
+  .wb-page { height: calc(100dvh - var(--wip-h, 0px)); }
   .wb-grid { flex: 1; }
   .wb-panel { min-height: 0; }
 }

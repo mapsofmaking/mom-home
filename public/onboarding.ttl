@@ -15,7 +15,11 @@
 
 # Lines that belong to the app, not to one tile.
 :home a onb:App ;
-  onb:sayNeedsPod "That one needs a pod I can reach with your permission. A file on GitLab can't hold it. Your call."@en .
+  onb:sayNeedsPod "That one needs a pod I can reach with your permission. A file on GitLab can't hold it. Your call."@en ;
+  # The notice on every screen: the app is built in the open, and says so.
+  onb:uiWip "Work in progress."@en ;
+  onb:uiWipText "You can describe your space and see your card. Putting it on the map from here comes next. Already host a space file? You can add it on the map."@en ;
+  onb:uiWipLink "Go to the map ↗"@en .
 
 :describe a onb:Tile ;
   onb:icon "pin" ;
