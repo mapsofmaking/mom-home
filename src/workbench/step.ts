@@ -13,7 +13,8 @@ import type { Tile } from "../tree/parse";
 import { describeWords, renderDescribeForm, type DescribeWords } from "./describe";
 import { bernard, esc } from "./html";
 import { hasPreview, renderPreview, type Draft } from "./previews";
-import { renderThreshold, type Door, type OffersState } from "./threshold";
+import type { PodFormState } from "./podform";
+import { renderThreshold, thresholdTitle, type Door, type OffersState } from "./threshold";
 
 export interface StepContext {
   tiles: readonly Tile[];
@@ -26,6 +27,8 @@ export interface StepContext {
   /** Tile B (14.3): what the pod server offers (null: being asked), and the door chosen. */
   offers?: OffersState;
   door?: Door | null;
+  /** The pod form's address and email, kept by the page across redraws. */
+  pod?: PodFormState | null;
 }
 
 function waitsFor(tile: Tile, ctx: StepContext): string {
@@ -110,8 +113,14 @@ function describeStep(tile: Tile, state: TileState, ctx: StepContext): string {
 function openStep(tile: Tile, state: TileState, ctx: StepContext): string {
   if (tile.act === "describe") return describeStep(tile, state, ctx);
   // Done, tile B keeps showing what it showed (below): 14.4 writes the file and gives it its own "done" view.
-  if (tile.act === "threshold" && state !== "done")
-    return head(tile, state) + renderThreshold(tile, { offers: ctx.offers ?? null, door: ctx.door ?? null });
+  if (tile.act === "threshold" && state !== "done") {
+    const t = { offers: ctx.offers ?? null, door: ctx.door ?? null, draft: ctx.draft, pod: ctx.pod ?? null };
+    // The pod form carries its own heading: the door's name (storyboard B2).
+    return `
+    <div class="wb-step-head">
+      <h2 class="wb-step-title" tabindex="-1">${esc(thresholdTitle(tile, t))}</h2>
+    </div>${renderThreshold(tile, t)}`;
+  }
   const line = state === "done" ? (tile.lines.saidDone ?? tile.lines.say) : tile.lines.say;
   return `${head(tile, state)}
     ${bernard(line)}

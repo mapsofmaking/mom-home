@@ -102,6 +102,32 @@
   onb:uiTryAgain "Try again"@en ;
   onb:uiSelfSoon "Looking after the file yourself opens soon. If you already host a space file, you can add it on the map."@en ;
   onb:uiSelfSoonLink "Go to the map ↗"@en ;
+  # The doors' own lines (storyboard B1), and the pod form (B2; S2 of 14.3). The form says "passphrase" everywhere (14.0).
+  onb:uiDoorSelfDesc "Put it anywhere public: your website, or a Git repo. The map reads it from there. You change it by editing the file as you see fit."@en ;
+  onb:uiDoorPodDesc "Kept at Maps of Making under your space's name. You get tools that help you run your space."@en ;
+  onb:uiDoorSelfWhere "any public address"@en ;
+  onb:uiDoorsNote "Your profile stays as you described it, nothing to retype. You can switch later: the map only needs to know where the data lives."@en ;
+  onb:uiPodAddress "Your space's address"@en ;
+  onb:uiPodEmail "Email"@en ;
+  onb:uiPodEmailHint "The space's mailbox, not yours. Whoever holds it can reset the passphrase, so the space can change hands."@en ;
+  onb:uiPodPass "Passphrase"@en ;
+  onb:uiPodPassAgain "Same again"@en ;
+  onb:uiPodPassExample "Rock-Paper-Scissors-Lizard-Spock"@en ;
+  onb:uiPodPassHint "Eight characters or more, no spaces. A few ordinary words joined by dashes beat one clever password."@en ;
+  onb:uiPodShow "Show"@en ;
+  onb:uiPodHide "Hide"@en ;
+  onb:uiPodShowLabel "Show the passphrase"@en ;
+  onb:uiPodHideLabel "Hide the passphrase"@en ;
+  onb:uiPodCreate "Create it"@en ;
+  onb:uiPodOtherDoor "Take the other door"@en ;
+  onb:uiPodStatus "Creating the pod comes next. Nothing was sent."@en ;
+  onb:uiAddrEmpty "Pick an address for your space."@en ;
+  onb:uiAddrBad "Lower-case letters, numbers and dashes only, and no dash at the start or the end."@en ;
+  onb:uiAddrLong "An address can be 63 characters at most. Shorter, please."@en ;
+  onb:uiEmailBad "That doesn't look like an email address."@en ;
+  onb:uiPassShort "Eight characters or more."@en ;
+  onb:uiPassSpace "No spaces. Dashes between words work."@en ;
+  onb:uiPassMismatch "The two don't match."@en ;
   onb:doneWhen """ASK { <> pim:storage ?pod }  # or: the map knows the space's own URL""" .
 
 :change a onb:Tile ;
