@@ -246,6 +246,40 @@ not fire at once.
 
 ---
 
+## 12 · Creating a pod from home (Story 14.3), on Safari and iOS
+
+**Deferred (2026-11-02): nobody on the project has macOS or an iPhone.** Chromium and
+WebKit (Playwright's Ubuntu image) passed on production, but Playwright's WebKit does not
+reproduce Safari's tracking protection, the one thing here that can break. Run this
+when someone with a device can, and write the result in the run record.
+
+Why Safari matters: the app logs in through the provider's account API right after the
+pod is made, so the provider's `css-account` cookie spares the person its login page
+(flow A). Safari may refuse that cookie as a third-party one, though `home.` and `pod.`
+share `mapsofmaking.org`. Either result is acceptable, because the app does not depend
+on the cookie. The test is that **both ways still end back on home, signed in**.
+
+**Do:** on Safari (macOS) and Safari (iOS), with a private tab, open
+`https://home.mapsofmaking.org`, "Fill in an example" (or type a name and a town), "Show me
+my card", "Publish it", the pod door. Use a throwaway email you can read and an address
+beginning `zz-`. "Create it". Note whether the pod's page asks for the passphrase before
+"Authorize". Authorize.
+
+**Expect:**
+- The form says "Taken" for `nicolas-test` (nothing was created), and the email field then locks.
+- After "Create it" the browser goes to the pod's own page. Either it shows only "Authorize"
+  (flow A), or a login page first, with the email and passphrase you just made, then "Authorize"
+  (flow B).
+- Back on home you are signed in ("Signed in as ..."), tile B says the pod is ready, and
+  nothing is written in the pod yet.
+- The passphrase is nowhere on the page after "Create it" (not in the fields, not after Back).
+- Five creations from one connection in an hour: the sixth says "Press Create it again in about N
+  minutes", not "isn't answering".
+
+Throwaway accounts made here are removed by the wipe before launch.
+
+---
+
 ## UX review
 
 Not machine-checkable. Answer these per release, about whatever screens the app
