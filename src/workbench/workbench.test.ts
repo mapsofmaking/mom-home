@@ -66,8 +66,9 @@ describe("step panel", () => {
 
   it("labels every preview, with the chip COMING (AC6)", () => {
     const all = tree.tiles.map((t) => t.id);
-    // Tile A shows its form while open; its preview comes once done (below).
-    for (const t of tree.tiles.filter((t) => t.preview && t.act !== "describe")) {
+    // Tiles A and B are real: A shows its form while open (its preview comes once done, below), B its doors
+    // (threshold.test.ts). Done, B shows its preview like any other.
+    for (const t of tree.tiles.filter((t) => t.preview && t.act !== "describe" && t.act !== "threshold")) {
       const done = all.filter((id) => id !== t.id && !["discord", "mentor", "bridge"].includes(id));
       const s = step(t.id, ...done);
       if (t.emergent || t.planned) continue;

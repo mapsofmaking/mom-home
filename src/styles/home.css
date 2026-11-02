@@ -170,6 +170,15 @@
 }
 /* The lead: the full one above a phone's width, the short one below (AC2). */
 .wb-lead .lead-short { display: none; }
+/* Tile B's two doors (14.3 AC1): the same box, the same weight; neither is primary. The pressed one is marked by its border, not by rank. */
+.wb-doors { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-14); margin: var(--space-14) 0; }
+.wb-door { min-height: 4.5rem; padding: var(--space-14); font-size: 15px; line-height: 1.35; text-align: left; }
+.wb-door[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.wb-door:disabled { cursor: progress; color: var(--muted); }
+.wb-reply { margin: 0 0 var(--space-14); outline: none; }
+@media (max-width: 700px) {
+  .wb-doors { grid-template-columns: 1fr; }
+}
 /* "Add more" (AC3): a phone folds the optional fields behind it. */
 .wb-more { display: none; }
 @media (max-width: 700px) {
