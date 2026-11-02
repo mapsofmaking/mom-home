@@ -38,7 +38,7 @@ describe("parseTree, on the shipped tree", () => {
   it("keeps every line Bernard speaks, by its local name", () => {
     const keep = tree.tiles.find((t) => t.id === "keep")!;
     expect(Object.keys(keep.lines).sort()).toEqual(
-      ["say", "sayConsent", "sayNext", "sayPod", "sayTaken", "saidDone", "saidDoneSelf", "saidPodReady"].sort()
+      ["say", "sayConsent", "sayNext", "sayPod", "sayTaken", "saidDone", "saidDoneSelf", "saidPodReady", "sayPublish"].sort()
     );
     expect(keep.lines.sayTaken).toMatch(/^The pod server said/);
     expect(tree.app.lines.sayNeedsPod).toMatch(/needs a pod/);

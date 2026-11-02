@@ -15,6 +15,7 @@ import { bernard, esc } from "./html";
 import { hasPreview, renderPreview, type Draft } from "./previews";
 import type { PodMade } from "../lib/handoff";
 import type { PodFormState } from "./podform";
+import { renderPublish, renderPublishBox, type PublishState } from "./publish";
 import { renderPodReady, renderThreshold, thresholdTitle, type Door, type OffersState } from "./threshold";
 
 export interface StepContext {
@@ -35,6 +36,8 @@ export interface StepContext {
   /** A pod this tab made and did not sign in to (offered before the form), and whether "make another" was chosen. */
   prior?: PodMade | null;
   makeAnother?: boolean;
+  /** Signed in with a pod: tile B publishes (Story 14.4) instead of offering the two doors. Absent: signed out. */
+  publish?: PublishState | null;
 }
 
 function waitsFor(tile: Tile, ctx: StepContext): string {
@@ -119,6 +122,13 @@ function describeStep(tile: Tile, state: TileState, ctx: StepContext): string {
 function openStep(tile: Tile, state: TileState, ctx: StepContext): string {
   if (tile.act === "describe") return describeStep(tile, state, ctx);
   // Done, tile B keeps showing what it showed (below): 14.4 writes the file and gives it its own "done" view.
+  // Signed in with a pod: there is nothing to choose any more, only to put on the map (14.4).
+  if (tile.act === "threshold" && state !== "done" && ctx.publish) {
+    return `
+    <div class="wb-step-head">
+      <h2 class="wb-step-title" tabindex="-1">${esc(tile.title)}</h2>
+    </div>${renderPublish(tile, ctx.publish)}`;
+  }
   if (tile.act === "threshold" && state !== "done") {
     const t = { offers: ctx.offers ?? null, door: ctx.door ?? null, draft: ctx.draft, pod: ctx.pod ?? null, prior: ctx.prior ?? null, makeAnother: ctx.makeAnother ?? false };
     // The pod form carries its own heading: the door's name (storyboard B2).
@@ -138,7 +148,10 @@ function openStep(tile: Tile, state: TileState, ctx: StepContext): string {
 
 export function renderStep(tile: Tile, ctx: StepContext): string {
   // The hand-off speaks for tile B whatever its state: the pod exists, and the card is not on it yet (14.4).
-  if (ctx.podReady && tile.act === "threshold") return renderPodReady(tile, ctx.podReady);
+  // Back from the sign-in, the first time: the pod is ready, and the button is right there.
+  if (ctx.podReady && tile.act === "threshold") {
+    return renderPodReady(tile, ctx.podReady, ctx.publish ? renderPublishBox(tile, ctx.publish) : "");
+  }
   const state = ctx.states.get(tile.id) ?? "fog";
   if (state === "cue" || state === "ready") return comingStep(tile, state, ctx);
   if (state === "fog") return `<h2 class="wb-step-title" tabindex="-1">Still to discover</h2>`;

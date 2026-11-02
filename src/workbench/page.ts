@@ -33,6 +33,8 @@ import { announce } from "../ui/a11y";
 import { readOffers, type Offers } from "../lib/provider";
 import { AccountError, createAccount, pendingEmail, type NewAccount, type SignUp } from "../lib/register";
 import { markPodMade, type PodMade } from "../lib/handoff";
+import { PublishError, type FileResult } from "../lib/publish";
+import { IDLE, publishWords, renderPublishPanel, type PublishState } from "./publish";
 import { DEFAULT_IDENTIFIER } from "../config";
 import type { Tree } from "../tree/parse";
 import {
@@ -99,6 +101,8 @@ export interface PageOptions {
   podReady?: PodMade | null;
   /** Signed out, a pod this tab made and did not sign in to: offered before a form that would make a second account. */
   priorPod?: PodMade | null;
+  /** Signed in with a pod: tile B puts the space on the map (Story 14.4). The shell passes it with the pod it knows. */
+  publishSpace?: (draft: Draft) => Promise<FileResult>;
 }
 
 /** null: never set, the width decides. */
@@ -182,6 +186,9 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   let podReady: PodMade | null = opts.podReady ?? null;
   /** "Make another one" was chosen over signing in to the pod this tab already made. */
   let makeAnother = false;
+  /** Where "Put it on the map" is (Story 14.4); a step in flight holds the screen still, like a create. */
+  let publish: PublishState = { ...IDLE };
+  let publishing = false;
   const workbench = opts.mode === "workbench";
   // Everything that outlives the markup (root and media-query listeners,
   // observers) is undone by destroy(), so a redraw never stacks a second set.
@@ -295,7 +302,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     pod.held = pendingEmail(DEFAULT_IDENTIFIER);
     pod.made = made !== null;
     clearTimeout(podTimer);
-    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, words, offers, door, pod, podReady: podReady?.pod ?? null, prior: opts.priorPod ?? null, makeAnother });
+    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, words, offers, door, pod, podReady: podReady?.pod ?? null, prior: opts.priorPod ?? null, makeAnother, publish: opts.publishSpace ? publish : null });
     step.scrollTop = 0;
     if (tile.act === "threshold" && !offersAsked) askOffers();
     // The suggested address is checked as soon as the form opens (AC2): a bad one shows before the passphrase is reached.
@@ -311,7 +318,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
       if (life.signal.aborted) return;
       offers = answer;
       // Only if the coordinator is still looking at tile B, and not while a create is in flight (its form must stay).
-      if (!creating && tree.tiles.find((t) => t.id === selected)?.act === "threshold") {
+      if (!creating && !publishing && tree.tiles.find((t) => t.id === selected)?.act === "threshold") {
         const had = document.activeElement?.getAttribute("data-door");
         draw();
         if (had) step.querySelector<HTMLElement>(`[data-door="${had}"]`)?.focus();
@@ -321,7 +328,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
 
   const select = (id: string) => {
     // A create is in flight: a redraw now would drop its answer (the form is replaced). Tiles wait for it.
-    if (creating) return;
+    if (creating || publishing) return;
     podReady = null;
     selected = id;
     editing = false;
@@ -473,6 +480,8 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
       editing = true;
       draw();
       step.querySelector<HTMLInputElement>("#f-name")?.focus();
+    } else if (target.id === "publish-go") {
+      void runPublish();
     } else if (target.id === "prior-signin" && opts.priorPod) {
       void signInNow(step as unknown as HTMLFormElement, thresholdWords(tree.tiles.find((t) => t.act === "threshold")), opts.priorPod);
     } else if (target.id === "prior-another") {
@@ -548,6 +557,56 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     } finally {
       creating = false;
     }
+  };
+
+  /**
+   * "Put it on the map" (14.4). The panel is redrawn in place, never the screen, so nothing moves under the
+   * coordinator while a step runs; one press at a time. Each failure is said with its one way forward (AC5).
+   */
+  const runPublish = async () => {
+    const tile = tree.tiles.find((t) => t.act === "threshold")!;
+    const ui = publishWords(tile);
+    const paint = (focus = false) => {
+      const box = step.querySelector<HTMLElement>("#publish");
+      if (!box) return;
+      box.innerHTML = renderPublishPanel(tile, publish);
+      if (focus) box.querySelector<HTMLElement>(publish.file === "done" ? "#publish-status" : "#publish-go")?.focus();
+    };
+    if (publishing || !opts.publishSpace) return;
+    publishing = true;
+    publish = { ...IDLE, file: "working" };
+    paint();
+    try {
+      const result = await opts.publishSpace(opts.draft);
+      const address = result.url;
+      const fileLine =
+        result.status === "written"
+          ? ui("uiStepFileWritten", { address })
+          : result.status === "already-there"
+            ? ui("uiStepFileThere")
+            : ui("uiStepFileKept");
+      const dropped = result.dropped.length
+        ? ui("uiPublishDropped", { fields: result.dropped.map((k) => words.field(k).label.toLowerCase()).join(", ") })
+        : "";
+      publish = { file: "done", message: "", fileLine, dropped };
+    } catch (err) {
+      const e = err instanceof PublishError ? err : new PublishError("refused", String(err));
+      const missing = e.missing.map((m) => ui(({ name: "uiMissingName", town: "uiMissingTown", country: "uiMissingCountry", pin: "uiMissingPin" } as const)[m]));
+      const message =
+        e.code === "incomplete"
+          ? ui("uiPublishIncomplete", { missing: missing.join(", ") })
+          : e.code === "expired"
+            ? ui("uiPublishExpired")
+            : e.code === "unreachable"
+              ? ui("uiPublishUnreachable")
+              : e.code === "unreadable"
+                ? ui("uiPublishUnreadable")
+                : ui("uiPublishRefused", { status: String(e.status ?? "no status") });
+      publish = { file: "failed", message, fileLine: "", dropped: "" };
+    } finally {
+      publishing = false;
+    }
+    if (step.isConnected) paint(true);
   };
 
   /** To the pod's own page (Solid-OIDC). If it doesn't start, the pod still exists: say so, and the button signs in again. */

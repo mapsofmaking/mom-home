@@ -1,0 +1,13 @@
+{
+  "api_compatibility": ["15"],
+  "space": "Atelier du Canal",
+  "location": {
+    "address": "Rue du Canal 12, 1070 Anderlecht, BE",
+    "country_code": "BE",
+    "lat": 50.8391,
+    "lon": 4.3297
+  },
+  "description": "Open workshop for repairs and prototypes.",
+  "contact": { "email": "contact@atelierducanal.example", "matrix": "#atelier:matrix.org" },
+  "state": { "open": null }
+}
