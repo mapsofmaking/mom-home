@@ -13,6 +13,7 @@ import type { Tile } from "../tree/parse";
 import { describeWords, renderDescribeForm, type DescribeWords } from "./describe";
 import { bernard, esc } from "./html";
 import { hasPreview, renderPreview, type Draft } from "./previews";
+import { renderThreshold, type Door, type OffersState } from "./threshold";
 
 export interface StepContext {
   tiles: readonly Tile[];
@@ -22,6 +23,9 @@ export interface StepContext {
   editing?: boolean;
   /** Tile A's words; the page passes its one reader (read from the tile when absent). */
   words?: DescribeWords;
+  /** Tile B (14.3): what the pod server offers (null: being asked), and the door chosen. */
+  offers?: OffersState;
+  door?: Door | null;
 }
 
 function waitsFor(tile: Tile, ctx: StepContext): string {
@@ -62,11 +66,11 @@ function comingStep(tile: Tile, state: TileState, ctx: StepContext): string {
 }
 
 /**
- * Coming, for a preview of a tile not built yet (AC6). Tile A is real: no chip.
+ * Coming, for a preview of a tile not built yet (AC6). Tiles A and B are real: no chip.
  * No "Done" chip either (Nicolas, 14.2): the hexes already say it, and the step's content shows it.
  */
 const chip = (tile: Tile, state: TileState) =>
-  state === "done" || tile.act === "describe" ? "" : `<span class="status-label">Coming</span>`;
+  state === "done" || tile.act === "describe" || tile.act === "threshold" ? "" : `<span class="status-label">Coming</span>`;
 
 const head = (tile: Tile, state: TileState) => `
     <div class="wb-step-head">
@@ -105,6 +109,9 @@ function describeStep(tile: Tile, state: TileState, ctx: StepContext): string {
 
 function openStep(tile: Tile, state: TileState, ctx: StepContext): string {
   if (tile.act === "describe") return describeStep(tile, state, ctx);
+  // Done, tile B keeps showing what it showed (below): 14.4 writes the file and gives it its own "done" view.
+  if (tile.act === "threshold" && state !== "done")
+    return head(tile, state) + renderThreshold(tile, { offers: ctx.offers ?? null, door: ctx.door ?? null });
   const line = state === "done" ? (tile.lines.saidDone ?? tile.lines.say) : tile.lines.say;
   return `${head(tile, state)}
     ${bernard(line)}

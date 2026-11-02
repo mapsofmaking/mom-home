@@ -18,6 +18,7 @@
  */
 import type { FieldWords, Tile } from "../tree/parse";
 import { esc } from "./html";
+import { tileUi } from "./tilewords";
 import type { Draft } from "./previews";
 import { pinLine, pinned } from "./where";
 
@@ -77,25 +78,17 @@ export interface DescribeWords {
  */
 export function describeWords(tile: Pick<Tile, "ui" | "fields"> | undefined): DescribeWords {
   const warned = new Set<string>();
-  const warn = (what: string) => {
-    if (warned.has(what)) return;
-    warned.add(what);
-    console.warn(`onboarding.ttl: tile A has no ${what}.`);
-  };
+  const ui = tileUi<UiKey>(tile, "tile A");
   return {
     field(key) {
       const words = tile?.fields[key];
-      if (!words) warn(`onb:field "${key}"`);
+      if (!words && !warned.has(key)) {
+        warned.add(key);
+        console.warn(`onboarding.ttl: tile A has no onb:field "${key}".`);
+      }
       return words ?? { label: key, placeholder: null, hint: null, example: null };
     },
-    ui(name, vars = {}) {
-      const line = tile?.ui[name];
-      if (line === undefined) {
-        warn(`onb:${name}`);
-        return "";
-      }
-      return line.replace(/\{(\w+)\}/g, (all, v: string) => vars[v] ?? all);
-    },
+    ui,
   };
 }
 

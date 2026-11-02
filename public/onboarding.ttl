@@ -90,6 +90,18 @@
   onb:sayConsent "Your pod opens its own page now. If it asks for your passphrase, use the one you just made. Then press Authorize for home.mapsofmaking.org."@en ;
   onb:sayTaken "The pod server said that address is taken. Nothing you did wrong. Pick another one."@en ;
   onb:saidDoneSelf "You've got the file. Now it needs an address. Some use GitLab, it gives you one, free, in about five minutes."@en ;
+  # Tile B's own words (14.3): the two doors, the real "not now", and what the pod server's answer changes.
+  onb:uiDoorSelf "Take the file, look after it yourself"@en ;
+  onb:uiDoorPod "We look after it, you hold the key"@en ;
+  onb:uiNotNow "Not now"@en ;
+  onb:uiNotNowSaid "Fine too. It stays in this browser until you clear it. Nothing was sent."@en ;
+  onb:uiDoorsAgain "Look at the two ways again"@en ;
+  onb:uiChecking "Asking the pod server what it offers."@en ;
+  onb:uiNoRegister "This pod server isn't taking new accounts right now. You can still look after the file yourself."@en ;
+  onb:uiProviderDown "I can't reach the pod server just now. Nothing was sent. Try again in a moment, or look after the file yourself."@en ;
+  onb:uiTryAgain "Try again"@en ;
+  onb:uiSelfSoon "Looking after the file yourself opens soon. If you already host a space file, you can add it on the map."@en ;
+  onb:uiSelfSoonLink "Go to the map ↗"@en ;
   onb:doneWhen """ASK { <> pim:storage ?pod }  # or: the map knows the space's own URL""" .
 
 :change a onb:Tile ;

@@ -8,10 +8,12 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { FIELD_KEYS, UI_KEYS } from "../workbench/describe";
+import { THRESHOLD_UI_KEYS } from "../workbench/threshold";
 import { parseTree } from "./parse";
 
 const tree = parseTree(readFileSync(join(__dirname, "../../public/onboarding.ttl"), "utf8"));
 const describeTile = tree.tiles.find((t) => t.act === "describe")!;
+const thresholdTile = tree.tiles.find((t) => t.act === "threshold")!;
 
 /** genjson's list (test_bernard_voice_completeness.py): judging, cheering, nudging. */
 const FORBIDDEN = ["most spaces leave this blank", "keep it simple", "you can do better", "well done", "great job"];
@@ -46,6 +48,11 @@ describe("the tree's words (14.2 AC8)", () => {
     // And nothing tile A no longer uses, so the tree doesn't drift into dead lines.
     expect(Object.keys(describeTile.ui).filter((k) => !(UI_KEYS as readonly string[]).includes(k))).toEqual([]);
     expect(Object.keys(describeTile.fields).filter((k) => !FIELD_KEYS.includes(k))).toEqual([]);
+  });
+
+  it("has every line tile B shows, and nothing it no longer uses (14.3 AC8)", () => {
+    expect(THRESHOLD_UI_KEYS.filter((k) => !(k in thresholdTile.ui))).toEqual([]);
+    expect(Object.keys(thresholdTile.ui).filter((k) => !(THRESHOLD_UI_KEYS as readonly string[]).includes(k))).toEqual([]);
   });
 
   it("never judges, cheers or nudges", () => {

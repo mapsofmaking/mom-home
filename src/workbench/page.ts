@@ -30,6 +30,7 @@
 import { tally, tileStates } from "../tree/fog";
 import { completableIds } from "../tiles/done";
 import { announce } from "../ui/a11y";
+import { readOffers, type Offers } from "../lib/provider";
 import type { Tree } from "../tree/parse";
 import {
   askStartOver,
@@ -50,6 +51,7 @@ import { renderHexRow } from "./hexrow";
 import { renderHexView } from "./hexview";
 import type { Draft } from "./previews";
 import { renderStep } from "./step";
+import type { Door, OffersState } from "./threshold";
 import { metWords, renderWords } from "./words";
 
 export interface PageOptions {
@@ -68,6 +70,8 @@ export interface PageOptions {
   onFold?: (folded: boolean) => void;
   onSignIn: () => void;
   onSignOut: () => void;
+  /** What the pod server offers (tile B, 14.3 AC4); the app reads its descriptor, tests pass their own. */
+  readOffers?: () => Promise<Offers>;
 }
 
 /** null: never set, the width decides. */
@@ -129,6 +133,10 @@ function alignTips(row: HTMLElement): void {
 export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): PageHandle {
   let selected: string | null = null;
   let editing = false;
+  /** Tile B (14.3): what the pod server offers (null: not asked yet or being asked), and the door chosen. */
+  let offers: OffersState = null;
+  let offersAsked = false;
+  let door: Door | null = null;
   const workbench = opts.mode === "workbench";
   // Everything that outlives the markup (root and media-query listeners,
   // observers) is undone by destroy(), so a redraw never stacks a second set.
@@ -234,8 +242,25 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     drawWords();
     fit(hexes);
     const tile = tree.tiles.find((t) => t.id === selected)!;
-    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, words });
+    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, words, offers, door });
     step.scrollTop = 0;
+    if (tile.act === "threshold" && !offersAsked) askOffers();
+  };
+
+  /** Asks the pod server once the first time tile B opens (and again on "Try again"); the answer redraws it. */
+  const askOffers = () => {
+    offersAsked = true;
+    offers = null;
+    void (opts.readOffers ?? readOffers)().then((answer) => {
+      if (life.signal.aborted) return;
+      offers = answer;
+      // Only if the coordinator is still looking at tile B.
+      if (tree.tiles.find((t) => t.id === selected)?.act === "threshold") {
+        const had = document.activeElement?.getAttribute("data-door");
+        draw();
+        if (had) step.querySelector<HTMLElement>(`[data-door="${had}"]`)?.focus();
+      }
+    });
   };
 
   const select = (id: string) => {
@@ -371,6 +396,21 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
       editing = true;
       draw();
       step.querySelector<HTMLInputElement>("#f-name")?.focus();
+    } else if (target.dataset.door || target.id === "not-now" || target.id === "doors-again" || target.id === "offers-retry") {
+      if (target.id === "offers-retry") {
+        askOffers();
+        draw();
+        step.querySelector<HTMLElement>("#offers-retry, [data-door]")?.focus();
+        return;
+      }
+      door = target.id === "not-now" ? "notnow" : target.id === "doors-again" ? null : (target.dataset.door as Door);
+      draw();
+      // Keyboard stays on what was pressed (or on what replaced it); the reply is said once, politely.
+      step
+        .querySelector<HTMLElement>(door ? `[data-door="${door}"], #doors-again` : "[data-door]")
+        ?.focus();
+      const reply = step.querySelector<HTMLElement>("#reply");
+      if (reply) announce(reply.textContent?.replace(/\s+/g, " ").trim() ?? "");
     } else if (target.dataset.go) {
       select(target.dataset.go);
       step.querySelector<HTMLElement>(".wb-step-title")?.focus();
