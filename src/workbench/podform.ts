@@ -17,7 +17,7 @@
  * (AC5), each with one way forward.
  */
 import { MAX_NAME, podAddress, podNameProblem, suggestPodName, type NameProblem } from "../lib/podname";
-import type { AccountError } from "../lib/register";
+import { isEmail, MIN_PASSWORD, type AccountError } from "../lib/register";
 import type { Tile } from "../tree/parse";
 import { bernard, esc } from "./html";
 import type { ThresholdUiKey } from "./threshold";
@@ -29,10 +29,11 @@ export interface PodFormState {
   /** Typed by the coordinator: a later change to the draft no longer overwrites it. */
   nameTouched: boolean;
   emailTouched: boolean;
+  /** The email the half-built account already holds: from then on only the address can change. */
+  held: string | null;
+  /** The pod exists: "Create it" now only signs in. */
+  made: boolean;
 }
-
-export const MIN_PASSPHRASE = 8;
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type Ui = (name: ThresholdUiKey, vars?: Record<string, string>) => string;
 
@@ -66,9 +67,9 @@ export function renderPodForm(tile: Tile, state: PodFormState, ui: Ui): string {
       ${field(
         "email",
         ui("uiPodEmail"),
-        `<input id="p-email" name="email" type="email" value="${esc(state.email)}" autocomplete="email"
-           enterkeyhint="next" aria-describedby="${describedBy("email", true)}" required />`,
-        esc(ui("uiPodEmailHint"))
+        `<input id="p-email" name="email" type="email" value="${esc(state.held ?? state.email)}" autocomplete="email"
+           enterkeyhint="next" aria-describedby="${describedBy("email", true)}"${state.held ? " readonly" : ""} required />`,
+        esc(ui(state.held ? "uiEmailKept" : "uiPodEmailHint"))
       )}
       <div class="wb-pass-pair">
         ${field(
@@ -88,7 +89,7 @@ export function renderPodForm(tile: Tile, state: PodFormState, ui: Ui): string {
       <p class="wb-aside" id="p-pass-rule">${esc(ui("uiPodPassHint"))}</p>
       ${bernard(tile.lines.sayConsent)}
       <div class="wb-form-actions">
-        <button type="submit" class="btn btn-primary wb-cta">${esc(ui("uiPodCreate"))}</button>
+        <button type="submit" class="btn btn-primary wb-cta">${esc(ui(state.made ? "uiSignIn" : "uiPodCreate"))}</button>
         <button type="button" class="inline-link" id="pod-other">${esc(ui("uiPodOtherDoor"))}</button>
       </div>
       <p class="wb-aside" id="pod-status" role="status"></p>
@@ -134,7 +135,7 @@ export function checkName(form: HTMLFormElement, ui: Ui): boolean {
 }
 
 export function checkEmail(form: HTMLFormElement, ui: Ui): boolean {
-  return say(form, "email", EMAIL.test(input(form, "email").value.trim()) ? null : ui("uiEmailBad"));
+  return say(form, "email", isEmail(input(form, "email").value.trim()) ? null : ui("uiEmailBad"));
 }
 
 /** Rules on the first field; the second only has to match, and is only judged once something is in it (or on submit). */
@@ -143,7 +144,7 @@ export function checkPass(form: HTMLFormElement, ui: Ui, which: "pass" | "pass2"
   const second = input(form, "pass2").value;
   let ok = true;
   if (which !== "pass2") {
-    const problem = /\s/.test(first) ? ui("uiPassSpace") : first.length < MIN_PASSPHRASE ? ui("uiPassShort") : null;
+    const problem = /\s/.test(first) ? ui("uiPassSpace") : first.length < MIN_PASSWORD ? ui("uiPassShort") : null;
     ok = say(form, "pass", problem) && ok;
   }
   if (which === "pass2" || which === "both" || second) {
@@ -162,6 +163,12 @@ export function checkPodForm(form: HTMLFormElement, ui: Ui): HTMLInputElement | 
   ];
   const bad = results.find(([ok]) => !ok);
   return bad ? input(form, bad[1]) : null;
+}
+
+/** Back to hidden: the passphrase fields are emptied after success, and must not stay in "Show". */
+export function hidePassphrase(form: HTMLFormElement, ui: Ui): void {
+  const button = form.querySelector<HTMLButtonElement>("#pod-show")!;
+  if (button.getAttribute("aria-pressed") === "true") togglePassphrase(form, ui);
 }
 
 /** One Show toggle for both passphrase fields. */
@@ -194,6 +201,7 @@ export function sayStatus(form: HTMLFormElement, text: string): void {
 export function takenSuggestion(name: string, city: string | undefined): string | null {
   const town = suggestPodName(city);
   if (!town) return null;
+  if (name === town || name.endsWith(`-${town}`)) return null;
   const s = `${name}-${town}`.slice(0, MAX_NAME).replace(/-+$/, "");
   return s !== name && podNameProblem(s) === null ? s : null;
 }
@@ -238,7 +246,8 @@ export function showAccountError(
       return input(form, "name");
     }
     case "bad-name":
-      checkName(form, ui) && say(form, "name", ui("uiAddrBad"));
+      // The server's own words win over our check: if ours passed, say the general line.
+      if (checkName(form, ui)) say(form, "name", ui("uiAddrBad"));
       return input(form, "name");
     case "bad-email":
       say(form, "email", ui("uiEmailBad"));
@@ -254,6 +263,12 @@ export function showAccountError(
       return button;
     case "unreachable":
       sayStatus(form, ui(err.nothingCreated ? "uiUnreachable" : "uiHalfDone"));
+      return button;
+    case "unclear":
+      sayStatus(form, ui("uiUnclear"));
+      return button;
+    case "resume-failed":
+      sayStatus(form, ui("uiResumeFailed"));
       return button;
     default:
       sayStatus(

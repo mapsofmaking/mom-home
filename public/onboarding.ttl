@@ -134,7 +134,13 @@
   onb:uiEmailTaken "An account already uses this email. Use another mailbox, or log in at the pod with this one."@en ;
   onb:uiEmailKept "The account already has this email. Only the address can change now."@en ;
   onb:uiPassRefused "The pod server refused this passphrase. Try a longer one, without spaces."@en ;
-  onb:uiUnreachable "The pod server isn't answering. Nothing was created. Press Create it again in a moment."@en ;
+  onb:uiUnreachable "The pod server isn't answering. Press Create it again in a moment."@en ;
+  onb:uiUnclear "The pod server's answer wasn't readable, so I can't tell whether anything was made. Wait a minute, then sign in at the pod with your email, or press Create it again."@en ;
+  onb:uiResumeFailed "The account started here can't be continued. Sign in at the pod with your email and passphrase, or use another email."@en ;
+  # A pod made in this tab and not signed in to yet: the way back is a sign-in, not a second account (14.3 review).
+  onb:uiPriorPod "You made a pod here: {address}. Sign in to it."@en ;
+  onb:uiPriorSignIn "Sign in to your pod"@en ;
+  onb:uiPriorAnother "Make another one"@en ;
   onb:uiBusy "Too many tries from this connection. Wait a while, then press Create it again."@en ;
   onb:uiBusyMinutes "Too many tries from this connection. Press Create it again in about {minutes} minutes."@en ;
   onb:uiBusyMinute "Too many tries from this connection. Press Create it again in a minute."@en ;

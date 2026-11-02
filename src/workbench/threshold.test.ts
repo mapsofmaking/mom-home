@@ -14,7 +14,7 @@ const html = (s: string) => {
   return d;
 };
 /** A threshold context with the parts a test doesn't care about filled in. */
-const ctx = (c: { offers: Offers | null; door: Door | null }) => ({ ...c, draft: {}, pod: { name: "weld-done", email: "", nameTouched: false, emailTouched: false } });
+const ctx = (c: { offers: Offers | null; door: Door | null }) => ({ ...c, draft: {}, pod: { name: "weld-done", email: "", nameTouched: false, emailTouched: false, held: null, made: false } });
 const doors = (d: HTMLElement) => [...d.querySelectorAll<HTMLElement>("[data-door]")].map((b) => b.dataset.door);
 
 describe("tile B's threshold (14.3 AC1, AC4)", () => {
@@ -72,6 +72,20 @@ describe("tile B's threshold (14.3 AC1, AC4)", () => {
     expect(d.textContent).not.toContain(keep.ui.uiNoRegister);
     expect(d.querySelector("#offers-retry")).not.toBeNull();
     expect(doors(d)).toEqual(["self"]);
+  });
+
+  it("an email the half-built account holds is drawn read-only, with its own hint, on every redraw", () => {
+    const state = { name: "weld-done", email: "typed@else.example", nameTouched: true, emailTouched: true, held: "hello@weld.example", made: false };
+    const d = html(renderThreshold(keep, { offers: "open", door: "pod", draft: {}, pod: state }));
+    const email = d.querySelector<HTMLInputElement>("#p-email")!;
+    expect([email.value, email.readOnly]).toEqual(["hello@weld.example", true]);
+    expect(d.querySelector("#p-email-hint")!.textContent).toBe(keep.ui.uiEmailKept);
+  });
+
+  it("once the pod exists the same form offers Sign in, not Create it", () => {
+    const state = { name: "weld-done", email: "", nameTouched: false, emailTouched: false, held: null, made: true };
+    const d = html(renderThreshold(keep, { offers: "open", door: "pod", draft: {}, pod: state }));
+    expect(d.querySelector<HTMLButtonElement>('button[type="submit"]')!.textContent).toBe(keep.ui.uiSignIn);
   });
 
   it("the pod door opens its form only when the server takes accounts", () => {

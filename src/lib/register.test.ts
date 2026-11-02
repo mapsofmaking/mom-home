@@ -171,3 +171,71 @@ describe("createAccount", () => {
     expect(pendingEmail("https://elsewhere.example/")).toBeNull();
   });
 });
+
+describe("the review's patches (14.3)", () => {
+  const raw = (map: Record<string, () => Response>): typeof fetch => async (input, init) => {
+    const url = String(input);
+    const step = url === ISSUER + ".account/" ? (init?.headers ? "controls" : "index") : url.replace(ISSUER + "api/", "");
+    calls.push({ step, init });
+    return map[step] ? map[step]() : fakeFetch(input, init);
+  };
+
+  it("sets a time limit on every request, the login included", async () => {
+    await createAccount(ISSUER, INPUT, fakeFetch);
+    for (const c of calls) expect(c.init?.signal, c.step).toBeInstanceOf(AbortSignal);
+  });
+
+  it("an answer that is not JSON is 'unclear', never a raw error; and an account that may exist is not 'nothing created'", async () => {
+    const f = raw({ create: () => new Response("<html>502</html>", { status: 200 }) });
+    await expect(createAccount(ISSUER, INPUT, f)).rejects.toMatchObject({ code: "unclear", nothingCreated: false });
+    resetPendingSignUp();
+    const g = raw({ index: () => new Response("<html></html>", { status: 200 }) });
+    await expect(createAccount(ISSUER, INPUT, g)).rejects.toMatchObject({ code: "unclear", nothingCreated: true });
+  });
+
+  it("a pod that was made but whose reply can't be read leaves nothing half-built to resume", async () => {
+    const f = raw({ pod: () => new Response("oops", { status: 200 }) });
+    await expect(createAccount(ISSUER, INPUT, f)).rejects.toMatchObject({ code: "unclear" });
+    expect(pendingEmail(ISSUER)).toBeNull();
+  });
+
+  it("a token the server no longer honours is 'resume-failed', and the half-built account is let go", async () => {
+    fail.pod = [400, "already exists"];
+    await createAccount(ISSUER, INPUT, fakeFetch).catch(() => {});
+    expect(pendingEmail(ISSUER)).toBe(INPUT.email);
+    const f = raw({ controls: () => new Response(JSON.stringify({ message: "expired" }), { status: 401 }) });
+    await expect(createAccount(ISSUER, { ...INPUT, name: "other" }, f)).rejects.toMatchObject({ code: "resume-failed" });
+    expect(pendingEmail(ISSUER)).toBeNull();
+  });
+
+  it("a server refusal at the passphrase step is said as the field it concerns", async () => {
+    for (const [message, code] of [
+      ["Invalid e-mail address", "bad-email"],
+      ["Password is too weak", "bad-password"],
+      ["There already is a login for this e-mail address", "email-taken"],
+      ["Something else broke", "provider"],
+    ] as const) {
+      resetPendingSignUp();
+      const f = raw({ password: () => new Response(JSON.stringify({ message }), { status: 400 }) });
+      await expect(createAccount(ISSUER, INPUT, f), message).rejects.toMatchObject({ code });
+    }
+  });
+
+  it("never follows a control URL to another origin, so the passphrase can't be sent there", async () => {
+    const evil = raw({
+      controls: () =>
+        new Response(JSON.stringify({ controls: { password: { create: "https://evil.example/steal", login: ISSUER + "api/login" }, account: { pod: ISSUER + "api/pod" } } }), { status: 200 }),
+    });
+    await expect(createAccount(ISSUER, INPUT, evil)).rejects.toMatchObject({ code: "provider" });
+    expect(calls.some((c) => c.step.includes("evil"))).toBe(false);
+    resetPendingSignUp();
+    calls = [];
+    const evilLogin = raw({
+      controls: () =>
+        new Response(JSON.stringify({ controls: { password: { create: ISSUER + "api/password", login: "https://evil.example/login" }, account: { pod: ISSUER + "api/pod" } } }), { status: 200 }),
+    });
+    const made = await createAccount(ISSUER, INPUT, evilLogin);
+    expect(made.loggedIn).toBe(false);
+    expect(calls.some((c) => c.step.includes("evil"))).toBe(false);
+  });
+});

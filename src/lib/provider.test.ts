@@ -11,6 +11,7 @@ describe("readOffers", () => {
     const [url, init] = f.mock.calls[0] as unknown as [URL, RequestInit];
     expect(String(url)).toBe("https://pod.example.org" + DESCRIPTOR_PATH);
     expect(init.credentials).toBe("omit");
+    expect(init.signal).toBeInstanceOf(AbortSignal);
   });
 
   it("is open when the descriptor lists register with a path", async () => {
@@ -23,8 +24,8 @@ describe("readOffers", () => {
     expect(await readOffers("https://pod.example.org/", f)).toBe("closed");
   });
 
-  it("is closed for a register entry with no usable path", async () => {
-    for (const register of [{}, { path: 3 }, { path: "account/" }, null]) {
+  it("is closed for a register entry this app cannot use: another path, another layout, a protocol-relative path", async () => {
+    for (const register of [{}, { path: 3 }, { path: "account/" }, null, { path: "/.account/" }, { path: "/.account/", podNames: "path" }, { path: "//evil.example/", podNames: "subdomain" }, { path: "/other/", podNames: "subdomain" }]) {
       const f = answer(200, { capabilities: { register } });
       expect(await readOffers("https://pod.example.org/", f)).toBe("closed");
     }

@@ -31,7 +31,7 @@ import { forgetReads } from "./lib/read";
 import { readDone } from "./tiles/done";
 import { makeDraftStore } from "./lib/draft";
 import { hasForwarded, readForwarded } from "./lib/forwarded";
-import { takePodMade, type PodMade } from "./lib/handoff";
+import { clearPodMade, peekPodMade, takePodMade, type PodMade } from "./lib/handoff";
 import type { Draft } from "./workbench/previews";
 import type { Tree } from "./tree/parse";
 
@@ -146,6 +146,8 @@ function renderOnboardingView(): void {
     onSignOut: signOut,
     // Tile B, after creating the pod (14.3 AC6): straight to the pod server's own page.
     signIn: () => loginWithIdentifier(DEFAULT_IDENTIFIER),
+    // A pod this tab made and did not sign in to (the provider's page was abandoned): sign in to it, don't make a second.
+    priorPod: peekPodMade(),
   });
   focusView(app);
 }
@@ -202,6 +204,7 @@ async function signOut(): Promise<void> {
   } finally {
     // Whatever the provider said, this tab forgets the person: pod data must not outlive the session.
     podRoot = null;
+    clearPodMade();
     forgetReads();
     done.clear();
     for (const k of Object.keys(draft)) delete (draft as Record<string, unknown>)[k];

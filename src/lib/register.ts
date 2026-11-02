@@ -16,9 +16,17 @@
  *   whose login step failed is still a working account (flow B).
  * - The pod name follows the server's own guard (solid-css-overlay
  *   PodNameGuard: a DNS label up to 63 characters), not the backoffice's 2-40.
- * - A request that never reaches the server is `unreachable`, a 429 from the
- *   gateway's rate limit is `rate-limited` (the backoffice let both escape as
- *   raw errors).
+ * - A request that never reaches the server, or takes over 20 s, is
+ *   `unreachable`; a 429 from the gateway's rate limit is `rate-limited`, with
+ *   the wait it names; an answer that is not JSON is `unclear`; a half-built
+ *   account whose token the server no longer honours is `resume-failed` (the
+ *   backoffice let all of these escape as raw errors, or loop).
+ * - The control URLs the server hands back are only followed on the server's
+ *   own origin: the passphrase goes to the login URL, so it must not be
+ *   somewhere else.
+ * - The passphrase is sent twice, on purpose: to add the login, then to the
+ *   login that sets the cookie (ADR 010 point 8 says "once"; its own AC needs
+ *   the login). Both go to the same server, once each, and neither is kept.
  * - A name the server refuses as reserved reads as taken: either way, the person
  *   picks another one.
  *
@@ -47,6 +55,8 @@ export type AccountErrorCode =
   | "bad-password"
   | "unreachable"
   | "rate-limited"
+  | "unclear"
+  | "resume-failed"
   | "provider";
 
 export class AccountError extends Error {
@@ -89,7 +99,10 @@ export interface NewAccount {
 }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const isEmail = (value: string): boolean => EMAIL.test(value);
 export const MIN_PASSWORD = 8;
+/** Per request: a server that hangs must not hold "Create it" disabled for ever. */
+export const TIMEOUT_MS = 20_000;
 
 /** One registration in progress, so a retry resumes it instead of starting over. */
 interface Pending {
@@ -137,7 +150,7 @@ export async function createAccount(
   // Once the provider holds a login, a retry only changes the name.
   const checks: [AccountErrorCode, boolean][] = [
     ["bad-name", podNameProblem(name) !== null],
-    ["bad-email", !held && !EMAIL.test(email)],
+    ["bad-email", !held && !isEmail(email)],
     ["bad-password", !held && (input.password.length < MIN_PASSWORD || /\s/.test(input.password))],
   ];
   const invalid = checks.find(([, bad]) => bad);
@@ -147,7 +160,7 @@ export async function createAccount(
   const call = async (url: string, init: RequestInit | undefined, nothingCreated: boolean): Promise<Response> => {
     let res: Response;
     try {
-      res = await fetchImpl(url, init);
+      res = await fetchImpl(url, { ...init, signal: AbortSignal.timeout(TIMEOUT_MS) });
     } catch (err) {
       throw new AccountError("unreachable", `The pod server did not answer: ${(err as Error).message}`, nothingCreated);
     }
@@ -166,15 +179,37 @@ export async function createAccount(
   const fail = async (res: Response, what: string, nothingCreated: boolean) =>
     new AccountError("provider", `${what}: ${await problem(res)}`, nothingCreated);
 
+  /** A body that is not JSON (a gateway error page, say) is `unclear`, never a raw SyntaxError. */
+  const body = async <T>(res: Response, what: string, nothingCreated: boolean): Promise<T> => {
+    try {
+      return (await res.json()) as T;
+    } catch {
+      throw new AccountError("unclear", `${what}: the answer was not readable.`, nothingCreated);
+    }
+  };
+  /** Control URLs only on the server's own origin: the passphrase goes to some of them. */
+  const own = (url: unknown, what: string, nothingCreated: boolean): string => {
+    try {
+      if (typeof url === "string" && new URL(url, issuer).origin === new URL(issuer).origin) return new URL(url, issuer).href;
+    } catch {
+      /* not a URL */
+    }
+    throw new AccountError("provider", `The provider's ${what} points somewhere else.`, nothingCreated);
+  };
+
   if (fresh) {
     const index = await call(accountIndex, undefined, true);
     if (!index.ok) throw await fail(index, "The provider's account service did not answer", true);
-    const createUrl = (await index.json())?.controls?.account?.create;
+    const createUrl = (await body<{ controls?: { account?: { create?: string } } }>(index, "Opening the account service", true))
+      ?.controls?.account?.create;
     if (!createUrl) throw new AccountError("provider", "The provider does not offer account creation.", true);
-    const created = await call(createUrl, { method: "POST", credentials: "include" }, true);
+    const created = await call(own(createUrl, "account creation", true), { method: "POST", credentials: "include" }, true);
     if (!created.ok) throw await fail(created, "Could not create the account", true);
-    const { authorization } = await created.json();
-    if (!authorization) throw new AccountError("provider", "The provider created no account session.", true);
+    // From here an account exists on the server, so a reply we cannot read is not "nothing was created":
+    // we cannot tell, and say so rather than make a second one on the next press.
+    const { authorization } = (await body<{ authorization?: string }>(created, "Creating the account", false)) ?? {};
+    if (!authorization) throw new AccountError("unclear", "The provider created no account session.", false);
+    // Remembered the moment it is known: every step after this resumes on this account.
     pending = { issuer, token: authorization, email: null };
   }
   const state = pending!;
@@ -183,29 +218,42 @@ export async function createAccount(
 
   // A GET with a JSON content type and no body makes CSS 7 answer 500.
   const controlsRes = await call(accountIndex, { headers: token }, false);
-  if (!controlsRes.ok) throw await fail(controlsRes, "Could not open the new account", false);
-  const controls = (await controlsRes.json())?.controls;
+  if (!controlsRes.ok) {
+    // The server no longer honours this token (expired, account gone): pressing again would fail the same way for ever.
+    if (controlsRes.status === 401 || controlsRes.status === 403) {
+      pending = null;
+      throw new AccountError("resume-failed", "The account started here can no longer be continued.", false);
+    }
+    throw await fail(controlsRes, "Could not open the new account", false);
+  }
+  const controls = (await body<{ controls?: Record<string, Record<string, string> | undefined> }>(controlsRes, "Opening the new account", false))
+    ?.controls;
   if (!controls?.password?.create || !controls?.account?.pod) {
     throw new AccountError("provider", "The provider's account service is missing a step.");
   }
 
   if (!state.email) {
     const res = await call(
-      controls.password.create,
+      own(controls.password.create, "passphrase step", false),
       { method: "POST", headers: json, body: JSON.stringify({ email, password: input.password }) },
       false
     );
     if (!res.ok) {
       const message = await problem(res);
-      throw /already|exist/i.test(message)
+      // Said on the field it concerns (AC5), not as "half done": a retry with the same value could not succeed.
+      throw /already|exist/i.test(message) && !/not exist|does not|doesn't/i.test(message)
         ? new AccountError("email-taken", message)
-        : new AccountError("provider", `Could not set the passphrase: ${message}`);
+        : /e-?mail/i.test(message)
+          ? new AccountError("bad-email", message)
+          : /pass(word|phrase)/i.test(message)
+            ? new AccountError("bad-password", message)
+            : new AccountError("provider", `Could not set the passphrase: ${message}`);
     }
     state.email = email;
   }
 
   const res = await call(
-    controls.account.pod,
+    own(controls.account.pod, "pod step", false),
     { method: "POST", headers: json, body: JSON.stringify({ name }) },
     false
   );
@@ -217,20 +265,25 @@ export async function createAccount(
         ? new AccountError("bad-name", message)
         : new AccountError("provider", `Could not create the pod: ${message}`);
   }
-  const { pod, webId } = await res.json();
-  if (!pod || !webId) throw new AccountError("provider", "The provider created the pod but did not say where.");
+  // The pod exists once the server said 2xx: whatever we can read next, the account is whole.
   const madeWith = state.email;
   pending = null;
+  const made = await body<{ pod?: string; webId?: string }>(res, "Creating the pod", false).catch(() => null);
+  if (!made?.pod || !made?.webId) {
+    throw new AccountError("unclear", "The provider created the pod but did not say where.", false);
+  }
+  const { pod, webId } = made;
 
   // The login sets the provider's cookie (14.0); a failure here costs a login page later, nothing more.
   let loggedIn = false;
   try {
-    const loginUrl = controls?.password?.login ?? new URL(".account/login/password/", issuer).href;
+    const loginUrl = own(controls?.password?.login ?? new URL(".account/login/password/", issuer).href, "login step", false);
     const login = await fetchImpl(loginUrl, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: madeWith, password: input.password, remember: true }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     loggedIn = login.ok;
   } catch {

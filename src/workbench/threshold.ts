@@ -19,6 +19,7 @@ import { podAddress } from "../lib/podname";
 import type { Tile } from "../tree/parse";
 import { bernard, esc } from "./html";
 import { renderPodForm, type PodFormState } from "./podform";
+import type { PodMade } from "../lib/handoff";
 import type { Draft } from "./previews";
 import { tileUi } from "./tilewords";
 
@@ -35,7 +36,7 @@ export const THRESHOLD_UI_KEYS = [
   "uiPodAddress", "uiPodEmail", "uiPodEmailHint", "uiPodPass", "uiPodPassAgain", "uiPodPassExample",
   "uiPodPassHint", "uiPodShow", "uiPodHide", "uiPodShowLabel", "uiPodHideLabel", "uiPodCreate",
   "uiPodOtherDoor", "uiPodCreating", "uiPodCreated", "uiSignIn", "uiSignInFailed", "uiPodReadyAt", "uiTakenLabel", "uiTakenTry", "uiTakenPick",
-  "uiEmailTaken", "uiEmailKept", "uiPassRefused", "uiUnreachable", "uiBusy", "uiBusyMinutes", "uiBusyMinute", "uiHalfDone", "uiProviderSaid", "uiAddrEmpty", "uiAddrBad", "uiAddrLong", "uiEmailBad",
+  "uiEmailTaken", "uiEmailKept", "uiPassRefused", "uiUnreachable", "uiUnclear", "uiResumeFailed", "uiPriorPod", "uiPriorSignIn", "uiPriorAnother", "uiBusy", "uiBusyMinutes", "uiBusyMinute", "uiHalfDone", "uiProviderSaid", "uiAddrEmpty", "uiAddrBad", "uiAddrLong", "uiEmailBad",
   "uiPassShort", "uiPassSpace", "uiPassMismatch",
 ] as const;
 export type ThresholdUiKey = (typeof THRESHOLD_UI_KEYS)[number];
@@ -48,6 +49,9 @@ export interface ThresholdContext {
   draft: Draft;
   /** The pod form's address and email (the page keeps them across redraws); never the passphrase. */
   pod: PodFormState | null;
+  /** A pod this tab already made and did not sign in to: offered before a form that would make a second account. */
+  prior?: PodMade | null;
+  makeAnother?: boolean;
 }
 
 /** The pod form replaces the doors: only once the server has said it takes accounts. */
@@ -87,7 +91,18 @@ export function renderThreshold(tile: Tile, ctx: ThresholdContext): string {
   const ui = thresholdWords(tile);
   const { offers, door: chosen } = ctx;
 
-  if (showsPodForm(ctx)) return renderPodForm(tile, ctx.pod ?? { name: "", email: "", nameTouched: false, emailTouched: false }, ui);
+  if (showsPodForm(ctx)) {
+    if (ctx.prior && !ctx.makeAnother) {
+      return `
+    <p class="wb-aside" id="prior">${esc(ui("uiPriorPod", { address: ctx.prior.pod }))}</p>
+    <div class="wb-form-actions">
+      <button type="button" class="btn btn-primary wb-cta" id="prior-signin">${esc(ui("uiPriorSignIn"))}</button>
+      <button type="button" class="inline-link" id="prior-another">${esc(ui("uiPriorAnother"))}</button>
+    </div>
+    <p class="wb-aside" id="pod-status" role="status"></p>`;
+    }
+    return renderPodForm(tile, ctx.pod ?? { name: "", email: "", nameTouched: false, emailTouched: false, held: null, made: false }, ui);
+  }
 
   // What the server said comes before any door (AC4), in the app's voice, not Bernard's.
   const aside =

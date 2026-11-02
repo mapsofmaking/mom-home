@@ -13,6 +13,7 @@ import type { Tile } from "../tree/parse";
 import { describeWords, renderDescribeForm, type DescribeWords } from "./describe";
 import { bernard, esc } from "./html";
 import { hasPreview, renderPreview, type Draft } from "./previews";
+import type { PodMade } from "../lib/handoff";
 import type { PodFormState } from "./podform";
 import { renderPodReady, renderThreshold, thresholdTitle, type Door, type OffersState } from "./threshold";
 
@@ -31,6 +32,9 @@ export interface StepContext {
   pod?: PodFormState | null;
   /** Back from the sign-in that followed creating the pod (14.3 AC6): its address, once. */
   podReady?: string | null;
+  /** A pod this tab made and did not sign in to (offered before the form), and whether "make another" was chosen. */
+  prior?: PodMade | null;
+  makeAnother?: boolean;
 }
 
 function waitsFor(tile: Tile, ctx: StepContext): string {
@@ -116,7 +120,7 @@ function openStep(tile: Tile, state: TileState, ctx: StepContext): string {
   if (tile.act === "describe") return describeStep(tile, state, ctx);
   // Done, tile B keeps showing what it showed (below): 14.4 writes the file and gives it its own "done" view.
   if (tile.act === "threshold" && state !== "done") {
-    const t = { offers: ctx.offers ?? null, door: ctx.door ?? null, draft: ctx.draft, pod: ctx.pod ?? null };
+    const t = { offers: ctx.offers ?? null, door: ctx.door ?? null, draft: ctx.draft, pod: ctx.pod ?? null, prior: ctx.prior ?? null, makeAnother: ctx.makeAnother ?? false };
     // The pod form carries its own heading: the door's name (storyboard B2).
     return `
     <div class="wb-step-head">
