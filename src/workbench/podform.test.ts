@@ -271,6 +271,8 @@ describe("Create it: the account (14.3 AC3, AC5)", () => {
       [new AccountError("unreachable", "x", true), (o) => o.root.querySelector("#pod-status")!.textContent!],
       [new AccountError("unreachable", "x", false), (o) => o.root.querySelector("#pod-status")!.textContent!],
       [new AccountError("rate-limited", "x", true), (o) => o.root.querySelector("#pod-status")!.textContent!],
+      [new AccountError("rate-limited", "x", true, 1248), (o) => o.root.querySelector("#pod-status")!.textContent!],
+      [new AccountError("rate-limited", "x", true, 30), (o) => o.root.querySelector("#pod-status")!.textContent!],
       [new AccountError("provider", "Could not create the account: boom", true), (o) => o.root.querySelector("#pod-status")!.textContent!],
     ];
     const expected = [
@@ -279,6 +281,8 @@ describe("Create it: the account (14.3 AC3, AC5)", () => {
       keep.ui.uiUnreachable,
       keep.ui.uiHalfDone,
       keep.ui.uiBusy,
+      keep.ui.uiBusyMinutes.replace("{minutes}", "21"),
+      keep.ui.uiBusyMinute,
       keep.ui.uiProviderSaid.replace("{detail}", "Could not create the account: boom"),
     ];
     for (const [i, [error, where]] of cases.entries()) {
@@ -309,7 +313,7 @@ describe("after the pod is made (14.3 AC6)", () => {
   it("leaves the tab a marker with the WebID and pod, never the email or passphrase", async () => {
     await done();
     const raw = sessionStorage.getItem("mom-home:pod-made")!;
-    expect(JSON.parse(raw)).toEqual({ webId: made.webId, pod: made.pod });
+    expect(JSON.parse(raw)).toEqual({ webId: made.webId, pod: made.pod, at: expect.any(Number) });
     expect(raw).not.toContain(good);
     expect(raw).not.toContain("hello@atelier.example");
   });
@@ -354,6 +358,125 @@ describe("back from the sign-in (14.3 AC6)", () => {
       mode: "workbench", who: "Atelier", done: new Set(), draft: {}, fold: { folded: false },
       onSignIn: () => {}, onSignOut: () => {},
     });
+    expect(root.querySelector(".bernard-voice")?.textContent ?? "").not.toBe(`— ${keep.lines.saidPodReady}`);
+  });
+});
+
+describe("the review's patches (14.3)", () => {
+  const good = "correct-horse-battery-staple";
+  const fill = (o: Awaited<ReturnType<typeof openForm>>) => {
+    o.type("pass", good);
+    o.type("pass2", good);
+  };
+
+  it("a tile click while a create is in flight waits: the answer must land on its form", async () => {
+    let finish!: (a: NewAccount) => void;
+    const o = await openForm(undefined, "open", vi.fn(() => new Promise<NewAccount>((r) => { finish = r; })));
+    fill(o);
+    o.submit();
+    const title = o.root.querySelector(".wb-step-title")!.textContent;
+    o.root.querySelector<HTMLElement>("button[data-tile]")?.click();
+    expect(o.root.querySelector("#f-pod")).toBe(o.form);
+    expect(o.root.querySelector(".wb-step-title")!.textContent).toBe(title);
+    finish(made);
+    await settle();
+    expect(o.signIn).toHaveBeenCalledTimes(1);
+  });
+
+  it("a second press after a sign-in that didn't start does not start two redirects at once", async () => {
+    let fail!: () => void;
+    const signIn = vi.fn(() => new Promise<void>((_, reject) => { fail = () => reject(new Error("offline")); }));
+    const o = await openForm(undefined, "open", undefined, signIn);
+    fill(o);
+    o.submit();
+    await settle();
+    o.submit();
+    o.submit();
+    expect(signIn).toHaveBeenCalledTimes(1);
+    fail();
+    await settle();
+    o.submit();
+    await settle();
+    expect(signIn).toHaveBeenCalledTimes(2);
+    expect(o.createAccount).toHaveBeenCalledTimes(1);
+  });
+
+  it("after success, a redrawn form says Sign in instead of Create it", async () => {
+    const { pendingEmail } = await import("../lib/register");
+    expect(pendingEmail).toBeTypeOf("function");
+    const o = await openForm();
+    fill(o);
+    o.submit();
+    await settle();
+    // Go to tile A and back to tile B: the form is rebuilt.
+    o.root.querySelector<HTMLElement>('button[data-tile="describe"]')!.click();
+    o.root.querySelector<HTMLElement>('button[data-tile="keep"]')!.click();
+    // The door is still the pod's: the form is drawn again, as a sign-in, with the account's email locked.
+    expect(o.form.isConnected).toBe(false);
+    const submit = [...o.root.querySelectorAll<HTMLButtonElement>("#f-pod button")].find((b) => b.type === "submit")!;
+    expect(submit.textContent).toBe(keep.ui.uiSignIn);
+
+  });
+
+  it("the passphrase Show resets to hidden once the fields are emptied", async () => {
+    const o = await openForm();
+    o.root.querySelector<HTMLElement>("#pod-show")!.click();
+    expect(o.f("pass").type).toBe("text");
+    fill(o);
+    o.submit();
+    await settle();
+    expect([o.f("pass").type, o.f("pass2").type, o.f("pass").value]).toEqual(["password", "password", ""]);
+  });
+});
+
+describe("a pod this tab already made (14.3 review)", () => {
+  const prior = { webId: made.webId, pod: made.pod };
+  const open = async (signIn = vi.fn(async () => {})) => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    const createAccount = vi.fn(async () => made);
+    renderPage(root, tree, {
+      mode: "onboarding", done: new Set(["describe"]), draft: { name: "Atelier du Canal", city: "Anderlecht" }, fold: { folded: false },
+      onSignIn: () => {}, onSignOut: () => {}, readOffers: async () => "open", createAccount, signIn, priorPod: prior,
+    });
+    await settle();
+    root.querySelector<HTMLElement>('[data-door="pod"]')!.click();
+    return { root, createAccount, signIn };
+  };
+
+  it("offers to sign in to it before any form that would make a second account", async () => {
+    const { root, createAccount } = await open();
+    expect(root.querySelector("#f-pod")).toBeNull();
+    expect(root.querySelector("#prior")!.textContent).toBe(keep.ui.uiPriorPod.replace("{address}", made.pod));
+    expect(createAccount).not.toHaveBeenCalled();
+  });
+
+  it("'Sign in to your pod' signs in, and makes nothing", async () => {
+    const { root, createAccount, signIn } = await open();
+    root.querySelector<HTMLElement>("#prior-signin")!.click();
+    await settle();
+    expect(signIn).toHaveBeenCalledTimes(1);
+    expect(createAccount).not.toHaveBeenCalled();
+  });
+
+  it("'Make another one' is the way to the form, on purpose", async () => {
+    const { root } = await open();
+    root.querySelector<HTMLElement>("#prior-another")!.click();
+    expect(root.querySelector("#f-pod")).not.toBeNull();
+    expect(root.querySelector("#prior")).toBeNull();
+  });
+});
+
+describe("back from the sign-in: shown once", () => {
+  it("leaving tile B clears 'pod ready'; coming back does not bring it back", () => {
+    const root = document.createElement("div");
+    renderPage(root, tree, {
+      mode: "workbench", who: "Atelier", done: new Set(["describe"]), draft: {}, fold: { folded: false },
+      onSignIn: () => {}, onSignOut: () => {}, readOffers: async () => "open", podReady: { webId: made.webId, pod: made.pod },
+    });
+    expect(root.querySelector(".bernard-voice")!.textContent).toBe(`— ${keep.lines.saidPodReady}`);
+    root.querySelector<HTMLElement>('button[data-tile="describe"]')!.click();
+    root.querySelector<HTMLElement>('button[data-tile="keep"]')!.click();
     expect(root.querySelector(".bernard-voice")?.textContent ?? "").not.toBe(`— ${keep.lines.saidPodReady}`);
   });
 });

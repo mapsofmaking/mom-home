@@ -61,6 +61,7 @@ import {
   checkPass,
   checkPodForm,
   clearError,
+  hidePassphrase,
   holdEmail,
   sayStatus,
   setCreating,
@@ -94,8 +95,10 @@ export interface PageOptions {
   createAccount?: (input: SignUp) => Promise<NewAccount>;
   /** Signs in at the pod server (Solid-OIDC redirect); the shell passes it, so this page never loads the auth library. */
   signIn?: () => Promise<void>;
-  /** Back from that sign-in, the first draw (lib/handoff.ts): tile B says the pod is ready (14.3 AC6). */
+  /** Back from that sign-in, the first draw (lib/handoff.ts): tile B says the pod is ready (14.3 AC6). Shown once. */
   podReady?: PodMade | null;
+  /** Signed out, a pod this tab made and did not sign in to: offered before a form that would make a second account. */
+  priorPod?: PodMade | null;
 }
 
 /** null: never set, the width decides. */
@@ -173,6 +176,12 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
    * account, which CSS 7.2 can never delete.
    */
   let made: NewAccount | null = null;
+  /** Signing in to the pod is under way: a second press must not start a second redirect. */
+  let signingIn = false;
+  /** "Pod ready" is said once: the first draw after the return, until the coordinator goes anywhere else. */
+  let podReady: PodMade | null = opts.podReady ?? null;
+  /** "Make another one" was chosen over signing in to the pod this tab already made. */
+  let makeAnother = false;
   const workbench = opts.mode === "workbench";
   // Everything that outlives the markup (root and media-query listeners,
   // observers) is undone by destroy(), so a redraw never stacks a second set.
@@ -279,11 +288,14 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     fit(hexes);
     const tile = tree.tiles.find((t) => t.id === selected)!;
     // Tile B's form fields follow the description until the coordinator types their own (no second copy that drifts).
-    pod ??= { name: "", email: "", nameTouched: false, emailTouched: false };
+    pod ??= { name: "", email: "", nameTouched: false, emailTouched: false, held: null, made: false };
     if (!pod.nameTouched) pod.name = suggestPodName(opts.draft.name);
     if (!pod.emailTouched) pod.email = (opts.draft.email ?? "").trim();
+    // What the half-built account holds, and whether the pod exists, survive a redraw: they are the server's facts, not typing.
+    pod.held = pendingEmail(DEFAULT_IDENTIFIER);
+    pod.made = made !== null;
     clearTimeout(podTimer);
-    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, words, offers, door, pod, podReady: opts.podReady?.pod ?? null });
+    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, words, offers, door, pod, podReady: podReady?.pod ?? null, prior: opts.priorPod ?? null, makeAnother });
     step.scrollTop = 0;
     if (tile.act === "threshold" && !offersAsked) askOffers();
     // The suggested address is checked as soon as the form opens (AC2): a bad one shows before the passphrase is reached.
@@ -298,8 +310,8 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     void (opts.readOffers ?? readOffers)().then((answer) => {
       if (life.signal.aborted) return;
       offers = answer;
-      // Only if the coordinator is still looking at tile B.
-      if (tree.tiles.find((t) => t.id === selected)?.act === "threshold") {
+      // Only if the coordinator is still looking at tile B, and not while a create is in flight (its form must stay).
+      if (!creating && tree.tiles.find((t) => t.id === selected)?.act === "threshold") {
         const had = document.activeElement?.getAttribute("data-door");
         draw();
         if (had) step.querySelector<HTMLElement>(`[data-door="${had}"]`)?.focus();
@@ -308,6 +320,9 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   };
 
   const select = (id: string) => {
+    // A create is in flight: a redraw now would drop its answer (the form is replaced). Tiles wait for it.
+    if (creating) return;
+    podReady = null;
     selected = id;
     editing = false;
     draw();
@@ -458,6 +473,12 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
       editing = true;
       draw();
       step.querySelector<HTMLInputElement>("#f-name")?.focus();
+    } else if (target.id === "prior-signin" && opts.priorPod) {
+      void signInNow(step as unknown as HTMLFormElement, thresholdWords(tree.tiles.find((t) => t.act === "threshold")), opts.priorPod);
+    } else if (target.id === "prior-another") {
+      makeAnother = true;
+      draw();
+      step.querySelector<HTMLInputElement>("#p-name")?.focus();
     } else if (target.id === "pod-show") {
       togglePassphrase(step.querySelector<HTMLFormElement>("#f-pod")!, thresholdWords(tree.tiles.find((t) => t.act === "threshold")));
     } else if (target.dataset.door || target.id === "not-now" || target.id === "doors-again" || target.id === "offers-retry" || target.id === "pod-other") {
@@ -506,6 +527,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
       setCreating(form, ui, false);
       // The passphrase is spent: out of the page before it leaves, so a Back from the provider can't bring it back.
       for (const name of ["pass", "pass2"]) (form.elements.namedItem(name) as HTMLInputElement).value = "";
+      hidePassphrase(form, ui);
       markPodMade({ webId: made.webId, pod: made.pod });
       form.querySelector<HTMLButtonElement>('button[type="submit"]')!.textContent = ui("uiSignIn");
       sayStatus(form, ui("uiPodCreated", { address: made.pod }));
@@ -529,7 +551,9 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   };
 
   /** To the pod's own page (Solid-OIDC). If it doesn't start, the pod still exists: say so, and the button signs in again. */
-  const signInNow = async (form: HTMLFormElement, ui: ReturnType<typeof thresholdWords>, pod: NewAccount) => {
+  const signInNow = async (form: HTMLFormElement, ui: ReturnType<typeof thresholdWords>, pod: { pod: string }) => {
+    if (signingIn) return;
+    signingIn = true;
     try {
       if (!opts.signIn) throw new Error("no sign-in available");
       await opts.signIn();
@@ -537,7 +561,10 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
       console.warn("Sign-in after creating the pod did not start:", err);
       if (!form.isConnected) return;
       sayStatus(form, ui("uiSignInFailed", { address: pod.pod }));
-      form.querySelector<HTMLElement>('button[type="submit"]')?.focus();
+      form.querySelector<HTMLElement>('button[type="submit"], #prior-signin')?.focus();
+    } finally {
+      // A redirect that did start leaves the page; one that didn't can be tried again.
+      signingIn = false;
     }
   };
 

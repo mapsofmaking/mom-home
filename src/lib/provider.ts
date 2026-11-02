@@ -17,6 +17,11 @@ import { DEFAULT_IDENTIFIER } from "../config";
 export type Offers = "open" | "closed" | "down";
 
 export const DESCRIPTOR_PATH = "/.well-known/css/provider.json";
+/** What the app can use: the account API where lib/register.ts calls it, pods named as subdomains where lib/podname.ts builds them. */
+const ACCOUNT_PATH = "/.account/";
+const POD_NAMES = "subdomain";
+/** A server that doesn't answer in this long is "down": the person must not wait on it forever. */
+export const TIMEOUT_MS = 15_000;
 
 export async function readOffers(
   server: string = DEFAULT_IDENTIFIER,
@@ -28,6 +33,7 @@ export async function readOffers(
       headers: { Accept: "application/json" },
       credentials: "omit",
       cache: "no-store",
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch {
     return "down";
@@ -43,7 +49,7 @@ export async function readOffers(
   }
   const capabilities = (body as { capabilities?: Record<string, unknown> } | null)?.capabilities;
   if (!capabilities || typeof capabilities !== "object") return "down";
-  const register = capabilities.register as { path?: unknown } | undefined;
-  // An entry with no path to the account API is not an offer we can use.
-  return register && typeof register.path === "string" && register.path.startsWith("/") ? "open" : "closed";
+  const register = capabilities.register as { path?: unknown; podNames?: unknown } | undefined;
+  // An entry for a layout or a path this app does not build is not an offer it can use: it would show wrong addresses.
+  return register && register.path === ACCOUNT_PATH && register.podNames === POD_NAMES ? "open" : "closed";
 }
