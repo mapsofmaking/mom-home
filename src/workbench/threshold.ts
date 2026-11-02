@@ -34,7 +34,8 @@ export const THRESHOLD_UI_KEYS = [
   "uiDoorSelfDesc", "uiDoorPodDesc", "uiDoorSelfWhere", "uiDoorsNote",
   "uiPodAddress", "uiPodEmail", "uiPodEmailHint", "uiPodPass", "uiPodPassAgain", "uiPodPassExample",
   "uiPodPassHint", "uiPodShow", "uiPodHide", "uiPodShowLabel", "uiPodHideLabel", "uiPodCreate",
-  "uiPodOtherDoor", "uiPodStatus", "uiAddrEmpty", "uiAddrBad", "uiAddrLong", "uiEmailBad",
+  "uiPodOtherDoor", "uiPodCreating", "uiPodCreated", "uiTakenLabel", "uiTakenTry", "uiTakenPick",
+  "uiEmailTaken", "uiEmailKept", "uiPassRefused", "uiUnreachable", "uiBusy", "uiHalfDone", "uiProviderSaid", "uiAddrEmpty", "uiAddrBad", "uiAddrLong", "uiEmailBad",
   "uiPassShort", "uiPassSpace", "uiPassMismatch",
 ] as const;
 export type ThresholdUiKey = (typeof THRESHOLD_UI_KEYS)[number];

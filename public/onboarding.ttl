@@ -120,7 +120,19 @@
   onb:uiPodHideLabel "Hide the passphrase"@en ;
   onb:uiPodCreate "Create it"@en ;
   onb:uiPodOtherDoor "Take the other door"@en ;
-  onb:uiPodStatus "Creating the pod comes next. Nothing was sent."@en ;
+  onb:uiPodCreating "Creating your pod. This takes a few seconds."@en ;
+  onb:uiPodCreated "Your pod is ready: {address}. Nothing is written in it yet. Signing in comes next."@en ;
+  # What the pod server said, each with one way forward (14.3 AC5). Red only for errors (the field's border).
+  onb:uiTakenLabel "Address taken"@en ;
+  onb:uiTakenTry "Taken. Try {suggestion}."@en ;
+  onb:uiTakenPick "Taken. Pick another one."@en ;
+  onb:uiEmailTaken "An account already uses this email. Use another mailbox, or log in at the pod with this one."@en ;
+  onb:uiEmailKept "The account already has this email. Only the address can change now."@en ;
+  onb:uiPassRefused "The pod server refused this passphrase. Try a longer one, without spaces."@en ;
+  onb:uiUnreachable "The pod server isn't answering. Nothing was created. Press Create it again in a moment."@en ;
+  onb:uiBusy "Too many tries from this connection. Wait a while, then press Create it again."@en ;
+  onb:uiHalfDone "Your account exists, but the pod isn't made yet. Press Create it again: it continues where it stopped."@en ;
+  onb:uiProviderSaid "The pod server said no: {detail}. Nothing you did wrong. Try again, or take the other door."@en ;
   onb:uiAddrEmpty "Pick an address for your space."@en ;
   onb:uiAddrBad "Lower-case letters, numbers and dashes only, and no dash at the start or the end."@en ;
   onb:uiAddrLong "An address can be 63 characters at most. Shorter, please."@en ;

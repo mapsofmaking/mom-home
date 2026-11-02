@@ -31,6 +31,9 @@ import { tally, tileStates } from "../tree/fog";
 import { completableIds } from "../tiles/done";
 import { announce } from "../ui/a11y";
 import { readOffers, type Offers } from "../lib/provider";
+import { AccountError, createAccount, pendingEmail, type NewAccount, type SignUp } from "../lib/register";
+import { DEFAULT_IDENTIFIER } from "../config";
+import { podAddress } from "../lib/podname";
 import type { Tree } from "../tree/parse";
 import {
   askStartOver,
@@ -52,7 +55,20 @@ import { renderHexView } from "./hexview";
 import type { Draft } from "./previews";
 import { renderStep } from "./step";
 import { suggestPodName } from "../lib/podname";
-import { checkEmail, checkName, checkPass, checkPodForm, clearError, showAddress, togglePassphrase, type PodFormState } from "./podform";
+import {
+  checkEmail,
+  checkName,
+  checkPass,
+  checkPodForm,
+  clearError,
+  holdEmail,
+  sayStatus,
+  setCreating,
+  showAccountError,
+  showAddress,
+  togglePassphrase,
+  type PodFormState,
+} from "./podform";
 import { showsPodForm, thresholdWords, type Door, type OffersState } from "./threshold";
 import { metWords, renderWords } from "./words";
 
@@ -74,6 +90,8 @@ export interface PageOptions {
   onSignOut: () => void;
   /** What the pod server offers (tile B, 14.3 AC4); the app reads its descriptor, tests pass their own. */
   readOffers?: () => Promise<Offers>;
+  /** Creates the account and pod (tile B, 14.3 AC3); the app uses lib/register.ts, tests pass their own. */
+  createAccount?: (input: SignUp) => Promise<NewAccount>;
 }
 
 /** null: never set, the width decides. */
@@ -142,6 +160,8 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   /** The pod form's address and email, kept across redraws; the passphrase is never kept (podform.ts). */
   let pod: PodFormState | null = null;
   let podTimer: ReturnType<typeof setTimeout> | undefined;
+  /** One "Create it" at a time (the gateway's rate limit counts every attempt). */
+  let creating = false;
   const workbench = opts.mode === "workbench";
   // Everything that outlives the markup (root and media-query listeners,
   // observers) is undone by destroy(), so a redraw never stacks a second set.
@@ -317,16 +337,15 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     if (form.id === "f-pod") {
       // Never the browser's own submit: it would put the passphrase in the URL (podform.ts).
       event.preventDefault();
+      if (creating) return;
       const ui = thresholdWords(tree.tiles.find((t) => t.act === "threshold"));
+      sayStatus(form, "");
       const bad = checkPodForm(form, ui);
-      const status = form.querySelector<HTMLElement>("#pod-status")!;
-      status.textContent = "";
       if (bad) {
         bad.focus();
         return;
       }
-      // S2 stops here: nothing is sent. The account is created in S3 (lib/register.ts).
-      status.textContent = ui("uiPodStatus");
+      void create(form, ui);
       return;
     }
     if (form.id !== "f-describe") return;
@@ -452,6 +471,44 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
       step.querySelector<HTMLElement>(".wb-step-title")?.focus();
     }
   });
+
+  /**
+   * "Create it" (14.3 AC3): the account, its passphrase login, the pod, and the
+   * account-API login, through lib/register.ts. The passphrase goes from its
+   * input to that one call and is not kept. Every answer is said in place (AC5).
+   */
+  const create = async (form: HTMLFormElement, ui: ReturnType<typeof thresholdWords>) => {
+    const field = (name: string) => (form.elements.namedItem(name) as HTMLInputElement).value;
+    creating = true;
+    setCreating(form, ui, true);
+    try {
+      // S4 signs in with what this returns (the WebID): AC6.
+      await (opts.createAccount ?? ((i: SignUp) => createAccount(DEFAULT_IDENTIFIER, i)))({
+        name: field("name").trim(),
+        email: field("email").trim(),
+        password: field("pass"),
+      });
+      if (!form.isConnected) return;
+      setCreating(form, ui, false);
+      // S4 replaces this with the sign-in redirect (AC6).
+      sayStatus(form, ui("uiPodCreated", { address: podAddress(field("name").trim()) }));
+      announce(ui("uiPodCreated", { address: podAddress(field("name").trim()) }));
+    } catch (err) {
+      if (!form.isConnected) return;
+      setCreating(form, ui, false);
+      const error = err instanceof AccountError ? err : new AccountError("provider", String(err), false);
+      // The account may already hold the email: from now on only the address can change.
+      const held = pendingEmail(DEFAULT_IDENTIFIER);
+      if (held) {
+        holdEmail(form, ui, held);
+        if (pod) pod.email = held;
+      }
+      const target = showAccountError(form, ui, error, opts.draft.city);
+      target.focus();
+    } finally {
+      creating = false;
+    }
+  };
 
   // The pod form (14.3 AC2): messages update in place, never by redrawing, so no error clears a field.
   const podForm = (event: Event) => (event.target as Element).closest<HTMLFormElement>("#f-pod");

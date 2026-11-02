@@ -12,9 +12,12 @@
  *   the page handles `submit` with preventDefault, always.
  *
  * What a message says is the tree's (`onb:ui*` on `:keep`). Nothing is sent from
- * here: creating the account is `lib/register.ts` (S3).
+ * here: "Create it" hands the fields to `lib/register.ts` (the page does), and
+ * what the server answers comes back here as a message on the field it concerns
+ * (AC5), each with one way forward.
  */
-import { podAddress, podNameProblem, type NameProblem } from "../lib/podname";
+import { MAX_NAME, podAddress, podNameProblem, suggestPodName, type NameProblem } from "../lib/podname";
+import type { AccountError } from "../lib/register";
 import type { Tile } from "../tree/parse";
 import { bernard, esc } from "./html";
 import type { ThresholdUiKey } from "./threshold";
@@ -31,7 +34,7 @@ export interface PodFormState {
 export const MIN_PASSPHRASE = 8;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-type Ui = (name: ThresholdUiKey) => string;
+type Ui = (name: ThresholdUiKey, vars?: Record<string, string>) => string;
 
 /** One field: label, input, its normal hint, and an empty line an error fills in place. */
 function field(id: string, label: string, input: string, hint = "", hintClass = "hint"): string {
@@ -48,6 +51,10 @@ export function renderPodForm(tile: Tile, state: PodFormState, ui: Ui): string {
   return `
     ${bernard(tile.lines.sayPod)}
     <form id="f-pod" class="wb-form" novalidate autocomplete="on" action="#" method="post">
+      <div id="pod-taken" class="wb-taken" hidden>
+        <span class="status-label broken">${esc(ui("uiTakenLabel"))}</span>
+        ${bernard(tile.lines.sayTaken)}
+      </div>
       ${field(
         "name",
         ui("uiPodAddress"),
@@ -165,4 +172,87 @@ export function togglePassphrase(form: HTMLFormElement, ui: Ui): void {
   button.setAttribute("aria-pressed", String(show));
   button.textContent = ui(show ? "uiPodHide" : "uiPodShow");
   button.setAttribute("aria-label", ui(show ? "uiPodHideLabel" : "uiPodShowLabel"));
+}
+
+/** "Create it" pressed: one attempt at a time, and the person sees it is working. */
+export function setCreating(form: HTMLFormElement, ui: Ui, creating: boolean): void {
+  const button = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+  button.disabled = creating;
+  button.setAttribute("aria-busy", String(creating));
+  form.querySelector<HTMLElement>("#pod-status")!.textContent = creating ? ui("uiPodCreating") : "";
+}
+
+/** Says something under "Create it" (the status line): what isn't about one field. */
+export function sayStatus(form: HTMLFormElement, text: string): void {
+  form.querySelector<HTMLElement>("#pod-status")!.textContent = text;
+}
+
+/**
+ * Another address for a taken one: the name with the town after it
+ * ("atelier-du-canal-anderlecht", storyboard S2), when that makes a valid one.
+ */
+export function takenSuggestion(name: string, city: string | undefined): string | null {
+  const town = suggestPodName(city);
+  if (!town) return null;
+  const s = `${name}-${town}`.slice(0, MAX_NAME).replace(/-+$/, "");
+  return s !== name && podNameProblem(s) === null ? s : null;
+}
+
+/**
+ * Once the provider holds the email, a retry cannot change it (lib/register.ts):
+ * the field shows the one it holds, read-only, and says why.
+ */
+export function holdEmail(form: HTMLFormElement, ui: Ui, email: string): void {
+  const field = input(form, "email");
+  field.value = email;
+  field.readOnly = true;
+  form.querySelector<HTMLElement>("#p-email-hint")!.textContent = ui("uiEmailKept");
+  say(form, "email", null);
+}
+
+/**
+ * What the pod server answered, said where it can be fixed (AC5): on the field it
+ * concerns, or under "Create it". Returns the element the keyboard should go to.
+ * Nothing typed is cleared.
+ */
+export function showAccountError(
+  form: HTMLFormElement,
+  ui: Ui,
+  err: AccountError,
+  city: string | undefined
+): HTMLElement {
+  const taken = form.querySelector<HTMLElement>("#pod-taken")!;
+  taken.hidden = err.code !== "name-taken";
+  const button = form.querySelector<HTMLElement>('button[type="submit"]')!;
+  switch (err.code) {
+    case "name-taken": {
+      const alt = takenSuggestion(input(form, "name").value.trim(), city);
+      say(form, "name", alt ? ui("uiTakenTry", { suggestion: alt }) : ui("uiTakenPick"));
+      return input(form, "name");
+    }
+    case "bad-name":
+      checkName(form, ui) && say(form, "name", ui("uiAddrBad"));
+      return input(form, "name");
+    case "bad-email":
+      say(form, "email", ui("uiEmailBad"));
+      return input(form, "email");
+    case "email-taken":
+      say(form, "email", ui("uiEmailTaken"));
+      return input(form, "email");
+    case "bad-password":
+      say(form, "pass", ui("uiPassRefused"));
+      return input(form, "pass");
+    case "rate-limited":
+      sayStatus(form, ui("uiBusy"));
+      return button;
+    case "unreachable":
+      sayStatus(form, ui(err.nothingCreated ? "uiUnreachable" : "uiHalfDone"));
+      return button;
+    default:
+      sayStatus(
+        form,
+        err.nothingCreated ? ui("uiProviderSaid", { detail: err.message.replace(/[.\s]+$/, "") }) : ui("uiHalfDone")
+      );
+      return button;
+  }
 }
