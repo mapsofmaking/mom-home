@@ -32,8 +32,8 @@ import { completableIds } from "../tiles/done";
 import { announce } from "../ui/a11y";
 import { readOffers, type Offers } from "../lib/provider";
 import { AccountError, createAccount, pendingEmail, type NewAccount, type SignUp } from "../lib/register";
+import { markPodMade, type PodMade } from "../lib/handoff";
 import { DEFAULT_IDENTIFIER } from "../config";
-import { podAddress } from "../lib/podname";
 import type { Tree } from "../tree/parse";
 import {
   askStartOver,
@@ -92,6 +92,10 @@ export interface PageOptions {
   readOffers?: () => Promise<Offers>;
   /** Creates the account and pod (tile B, 14.3 AC3); the app uses lib/register.ts, tests pass their own. */
   createAccount?: (input: SignUp) => Promise<NewAccount>;
+  /** Signs in at the pod server (Solid-OIDC redirect); the shell passes it, so this page never loads the auth library. */
+  signIn?: () => Promise<void>;
+  /** Back from that sign-in, the first draw (lib/handoff.ts): tile B says the pod is ready (14.3 AC6). */
+  podReady?: PodMade | null;
 }
 
 /** null: never set, the width decides. */
@@ -151,7 +155,8 @@ function alignTips(row: HTMLElement): void {
 }
 
 export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): PageHandle {
-  let selected: string | null = null;
+  // Back from the sign-in after creating the pod: tile B speaks first (AC6).
+  let selected: string | null = opts.podReady ? (tree.tiles.find((t) => t.act === "threshold")?.id ?? null) : null;
   let editing = false;
   /** Tile B (14.3): what the pod server offers (null: not asked yet or being asked), and the door chosen. */
   let offers: OffersState = null;
@@ -162,6 +167,12 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   let podTimer: ReturnType<typeof setTimeout> | undefined;
   /** One "Create it" at a time (the gateway's rate limit counts every attempt). */
   let creating = false;
+  /**
+   * The pod made in this page. From then on "Create it" only signs in: register.ts
+   * forgets the account once it is whole, so another create would make a SECOND
+   * account, which CSS 7.2 can never delete.
+   */
+  let made: NewAccount | null = null;
   const workbench = opts.mode === "workbench";
   // Everything that outlives the markup (root and media-query listeners,
   // observers) is undone by destroy(), so a redraw never stacks a second set.
@@ -272,7 +283,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     if (!pod.nameTouched) pod.name = suggestPodName(opts.draft.name);
     if (!pod.emailTouched) pod.email = (opts.draft.email ?? "").trim();
     clearTimeout(podTimer);
-    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, words, offers, door, pod });
+    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, words, offers, door, pod, podReady: opts.podReady?.pod ?? null });
     step.scrollTop = 0;
     if (tile.act === "threshold" && !offersAsked) askOffers();
     // The suggested address is checked as soon as the form opens (AC2): a bad one shows before the passphrase is reached.
@@ -339,6 +350,10 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
       event.preventDefault();
       if (creating) return;
       const ui = thresholdWords(tree.tiles.find((t) => t.act === "threshold"));
+      if (made) {
+        void signInNow(form, ui, made);
+        return;
+      }
       sayStatus(form, "");
       const bad = checkPodForm(form, ui);
       if (bad) {
@@ -482,17 +497,20 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     creating = true;
     setCreating(form, ui, true);
     try {
-      // S4 signs in with what this returns (the WebID): AC6.
-      await (opts.createAccount ?? ((i: SignUp) => createAccount(DEFAULT_IDENTIFIER, i)))({
+      made = await (opts.createAccount ?? ((i: SignUp) => createAccount(DEFAULT_IDENTIFIER, i)))({
         name: field("name").trim(),
         email: field("email").trim(),
         password: field("pass"),
       });
       if (!form.isConnected) return;
       setCreating(form, ui, false);
-      // S4 replaces this with the sign-in redirect (AC6).
-      sayStatus(form, ui("uiPodCreated", { address: podAddress(field("name").trim()) }));
-      announce(ui("uiPodCreated", { address: podAddress(field("name").trim()) }));
+      // The passphrase is spent: out of the page before it leaves, so a Back from the provider can't bring it back.
+      for (const name of ["pass", "pass2"]) (form.elements.namedItem(name) as HTMLInputElement).value = "";
+      markPodMade({ webId: made.webId, pod: made.pod });
+      form.querySelector<HTMLButtonElement>('button[type="submit"]')!.textContent = ui("uiSignIn");
+      sayStatus(form, ui("uiPodCreated", { address: made.pod }));
+      announce(ui("uiPodCreated", { address: made.pod }));
+      await signInNow(form, ui, made);
     } catch (err) {
       if (!form.isConnected) return;
       setCreating(form, ui, false);
@@ -507,6 +525,19 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
       target.focus();
     } finally {
       creating = false;
+    }
+  };
+
+  /** To the pod's own page (Solid-OIDC). If it doesn't start, the pod still exists: say so, and the button signs in again. */
+  const signInNow = async (form: HTMLFormElement, ui: ReturnType<typeof thresholdWords>, pod: NewAccount) => {
+    try {
+      if (!opts.signIn) throw new Error("no sign-in available");
+      await opts.signIn();
+    } catch (err) {
+      console.warn("Sign-in after creating the pod did not start:", err);
+      if (!form.isConnected) return;
+      sayStatus(form, ui("uiSignInFailed", { address: pod.pod }));
+      form.querySelector<HTMLElement>('button[type="submit"]')?.focus();
     }
   };
 

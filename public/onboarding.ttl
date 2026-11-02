@@ -121,7 +121,12 @@
   onb:uiPodCreate "Create it"@en ;
   onb:uiPodOtherDoor "Take the other door"@en ;
   onb:uiPodCreating "Creating your pod. This takes a few seconds."@en ;
-  onb:uiPodCreated "Your pod is ready: {address}. Nothing is written in it yet. Signing in comes next."@en ;
+  onb:uiPodCreated "Your pod is ready: {address}. Opening its page to sign you in."@en ;
+  onb:uiSignIn "Sign in"@en ;
+  onb:uiSignInFailed "Your pod exists at {address}, but signing in didn't start. Press Sign in to try again."@en ;
+  # Back from the pod's own page, signed in (14.3 AC6). Wording to settle with Nicolas (story, open question 1).
+  onb:uiPodReadyAt "Your pod"@en ;
+  onb:saidPodReady "You're signed in, and the pod is yours. Nothing is in it yet: your card still lives in this browser. Putting it there comes next."@en ;
   # What the pod server said, each with one way forward (14.3 AC5). Red only for errors (the field's border).
   onb:uiTakenLabel "Address taken"@en ;
   onb:uiTakenTry "Taken. Try {suggestion}."@en ;

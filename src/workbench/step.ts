@@ -14,7 +14,7 @@ import { describeWords, renderDescribeForm, type DescribeWords } from "./describ
 import { bernard, esc } from "./html";
 import { hasPreview, renderPreview, type Draft } from "./previews";
 import type { PodFormState } from "./podform";
-import { renderThreshold, thresholdTitle, type Door, type OffersState } from "./threshold";
+import { renderPodReady, renderThreshold, thresholdTitle, type Door, type OffersState } from "./threshold";
 
 export interface StepContext {
   tiles: readonly Tile[];
@@ -29,6 +29,8 @@ export interface StepContext {
   door?: Door | null;
   /** The pod form's address and email, kept by the page across redraws. */
   pod?: PodFormState | null;
+  /** Back from the sign-in that followed creating the pod (14.3 AC6): its address, once. */
+  podReady?: string | null;
 }
 
 function waitsFor(tile: Tile, ctx: StepContext): string {
@@ -131,6 +133,8 @@ function openStep(tile: Tile, state: TileState, ctx: StepContext): string {
 }
 
 export function renderStep(tile: Tile, ctx: StepContext): string {
+  // The hand-off speaks for tile B whatever its state: the pod exists, and the card is not on it yet (14.4).
+  if (ctx.podReady && tile.act === "threshold") return renderPodReady(tile, ctx.podReady);
   const state = ctx.states.get(tile.id) ?? "fog";
   if (state === "cue" || state === "ready") return comingStep(tile, state, ctx);
   if (state === "fog") return `<h2 class="wb-step-title" tabindex="-1">Still to discover</h2>`;
