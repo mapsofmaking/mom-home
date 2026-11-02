@@ -31,6 +31,7 @@ import { forgetReads } from "./lib/read";
 import { readDone } from "./tiles/done";
 import { makeDraftStore } from "./lib/draft";
 import { hasForwarded, readForwarded } from "./lib/forwarded";
+import { takePodMade, type PodMade } from "./lib/handoff";
 import type { Draft } from "./workbench/previews";
 import type { Tree } from "./tree/parse";
 
@@ -135,7 +136,17 @@ function show(options: Parameters<typeof renderPage>[2]): void {
 }
 
 function renderOnboardingView(): void {
-  show({ mode: "onboarding", done, draft, onDraft: keepDraft, fold, onSignIn: () => renderLoginView(), onSignOut: signOut });
+  show({
+    mode: "onboarding",
+    done,
+    draft,
+    onDraft: keepDraft,
+    fold,
+    onSignIn: () => renderLoginView(),
+    onSignOut: signOut,
+    // Tile B, after creating the pod (14.3 AC6): straight to the pod server's own page.
+    signIn: () => loginWithIdentifier(DEFAULT_IDENTIFIER),
+  });
   focusView(app);
 }
 
@@ -149,7 +160,8 @@ let writes: Promise<void> = Promise.resolve();
 
 function renderWorkbenchView(
   name: string,
-  pod: { webId: string; root: string; done: Set<string>; settings: HomeSettings } | null = null
+  pod: { webId: string; root: string; done: Set<string>; settings: HomeSettings } | null = null,
+  podReady: PodMade | null = null
 ): void {
   const wbFold: FoldState = pod ? { folded: pod.settings.folded } : fold;
   show({
@@ -157,8 +169,10 @@ function renderWorkbenchView(
     who: name,
     // Dev: `?done=` applies here too, to review the toolbar further along.
     done: pod ? pod.done : import.meta.env.DEV ? new Set(done) : new Set(),
-    draft: {},
+    // The description typed signed out stays in this browser until 14.4 writes it to the pod: it is not lost at sign-in.
+    draft,
     fold: wbFold,
+    podReady,
     onFold: pod
       ? (folded) => {
           // One write at a time, in the order of the clicks: the pod ends on the last toggle.
@@ -256,7 +270,8 @@ async function main(): Promise<void> {
         return { folded: null, seen: [] };
       }),
     ]);
-    renderWorkbenchView(name, { webId, root, done: doneOnPod, settings });
+    // Just made in this tab (14.3 AC6): tile B says the pod is ready, once.
+    renderWorkbenchView(name, { webId, root, done: doneOnPod, settings }, takePodMade(webId));
   } catch (err) {
     renderErrorView(webId, err);
   }

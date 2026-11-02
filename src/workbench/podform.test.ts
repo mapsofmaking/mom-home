@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Offers } from "../lib/provider";
+import { AccountError, type NewAccount, type SignUp } from "../lib/register";
 import { parseTree } from "../tree/parse";
 import { renderPage } from "./page";
 import type { Draft } from "./previews";
@@ -17,14 +18,21 @@ beforeEach(() => {
 const settle = () => new Promise((r) => setTimeout(r, 0));
 
 /** Tile B opened on the pod door's form, tile A done with this draft. */
-async function openForm(draft: Draft = { name: "Atelier du Canal", city: "Anderlecht", email: "hello@atelier.example" }, offers: Offers = "open") {
+const made: NewAccount = { webId: "https://atelier-du-canal.pod.mapsofmaking.org/profile/card#me", pod: "https://atelier-du-canal.pod.mapsofmaking.org/", email: "hello@atelier.example", loggedIn: true };
+
+async function openForm(
+  draft: Draft = { name: "Atelier du Canal", city: "Anderlecht", email: "hello@atelier.example" },
+  offers: Offers = "open",
+  createAccount: (i: SignUp) => Promise<NewAccount> = vi.fn(async () => made),
+  signIn: () => Promise<void> = vi.fn(async () => {})
+) {
   const root = document.createElement("div");
   document.body.append(root);
   const fetchSpy = vi.fn();
   vi.stubGlobal("fetch", fetchSpy);
   renderPage(root, tree, {
     mode: "onboarding", done: new Set(["describe"]), draft, fold: { folded: false },
-    onSignIn: () => {}, onSignOut: () => {}, readOffers: async () => offers,
+    onSignIn: () => {}, onSignOut: () => {}, readOffers: async () => offers, createAccount, signIn,
   });
   await settle();
   root.querySelector<HTMLElement>('[data-door="pod"]')!.click();
@@ -41,7 +49,7 @@ async function openForm(draft: Draft = { name: "Atelier du Canal", city: "Anderl
     form.dispatchEvent(e);
     return e;
   };
-  return { root, form, f, err, type, leave, submit, fetchSpy };
+  return { root, form, f, err, type, leave, submit, fetchSpy, createAccount, signIn };
 }
 
 describe("the pod form (14.3 AC2)", () => {
@@ -146,7 +154,7 @@ describe("the passphrase (14.3 AC2, AC3)", () => {
   });
 });
 
-describe("Create it (S2: nothing is sent)", () => {
+describe("Create it: the form's own checks", () => {
   const good = "Rock-Paper-Scissors-Lizard-Spock";
 
   it("never lets the browser submit: a native submit would put the passphrase in the URL", async () => {
@@ -180,13 +188,12 @@ describe("Create it (S2: nothing is sent)", () => {
     expect(f("name").value).toBe("atelier-du-canal");
   });
 
-  it("valid, it says the creation comes next, and sends nothing", async () => {
-    const { root, type, submit, fetchSpy } = await openForm();
+  it("with a problem, sends nothing", async () => {
+    const { type, submit, createAccount } = await openForm();
     type("pass", good);
-    type("pass2", good);
+    type("pass2", "different");
     submit();
-    expect(root.querySelector("#pod-status")!.textContent).toBe(keep.ui.uiPodStatus);
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(createAccount).not.toHaveBeenCalled();
   });
 
   it("the passphrase is never copied into the page: back at the doors and into the form again, it is gone", async () => {
@@ -220,5 +227,133 @@ describe("the other door, and what survives", () => {
     root.querySelector<HTMLElement>('[data-door="pod"]')!.click();
     expect(f("name").value).toBe("my-own-name");
     expect(f("email").value).toBe("changed@atelier.example");
+  });
+});
+
+describe("Create it: the account (14.3 AC3, AC5)", () => {
+  const good = "correct-horse-battery-staple";
+  const fill = (o: Awaited<ReturnType<typeof openForm>>) => {
+    o.type("pass", good);
+    o.type("pass2", good);
+  };
+
+  it("hands the three fields to the account call, once, says the pod is ready, and signs in", async () => {
+    const o = await openForm();
+    fill(o);
+    o.submit();
+    expect(o.root.querySelector("#pod-status")!.textContent).toBe(keep.ui.uiPodCreating);
+    expect(o.root.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(true);
+    // A second press while the first is on its way does nothing (the gateway counts every attempt).
+    o.submit();
+    await settle();
+    expect(o.createAccount).toHaveBeenCalledTimes(1);
+    expect(o.createAccount).toHaveBeenCalledWith({ name: "atelier-du-canal", email: "hello@atelier.example", password: good });
+    expect(o.root.querySelector("#pod-status")!.textContent).toBe(keep.ui.uiPodCreated.replace("{address}", made.pod));
+    expect(o.signIn).toHaveBeenCalledTimes(1);
+  });
+
+  it("a taken address: the label, Bernard's line, a suggestion on the field; everything typed is kept", async () => {
+    const o = await openForm(undefined, "open", vi.fn(async () => { throw new AccountError("name-taken", "already exists"); }));
+    fill(o);
+    o.submit();
+    await settle();
+    expect(o.root.querySelector<HTMLElement>("#pod-taken")!.hidden).toBe(false);
+    expect(o.root.querySelector("#pod-taken")!.textContent).toContain(keep.lines.sayTaken);
+    expect(o.err("name").textContent).toBe(keep.ui.uiTakenTry.replace("{suggestion}", "atelier-du-canal-anderlecht"));
+    expect(document.activeElement).toBe(o.f("name"));
+    expect([o.f("pass").value, o.f("pass2").value, o.f("email").value]).toEqual([good, good, "hello@atelier.example"]);
+  });
+
+  it("each answer has its own place: email taken, passphrase refused, unreachable, busy, half-done", async () => {
+    const cases: [AccountError, (o: Awaited<ReturnType<typeof openForm>>) => string][] = [
+      [new AccountError("email-taken", "x"), (o) => o.err("email").textContent!],
+      [new AccountError("bad-password", "x"), (o) => o.err("pass").textContent!],
+      [new AccountError("unreachable", "x", true), (o) => o.root.querySelector("#pod-status")!.textContent!],
+      [new AccountError("unreachable", "x", false), (o) => o.root.querySelector("#pod-status")!.textContent!],
+      [new AccountError("rate-limited", "x", true), (o) => o.root.querySelector("#pod-status")!.textContent!],
+      [new AccountError("provider", "Could not create the account: boom", true), (o) => o.root.querySelector("#pod-status")!.textContent!],
+    ];
+    const expected = [
+      keep.ui.uiEmailTaken,
+      keep.ui.uiPassRefused,
+      keep.ui.uiUnreachable,
+      keep.ui.uiHalfDone,
+      keep.ui.uiBusy,
+      keep.ui.uiProviderSaid.replace("{detail}", "Could not create the account: boom"),
+    ];
+    for (const [i, [error, where]] of cases.entries()) {
+      const o = await openForm(undefined, "open", vi.fn(async () => { throw error; }));
+      fill(o);
+      o.submit();
+      await settle();
+      expect(where(o), error.code).toBe(expected[i]);
+      expect(o.root.querySelector<HTMLElement>("#pod-taken")!.hidden).toBe(true);
+      expect(o.f("pass").value).toBe(good);
+      o.root.remove();
+    }
+  });
+});
+
+describe("after the pod is made (14.3 AC6)", () => {
+  const good = "correct-horse-battery-staple";
+  const done = async (signIn?: () => Promise<void>) => {
+    sessionStorage.clear();
+    const o = await openForm(undefined, "open", undefined, signIn);
+    o.type("pass", good);
+    o.type("pass2", good);
+    o.submit();
+    await settle();
+    return o;
+  };
+
+  it("leaves the tab a marker with the WebID and pod, never the email or passphrase", async () => {
+    await done();
+    const raw = sessionStorage.getItem("mom-home:pod-made")!;
+    expect(JSON.parse(raw)).toEqual({ webId: made.webId, pod: made.pod });
+    expect(raw).not.toContain(good);
+    expect(raw).not.toContain("hello@atelier.example");
+  });
+
+  it("empties the passphrase fields before leaving, so Back can't bring them back", async () => {
+    const o = await done();
+    expect([o.f("pass").value, o.f("pass2").value]).toEqual(["", ""]);
+    expect(o.root.innerHTML).not.toContain(good);
+  });
+
+  it("if signing in doesn't start, says the pod exists, and the button signs in: it never creates a second account", async () => {
+    const signIn = vi.fn(async () => { throw new Error("offline"); });
+    const o = await done(signIn);
+    expect(o.root.querySelector("#pod-status")!.textContent).toBe(keep.ui.uiSignInFailed.replace("{address}", made.pod));
+    const button = o.root.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+    expect(button.textContent).toBe(keep.ui.uiSignIn);
+    // The passphrase fields are empty now: pressing again must still not stop at the form's checks, nor create.
+    o.submit();
+    await settle();
+    expect(o.createAccount).toHaveBeenCalledTimes(1);
+    expect(signIn).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("back from the sign-in (14.3 AC6)", () => {
+  it("opens on tile B, which says the pod is ready and nothing is written yet", async () => {
+    const root = document.createElement("div");
+    renderPage(root, tree, {
+      mode: "workbench", who: "Atelier", done: new Set(), draft: { name: "Atelier du Canal" }, fold: { folded: false },
+      onSignIn: () => {}, onSignOut: () => {}, readOffers: async () => "open",
+      podReady: { webId: made.webId, pod: made.pod },
+    });
+    expect(root.querySelector(".wb-step-title")!.textContent).toBe(keep.title);
+    expect(root.querySelector(".bernard-voice")!.textContent).toBe(`— ${keep.lines.saidPodReady}`);
+    expect(root.querySelector<HTMLAnchorElement>("a.mono")!.href).toBe(made.pod);
+    expect(root.querySelector(".wb-doors")).toBeNull();
+  });
+
+  it("without the marker, the workbench is as before", async () => {
+    const root = document.createElement("div");
+    renderPage(root, tree, {
+      mode: "workbench", who: "Atelier", done: new Set(), draft: {}, fold: { folded: false },
+      onSignIn: () => {}, onSignOut: () => {},
+    });
+    expect(root.querySelector(".bernard-voice")?.textContent ?? "").not.toBe(`— ${keep.lines.saidPodReady}`);
   });
 });

@@ -34,7 +34,8 @@ export const THRESHOLD_UI_KEYS = [
   "uiDoorSelfDesc", "uiDoorPodDesc", "uiDoorSelfWhere", "uiDoorsNote",
   "uiPodAddress", "uiPodEmail", "uiPodEmailHint", "uiPodPass", "uiPodPassAgain", "uiPodPassExample",
   "uiPodPassHint", "uiPodShow", "uiPodHide", "uiPodShowLabel", "uiPodHideLabel", "uiPodCreate",
-  "uiPodOtherDoor", "uiPodStatus", "uiAddrEmpty", "uiAddrBad", "uiAddrLong", "uiEmailBad",
+  "uiPodOtherDoor", "uiPodCreating", "uiPodCreated", "uiSignIn", "uiSignInFailed", "uiPodReadyAt", "uiTakenLabel", "uiTakenTry", "uiTakenPick",
+  "uiEmailTaken", "uiEmailKept", "uiPassRefused", "uiUnreachable", "uiBusy", "uiHalfDone", "uiProviderSaid", "uiAddrEmpty", "uiAddrBad", "uiAddrLong", "uiEmailBad",
   "uiPassShort", "uiPassSpace", "uiPassMismatch",
 ] as const;
 export type ThresholdUiKey = (typeof THRESHOLD_UI_KEYS)[number];
@@ -63,6 +64,23 @@ const door = (id: "pod" | "self", title: string, desc: string, where: string, ch
       <span class="wb-door-desc">${esc(desc)}</span>
       ${where ? `<span class="wb-door-where">${esc(where)}</span>` : ""}
     </button>`;
+
+/**
+ * Back from the pod's own page, signed in, the first time (AC6): the pod is
+ * ready and nothing is written in it. Shown once, from the tab's hand-off marker
+ * (lib/handoff.ts), never from stored progress: 14.4 writes the card, and the
+ * done checks read the pod from then on.
+ */
+export function renderPodReady(tile: Tile, pod: string): string {
+  const ui = thresholdWords(tile);
+  return `
+    <div class="wb-step-head">
+      <h2 class="wb-step-title" tabindex="-1">${esc(tile.title)}</h2>
+    </div>
+    ${bernard(tile.lines.saidPodReady)}
+    <p class="wb-aside">${esc(ui("uiPodReadyAt"))}:
+      <a class="inline-link mono" href="${esc(pod)}" target="_blank" rel="noopener">${esc(pod.replace(/^https?:\/\//, "").replace(/\/$/, ""))}</a></p>`;
+}
 
 /** The body of the step, under its head: Bernard, the server's answer, the doors (or the pod form), the way out. */
 export function renderThreshold(tile: Tile, ctx: ThresholdContext): string {
