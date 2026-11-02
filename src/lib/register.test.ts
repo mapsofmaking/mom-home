@@ -6,7 +6,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./auth", () => ({ authFetch: vi.fn() }));
-import { AccountError, createAccount, pendingEmail, resetPendingSignUp } from "./register";
+import { AccountError, createAccount, pendingEmail, resetPendingSignUp, retryAfterSeconds } from "./register";
 
 const ISSUER = "https://pod.example/";
 const INPUT = { name: "weld-done", email: "hello@weld.example", password: "Rock-Paper-Scissors" };
@@ -142,6 +142,18 @@ describe("createAccount", () => {
   it("the gateway's rate limit is 'rate-limited'", async () => {
     fail.create = [429, "Too Many Requests"];
     await expect(createAccount(ISSUER, INPUT, fakeFetch)).rejects.toMatchObject({ code: "rate-limited", nothingCreated: true });
+  });
+
+  it("carries the gateway's Retry-After, so the wait can be said exactly", async () => {
+    const limited: typeof fetch = async () => new Response("Too many", { status: 429, headers: { "Retry-After": "1248" } });
+    await expect(createAccount(ISSUER, INPUT, limited)).rejects.toMatchObject({ code: "rate-limited", retryAfter: 1248 });
+  });
+
+  it("reads Retry-After as seconds or as a date, and nothing else", () => {
+    expect(retryAfterSeconds("90")).toBe(90);
+    expect(retryAfterSeconds(new Date(1_000_000 + 120_000).toUTCString(), 1_000_000)).toBe(120);
+    expect(retryAfterSeconds(null)).toBeNull();
+    expect(retryAfterSeconds("soon")).toBeNull();
   });
 
   it("a login that fails still returns the account: the provider's login page asks later (flow B)", async () => {

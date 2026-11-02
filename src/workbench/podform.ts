@@ -210,6 +210,13 @@ export function holdEmail(form: HTMLFormElement, ui: Ui, email: string): void {
   say(form, "email", null);
 }
 
+/** The wait, as the gateway said it (Retry-After), rounded up to whole minutes; vague only when it didn't say. */
+export function busyLine(ui: Ui, retryAfter: number | null): string {
+  if (retryAfter === null) return ui("uiBusy");
+  const minutes = Math.ceil(retryAfter / 60);
+  return minutes <= 1 ? ui("uiBusyMinute") : ui("uiBusyMinutes", { minutes: String(minutes) });
+}
+
 /**
  * What the pod server answered, said where it can be fixed (AC5): on the field it
  * concerns, or under "Create it". Returns the element the keyboard should go to.
@@ -243,7 +250,7 @@ export function showAccountError(
       say(form, "pass", ui("uiPassRefused"));
       return input(form, "pass");
     case "rate-limited":
-      sayStatus(form, ui("uiBusy"));
+      sayStatus(form, busyLine(ui, err.retryAfter));
       return button;
     case "unreachable":
       sayStatus(form, ui(err.nothingCreated ? "uiUnreachable" : "uiHalfDone"));

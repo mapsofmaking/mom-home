@@ -271,6 +271,8 @@ describe("Create it: the account (14.3 AC3, AC5)", () => {
       [new AccountError("unreachable", "x", true), (o) => o.root.querySelector("#pod-status")!.textContent!],
       [new AccountError("unreachable", "x", false), (o) => o.root.querySelector("#pod-status")!.textContent!],
       [new AccountError("rate-limited", "x", true), (o) => o.root.querySelector("#pod-status")!.textContent!],
+      [new AccountError("rate-limited", "x", true, 1248), (o) => o.root.querySelector("#pod-status")!.textContent!],
+      [new AccountError("rate-limited", "x", true, 30), (o) => o.root.querySelector("#pod-status")!.textContent!],
       [new AccountError("provider", "Could not create the account: boom", true), (o) => o.root.querySelector("#pod-status")!.textContent!],
     ];
     const expected = [
@@ -279,6 +281,8 @@ describe("Create it: the account (14.3 AC3, AC5)", () => {
       keep.ui.uiUnreachable,
       keep.ui.uiHalfDone,
       keep.ui.uiBusy,
+      keep.ui.uiBusyMinutes.replace("{minutes}", "21"),
+      keep.ui.uiBusyMinute,
       keep.ui.uiProviderSaid.replace("{detail}", "Could not create the account: boom"),
     ];
     for (const [i, [error, where]] of cases.entries()) {

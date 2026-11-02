@@ -53,12 +53,23 @@ export class AccountError extends Error {
   readonly code: AccountErrorCode;
   /** True when nothing exists on the provider yet because of this attempt. */
   readonly nothingCreated: boolean;
-  constructor(code: AccountErrorCode, message: string, nothingCreated = false) {
+  /** `rate-limited` only: seconds until the limit lets the next attempt through, when the server said (Retry-After). */
+  readonly retryAfter: number | null;
+  constructor(code: AccountErrorCode, message: string, nothingCreated = false, retryAfter: number | null = null) {
     super(message);
     this.name = "AccountError";
     this.code = code;
     this.nothingCreated = nothingCreated;
+    this.retryAfter = retryAfter;
   }
+}
+
+/** Retry-After in seconds; the HTTP-date form too. Null when absent or unreadable. */
+export function retryAfterSeconds(value: string | null, now = Date.now()): number | null {
+  if (!value) return null;
+  if (/^\d+$/.test(value.trim())) return Number(value.trim());
+  const at = Date.parse(value);
+  return Number.isNaN(at) ? null : Math.max(0, Math.round((at - now) / 1000));
 }
 
 export interface SignUp {
@@ -140,7 +151,14 @@ export async function createAccount(
     } catch (err) {
       throw new AccountError("unreachable", `The pod server did not answer: ${(err as Error).message}`, nothingCreated);
     }
-    if (res.status === 429) throw new AccountError("rate-limited", "Too many attempts from this address.", nothingCreated);
+    // The gateway exposes Retry-After to the page (vps-infra mom-pods.caddy), so the wait can be said exactly.
+    if (res.status === 429)
+      throw new AccountError(
+        "rate-limited",
+        "Too many attempts from this address.",
+        nothingCreated,
+        retryAfterSeconds(res.headers.get("retry-after"))
+      );
     return res;
   };
 

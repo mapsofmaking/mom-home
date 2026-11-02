@@ -136,6 +136,8 @@
   onb:uiPassRefused "The pod server refused this passphrase. Try a longer one, without spaces."@en ;
   onb:uiUnreachable "The pod server isn't answering. Nothing was created. Press Create it again in a moment."@en ;
   onb:uiBusy "Too many tries from this connection. Wait a while, then press Create it again."@en ;
+  onb:uiBusyMinutes "Too many tries from this connection. Press Create it again in about {minutes} minutes."@en ;
+  onb:uiBusyMinute "Too many tries from this connection. Press Create it again in a minute."@en ;
   onb:uiHalfDone "Your account exists, but the pod isn't made yet. Press Create it again: it continues where it stopped."@en ;
   onb:uiProviderSaid "The pod server said no: {detail}. Nothing you did wrong. Try again, or take the other door."@en ;
   onb:uiAddrEmpty "Pick an address for your space."@en ;
