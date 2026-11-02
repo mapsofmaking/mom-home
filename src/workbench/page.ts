@@ -51,7 +51,9 @@ import { renderHexRow } from "./hexrow";
 import { renderHexView } from "./hexview";
 import type { Draft } from "./previews";
 import { renderStep } from "./step";
-import type { Door, OffersState } from "./threshold";
+import { suggestPodName } from "../lib/podname";
+import { checkEmail, checkName, checkPass, checkPodForm, clearError, showAddress, togglePassphrase, type PodFormState } from "./podform";
+import { showsPodForm, thresholdWords, type Door, type OffersState } from "./threshold";
 import { metWords, renderWords } from "./words";
 
 export interface PageOptions {
@@ -137,6 +139,9 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   let offers: OffersState = null;
   let offersAsked = false;
   let door: Door | null = null;
+  /** The pod form's address and email, kept across redraws; the passphrase is never kept (podform.ts). */
+  let pod: PodFormState | null = null;
+  let podTimer: ReturnType<typeof setTimeout> | undefined;
   const workbench = opts.mode === "workbench";
   // Everything that outlives the markup (root and media-query listeners,
   // observers) is undone by destroy(), so a redraw never stacks a second set.
@@ -242,9 +247,17 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     drawWords();
     fit(hexes);
     const tile = tree.tiles.find((t) => t.id === selected)!;
-    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, words, offers, door });
+    // Tile B's form fields follow the description until the coordinator types their own (no second copy that drifts).
+    pod ??= { name: "", email: "", nameTouched: false, emailTouched: false };
+    if (!pod.nameTouched) pod.name = suggestPodName(opts.draft.name);
+    if (!pod.emailTouched) pod.email = (opts.draft.email ?? "").trim();
+    clearTimeout(podTimer);
+    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, words, offers, door, pod });
     step.scrollTop = 0;
     if (tile.act === "threshold" && !offersAsked) askOffers();
+    // The suggested address is checked as soon as the form opens (AC2): a bad one shows before the passphrase is reached.
+    const podForm = step.querySelector<HTMLFormElement>("#f-pod");
+    if (podForm && pod.name) checkName(podForm, thresholdWords(tile));
   };
 
   /** Asks the pod server once the first time tile B opens (and again on "Try again"); the answer redraws it. */
@@ -301,6 +314,21 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
 
   step.addEventListener("submit", (event) => {
     const form = event.target as HTMLFormElement;
+    if (form.id === "f-pod") {
+      // Never the browser's own submit: it would put the passphrase in the URL (podform.ts).
+      event.preventDefault();
+      const ui = thresholdWords(tree.tiles.find((t) => t.act === "threshold"));
+      const bad = checkPodForm(form, ui);
+      const status = form.querySelector<HTMLElement>("#pod-status")!;
+      status.textContent = "";
+      if (bad) {
+        bad.focus();
+        return;
+      }
+      // S2 stops here: nothing is sent. The account is created in S3 (lib/register.ts).
+      status.textContent = ui("uiPodStatus");
+      return;
+    }
     if (form.id !== "f-describe") return;
     event.preventDefault();
     const empty = missing(form);
@@ -396,15 +424,23 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
       editing = true;
       draw();
       step.querySelector<HTMLInputElement>("#f-name")?.focus();
-    } else if (target.dataset.door || target.id === "not-now" || target.id === "doors-again" || target.id === "offers-retry") {
+    } else if (target.id === "pod-show") {
+      togglePassphrase(step.querySelector<HTMLFormElement>("#f-pod")!, thresholdWords(tree.tiles.find((t) => t.act === "threshold")));
+    } else if (target.dataset.door || target.id === "not-now" || target.id === "doors-again" || target.id === "offers-retry" || target.id === "pod-other") {
       if (target.id === "offers-retry") {
         askOffers();
         draw();
         step.querySelector<HTMLElement>("#offers-retry, [data-door]")?.focus();
         return;
       }
-      door = target.id === "not-now" ? "notnow" : target.id === "doors-again" ? null : (target.dataset.door as Door);
+      door =
+        target.id === "not-now" ? "notnow" : target.id === "doors-again" ? null : target.id === "pod-other" ? "self" : (target.dataset.door as Door);
       draw();
+      // The form opened: the keyboard goes to its first field.
+      if (showsPodForm({ offers, door })) {
+        step.querySelector<HTMLInputElement>("#p-name")?.focus();
+        return;
+      }
       // Keyboard stays on what was pressed (or on what replaced it); the reply is said once, politely.
       step
         .querySelector<HTMLElement>(door ? `[data-door="${door}"], #doors-again` : "[data-door]")
@@ -415,6 +451,42 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
       select(target.dataset.go);
       step.querySelector<HTMLElement>(".wb-step-title")?.focus();
     }
+  });
+
+  // The pod form (14.3 AC2): messages update in place, never by redrawing, so no error clears a field.
+  const podForm = (event: Event) => (event.target as Element).closest<HTMLFormElement>("#f-pod");
+  const podUi = () => thresholdWords(tree.tiles.find((t) => t.act === "threshold"));
+  step.addEventListener("input", (event) => {
+    const form = podForm(event);
+    if (!form || !pod) return;
+    const target = event.target as HTMLInputElement;
+    if (target.name === "name") {
+      pod.name = target.value.trim();
+      pod.nameTouched = true;
+      showAddress(form);
+      clearError(form, "name");
+      // A short pause after typing stops, then the format is checked (AC2).
+      clearTimeout(podTimer);
+      podTimer = setTimeout(() => form.isConnected && checkName(form, podUi()), 600);
+    } else if (target.name === "email") {
+      pod.email = target.value.trim();
+      pod.emailTouched = true;
+      clearError(form, "email");
+    } else if (target.name === "pass" || target.name === "pass2") {
+      clearError(form, target.name);
+    }
+  });
+  step.addEventListener("focusout", (event) => {
+    const form = podForm(event);
+    if (!form) return;
+    const name = (event.target as HTMLInputElement).name;
+    // Leaving a field says what is wrong with it; leaving the first passphrase field says nothing about "Same again" yet.
+    if (name === "name") {
+      clearTimeout(podTimer);
+      checkName(form, podUi());
+    } else if (name === "email") checkEmail(form, podUi());
+    else if (name === "pass") checkPass(form, podUi(), "pass");
+    else if (name === "pass2") checkPass(form, podUi(), "pass2");
   });
 
   // A tap pins a word's tip open (and closes the one before); Escape or a
@@ -458,6 +530,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     },
     destroy() {
       life.abort();
+      clearTimeout(podTimer);
       observers.forEach((o) => o.disconnect());
     },
   };
