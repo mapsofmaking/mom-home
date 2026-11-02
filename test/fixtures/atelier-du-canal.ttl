@@ -1,0 +1,17 @@
+@prefix schema: <https://schema.org/> .
+@prefix mom: <https://mapsofmaking.org/ns/mom#> .
+
+<#space> a mom:Space, schema:Place ;
+  schema:name "Atelier du Canal" ;
+  schema:description "Open workshop for repairs and prototypes." ;
+  schema:address [ a schema:PostalAddress ;
+    schema:streetAddress "Rue du Canal 12" ;
+    schema:postalCode "1070" ;
+    schema:addressLocality "Anderlecht" ;
+    schema:addressCountry "BE" ] ;
+  schema:geo [ a schema:GeoCoordinates ;
+    schema:latitude 50.8391 ; schema:longitude 4.3297 ] ;
+  schema:email "contact@atelierducanal.example" ;
+  schema:contactPoint [ a schema:ContactPoint ;
+    schema:contactType "Matrix" ;
+    schema:url <https://matrix.to/#/%23atelier:matrix.org> ] .

@@ -85,7 +85,7 @@
   onb:act "threshold" ; onb:preview "kept" ; onb:unlocksWord :pod ;
   onb:say "Your data needs a home online, a public place the map can read from. Two ways: do it yourself, or let us. Your choice."@en ;
   onb:saidDone "There you are. Anyone looking for a workshop in {locality} can find you now."@en ;
-  onb:sayNext "That's the hard part done. But hours change, things happen: when something's different, update it once. Here, or later at home.mapsofmaking.org."@en ;
+  onb:sayNext "That's the hard part done. But hours change, stuff happens: when something's different, update it once. Here, or later at home.mapsofmaking.org."@en ;
   onb:sayPod "Three things: a name for your Personal Online Datastore (pod), the space's mailbox and a passphrase to secure it."@en ;
   onb:sayConsent "Your pod opens its own page now. If it asks for your passphrase, use the one you just made. Then press Authorize for home.mapsofmaking.org."@en ;
   onb:sayTaken "The pod server said that address is taken. Nothing you did wrong. Pick another one."@en ;
@@ -141,6 +141,25 @@
   onb:uiPriorPod "You made a pod here: {address}. Sign in to it."@en ;
   onb:uiPriorSignIn "Sign in to your pod"@en ;
   onb:uiPriorAnother "Make another one"@en ;
+  # Signed in, with the pod made (Story 14.4): the steps of "Put it on the map", and what each says.
+  onb:sayPublish "Your pod is ready. Press the button: your space's file goes in it."@en ;
+  onb:uiPublishGo "Put it on the map"@en ;
+  onb:uiStepFile "Write your space's file in your pod"@en ;
+  onb:uiStepFileWorking "Writing it."@en ;
+  onb:uiStepFileWritten "Written, and read back: {address}"@en ;
+  onb:uiStepFileThere "It was already there and says the same. Left as it is."@en ;
+  onb:uiStepFileKept "A file is already there and says something else. Left exactly as it is, so your edits stay."@en ;
+  onb:uiPublishNext "Your file is in your pod. Making it public, and putting it on the map, come next."@en ;
+  onb:uiPublishDropped "Left out of the file, because it isn't a web address: {fields}."@en ;
+  onb:uiPublishIncomplete "Your description isn't complete: it still needs {missing}. Go back to the first tile, then press again."@en ;
+  onb:uiMissingName "a name"@en ;
+  onb:uiMissingTown "a town"@en ;
+  onb:uiMissingCountry "a country"@en ;
+  onb:uiMissingPin "a pin on the map"@en ;
+  onb:uiPublishExpired "Your session ended. Sign in again, then press Put it on the map: it continues where it stopped."@en ;
+  onb:uiPublishUnreachable "The pod isn't answering. Press the button again in a moment."@en ;
+  onb:uiPublishRefused "Your pod said no ({status}). Press the button again; if it keeps saying no, the people who run the pod server can see why."@en ;
+  onb:uiPublishUnreadable "The pod took the file but holds it differently than it was written. Press the button again."@en ;
   onb:uiBusy "Too many tries from this connection. Wait a while, then press Create it again."@en ;
   onb:uiBusyMinutes "Too many tries from this connection. Press Create it again in about {minutes} minutes."@en ;
   onb:uiBusyMinute "Too many tries from this connection. Press Create it again in a minute."@en ;

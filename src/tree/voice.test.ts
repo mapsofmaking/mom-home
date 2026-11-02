@@ -8,7 +8,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { FIELD_KEYS, UI_KEYS } from "../workbench/describe";
+import { PUBLISH_UI_KEYS } from "../workbench/publish";
 import { THRESHOLD_UI_KEYS } from "../workbench/threshold";
+
+/** What tile B shows signed out and signed in: every line it uses is in the tree, and nothing else is. */
+const TILE_B_KEYS: readonly string[] = [...THRESHOLD_UI_KEYS, ...PUBLISH_UI_KEYS];
 import { parseTree } from "./parse";
 
 const tree = parseTree(readFileSync(join(__dirname, "../../public/onboarding.ttl"), "utf8"));
@@ -51,8 +55,8 @@ describe("the tree's words (14.2 AC8)", () => {
   });
 
   it("has every line tile B shows, and nothing it no longer uses (14.3 AC8)", () => {
-    expect(THRESHOLD_UI_KEYS.filter((k) => !(k in thresholdTile.ui))).toEqual([]);
-    expect(Object.keys(thresholdTile.ui).filter((k) => !(THRESHOLD_UI_KEYS as readonly string[]).includes(k))).toEqual([]);
+    expect(TILE_B_KEYS.filter((k) => !(k in thresholdTile.ui))).toEqual([]);
+    expect(Object.keys(thresholdTile.ui).filter((k) => !TILE_B_KEYS.includes(k))).toEqual([]);
   });
 
   it("never judges, cheers or nudges", () => {

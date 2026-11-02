@@ -75,7 +75,7 @@ const door = (id: "pod" | "self", title: string, desc: string, where: string, ch
  * (lib/handoff.ts), never from stored progress: 14.4 writes the card, and the
  * done checks read the pod from then on.
  */
-export function renderPodReady(tile: Tile, pod: string): string {
+export function renderPodReady(tile: Tile, pod: string, publishPanel = ""): string {
   const ui = thresholdWords(tile);
   return `
     <div class="wb-step-head">
@@ -83,7 +83,8 @@ export function renderPodReady(tile: Tile, pod: string): string {
     </div>
     ${bernard(tile.lines.saidPodReady)}
     <p class="wb-aside">${esc(ui("uiPodReadyAt"))}:
-      <a class="inline-link mono" href="${esc(pod)}" target="_blank" rel="noopener">${esc(pod.replace(/^https?:\/\//, "").replace(/\/$/, ""))}</a></p>`;
+      <a class="inline-link mono" href="${esc(pod)}" target="_blank" rel="noopener">${esc(pod.replace(/^https?:\/\//, "").replace(/\/$/, ""))}</a></p>
+    ${publishPanel}`;
 }
 
 /** The body of the step, under its head: Bernard, the server's answer, the doors (or the pod form), the way out. */
