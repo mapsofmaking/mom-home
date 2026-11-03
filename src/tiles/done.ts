@@ -55,7 +55,9 @@ export const DONE_CHECKS: Readonly<Record<string, DoneCheck>> = {
     const d = ctx.spaceData;
     return ctx.space !== null && !!(d?.name && d.city && d.lat && d.lon);
   },
-  change: notYet, // → 14.6: hours modified after the card was created
+  // change, "Update it once" (14.6 S1, #36): the space's file says its opening hours. Tile A doesn't ask for
+  // them, so hours in the file were set here (or by the coordinator's own edit, which counts the same).
+  change: async (ctx) => ctx.space !== null && !!ctx.spaceData?.hours?.trim(),
   join: notYet, // → its story: org:memberOf a network
   event: notYet,
   answer: notYet,

@@ -33,6 +33,7 @@ import { makeDraftStore } from "./lib/draft";
 import { hasForwarded, readForwarded } from "./lib/forwarded";
 import { clearPodMade, peekPodMade, takePodMade, type PodMade } from "./lib/handoff";
 import { putOnMap, readPublished, type OnMap } from "./lib/onmap";
+import { saveHours } from "./lib/hours";
 import { makeSpacePublic, PublishError, readSpaceAt, readSpaceFile, spaceFileUrl, spaceIsPublic, writeSpaceFile } from "./lib/publish";
 import { registerSpace, spacesInPublicIndex } from "./lib/typeindex";
 import type { Draft } from "./workbench/previews";
@@ -207,6 +208,8 @@ function renderWorkbenchView(
           return onMap;
         }
       : undefined,
+    // Tile C (14.6 S1, #36): the hours, changed in home's own space file at the pod root.
+    saveHours: pod ? (hours) => saveHours(spaceFileUrl(pod.root), hours) : undefined,
     // Already on the map at sign-in: tile B shows the threshold, read from the pod and the map.
     published: pod?.published ?? null,
     // On the pod, not on the map yet: the steps start from what is there (S5, #15).

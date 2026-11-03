@@ -83,7 +83,7 @@ type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 const withRoot = (podRoot: string) => (podRoot.endsWith("/") ? podRoot : podRoot + "/");
 export const spaceFileUrl = (podRoot: string) => new URL("space.ttl", withRoot(podRoot)).href;
 
-async function send(fetchImpl: Fetch, url: string, init: RequestInit): Promise<Response> {
+export async function send(fetchImpl: Fetch, url: string, init: RequestInit): Promise<Response> {
   try {
     return await fetchImpl(url, { ...init, cache: "no-store", signal: AbortSignal.timeout(TIMEOUT_MS) });
   } catch (err) {

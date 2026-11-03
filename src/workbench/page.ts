@@ -36,6 +36,8 @@ import { markPodMade, type PodMade } from "../lib/handoff";
 import type { OnMap } from "../lib/onmap";
 import { PublishError, type FileResult, type PublicResult } from "../lib/publish";
 import { IDLE, publishWords, renderPublishPanel, type PublishState } from "./publish";
+import { hoursIdle, hoursWords, renderHoursPanel, type HoursState } from "./hours";
+import type { HoursResult } from "../lib/hours";
 import { DEFAULT_IDENTIFIER } from "../config";
 import type { Tree } from "../tree/parse";
 import {
@@ -116,6 +118,8 @@ export interface PageOptions {
    * The steps start from there, so a sign-in after a session that ended continues where it stopped.
    */
   onPod?: { fileUrl: string; open: boolean } | null;
+  /** Tile C (Story 14.6 S1, #36): the opening hours, changed in the space's file. Signed in with the space on the pod. */
+  saveHours?: (hours: string) => Promise<HoursResult>;
 }
 
 /** null: never set, the width decides. */
@@ -234,6 +238,9 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
    */
   let fileSaw: string | null = opts.published || opts.onPod ? draftKey(opts.draft) : null;
   let publishing = false;
+  /** Tile C's hours (14.6); a save in flight holds the screen still, like a publish. */
+  let hours: HoursState = hoursIdle(opts.draft.hours);
+  let savingHours = false;
   const workbench = opts.mode === "workbench";
   // Everything that outlives the markup (root and media-query listeners,
   // observers) is undone by destroy(), so a redraw never stacks a second set.
@@ -349,7 +356,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     pod.held = pendingEmail(DEFAULT_IDENTIFIER);
     pod.made = made !== null;
     clearTimeout(podTimer);
-    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, carded, words, offers, door, pod, podReady: podReady?.pod ?? null, prior: opts.priorPod ?? null, makeAnother, publish: opts.publishSpace ? publish : null });
+    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, carded, words, offers, door, pod, podReady: podReady?.pod ?? null, prior: opts.priorPod ?? null, makeAnother, publish: opts.publishSpace ? publish : null, hours: opts.saveHours ? hours : null });
     step.scrollTop = 0;
     if (tile.act === "threshold" && !offersAsked) askOffers();
     // The suggested address is checked as soon as the form opens (AC2): a bad one shows before the passphrase is reached.
@@ -377,7 +384,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
 
   const select = (id: string) => {
     // A create is in flight: a redraw now would drop its answer (the form is replaced). Tiles wait for it.
-    if (creating || publishing) return;
+    if (creating || publishing || savingHours) return;
     podReady = null;
     selected = id;
     editing = false;
@@ -432,6 +439,11 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
         return;
       }
       void create(form, ui);
+      return;
+    }
+    if (form.id === "f-hours") {
+      event.preventDefault();
+      void runHours(form);
       return;
     }
     if (form.id !== "f-describe") return;
@@ -507,6 +519,12 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   step.addEventListener("click", (event) => {
     const target = (event.target as Element).closest<HTMLElement>("button");
     if (!target) return;
+    if (target.id === "hours-again") {
+      hours = hoursIdle(hours.saved ?? opts.draft.hours);
+      draw();
+      step.querySelector<HTMLInputElement>("#f-hours-value")?.focus();
+      return;
+    }
     if (target.id === "example") {
       const form = step.querySelector<HTMLFormElement>("#f-describe")!;
       fillExample(form, words);
@@ -730,6 +748,60 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
         }
       } else if (step.isConnected) paint(true);
     }
+  };
+
+  /**
+   * Tile C, the first time (14.6 S1): the hours go into the space's file. The panel is redrawn in place while
+   * it runs; what was typed is kept whatever happens. Each failure says its one way forward.
+   */
+  const runHours = async (form: HTMLFormElement) => {
+    if (savingHours || !opts.saveHours) return;
+    const tile = tree.tiles.find((t) => t.act === "hours")!;
+    const ui = hoursWords(tile);
+    const typed = form.querySelector<HTMLInputElement>("#f-hours-value")?.value ?? "";
+    const paint = (focus: "status" | "field" | null = null) => {
+      const box = step.querySelector<HTMLElement>("#hours");
+      if (!box) return;
+      box.innerHTML = renderHoursPanel(tile, hours);
+      if (focus) box.querySelector<HTMLElement>(focus === "status" ? "#hours-status" : "#f-hours-value")?.focus();
+    };
+    if (!typed.trim()) {
+      hours = { ...hours, status: "failed", typed, message: ui("uiHoursEmpty") };
+      paint("field");
+      return;
+    }
+    savingHours = true;
+    hours = { ...hours, status: "saving", typed, message: "" };
+    paint();
+    let result: HoursResult | null = null;
+    try {
+      result = await opts.saveHours(typed);
+    } catch (err) {
+      const code = err instanceof PublishError ? err.code : "refused";
+      const key = ({ expired: "uiHoursExpired", gone: "uiHoursGone", conflict: "uiHoursConflict", unreachable: "uiHoursUnreachable", unreadable: "uiHoursUnreadable" } as const)[
+        code as "expired" | "gone" | "conflict" | "unreachable" | "unreadable"
+      ] ?? "uiHoursRefused";
+      hours = { ...hours, status: "failed", message: ui(key) };
+    } finally {
+      savingHours = false;
+    }
+    if (!step.isConnected) return;
+    if (!result) {
+      paint("status");
+      return;
+    }
+    if (result.status === "same") {
+      // Nothing to write: said plainly, not as an error (AC0).
+      hours = { ...hours, status: "idle", message: ui("uiHoursSame") };
+      paint("status");
+      return;
+    }
+    opts.draft.hours = result.hours;
+    hours = { status: "saved", typed: result.hours, message: "", was: result.was, saved: result.hours };
+    // The file says the hours now: tile C is done in this tab, as the next sign-in reads it from the pod (AC5).
+    doneHere.add("change");
+    draw();
+    step.querySelector<HTMLElement>(".wb-step-title")?.focus();
   };
 
   /** To the pod's own page (Solid-OIDC). If it doesn't start, the pod still exists: say so, and the button signs in again. */

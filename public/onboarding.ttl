@@ -206,6 +206,23 @@
   onb:saidDone "One edit, in your file. The map reads it from there: nothing to retype anywhere else."@en ;
   onb:sayTool "Your profile, as the map reads it. Change what's changed."@en ;
   onb:saidSaved "Saved once, in your file. The map picks it up from there."@en ;
+  onb:uiHoursLabel "Opening hours"@en ;
+  onb:uiHoursHint "As you'd write them on the door. Only this line of your file changes."@en ;
+  onb:uiHoursPlaceholder "Tu-Sa 10:00-18:00"@en ;
+  onb:uiSave "Save"@en ;
+  onb:uiSaving "Writing it to your file."@en ;
+  onb:uiHoursSame "That's what your file already says. Nothing was written."@en ;
+  onb:uiHoursEmpty "Write the hours first: an empty line can't go in the file."@en ;
+  onb:uiHoursConflict "Your file changed since this page read it, maybe from the backoffice. Nothing was written. Press Save again: it reads the file afresh, and what you typed stays."@en ;
+  onb:uiHoursExpired "Your session ended. Sign in again, then write the hours once more and press Save: nothing was written."@en ;
+  onb:uiHoursGone "Your space's file isn't on the pod any more. Publish it again from the tile before this one."@en ;
+  onb:uiHoursUnreachable "The pod isn't answering. Press Save again in a moment."@en ;
+  onb:uiHoursRefused "Your pod said no. Press Save again; if it keeps saying no, the people who run the pod server can see why."@en ;
+  onb:uiHoursUnreadable "The pod took the hours but the file doesn't say them back. Press Save again."@en ;
+  onb:uiHoursWas "Opening hours was {was}."@en ;
+  onb:uiHoursNew "Your file had no opening hours. It has now."@en ;
+  onb:uiFileLabel "Your file · space.ttl · the line that changed"@en ;
+  onb:uiHoursAgain "Change them again"@en ;
   onb:doneWhen """ASK { ?space mom:openingHours ?h ; dct:modified ?m . FILTER(?m > ?created) }""" .
 
 :join a onb:Tile ;
