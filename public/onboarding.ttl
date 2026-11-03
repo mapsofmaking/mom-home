@@ -149,7 +149,17 @@
   onb:uiStepFileWritten "Written, and read back: {address}"@en ;
   onb:uiStepFileThere "It was already there and says the same. Left as it is."@en ;
   onb:uiStepFileKept "A file is already there and says something else. Left exactly as it is, so your edits stay."@en ;
-  onb:uiPublishNext "Your file is in your pod, and anyone can read it. Putting it on the map comes next."@en ;
+  onb:uiStepMap "Put it on the map"@en ;
+  onb:uiStepMapWorking "The map is reading your file."@en ;
+  onb:uiStepMapDone "The map has it."@en ;
+  onb:uiMapRefused "The map read your file and didn't take it. Check the description in the first tile, then press again."@en ;
+  onb:uiMapDown "The map isn't answering right now. Your file is in your pod and public: press again in a moment."@en ;
+  onb:uiOnMapLive "On the map, live"@en ;
+  onb:uiPinLate "The map is still drawing your pin. It shows there in a minute."@en ;
+  onb:uiFileAddress "Your space's file"@en ;
+  onb:uiCopy "Copy the address"@en ;
+  onb:uiCopied "Copied."@en ;
+  onb:uiSeeOnMap "See it on the map ↗"@en ;
   onb:uiStepPublic "Let anyone read it"@en ;
   onb:uiStepPublicWorking "Opening that one file to anyone."@en ;
   onb:uiStepPublicDone "Anyone can read it now: checked without signing in. Nothing else in your pod was opened."@en ;

@@ -36,7 +36,11 @@ export type PublishCode =
   /** The file is no longer there. */
   | "gone"
   /** The pod server uses other access rules than WAC (no `rel="acl"`). */
-  | "no-wac";
+  | "no-wac"
+  /** The map read the file and didn't take it (422). */
+  | "map-refused"
+  /** The map's register answered with an error. */
+  | "map-down";
 
 export class PublishError extends Error {
   readonly code: PublishCode;

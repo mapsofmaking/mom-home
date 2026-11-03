@@ -33,6 +33,7 @@ import { announce } from "../ui/a11y";
 import { readOffers, type Offers } from "../lib/provider";
 import { AccountError, createAccount, pendingEmail, type NewAccount, type SignUp } from "../lib/register";
 import { markPodMade, type PodMade } from "../lib/handoff";
+import type { OnMap } from "../lib/onmap";
 import { PublishError, type FileResult, type PublicResult } from "../lib/publish";
 import { IDLE, publishWords, renderPublishPanel, type PublishState } from "./publish";
 import { DEFAULT_IDENTIFIER } from "../config";
@@ -105,6 +106,8 @@ export interface PageOptions {
   publishSpace?: (draft: Draft) => Promise<FileResult>;
   /** Step 2 (S2, #12): anyone can read the space file, the rest of the pod stays private. */
   makePublic?: () => Promise<PublicResult>;
+  /** Step 3 (S3, #13): register the file's address on the map, and read the pin back. */
+  putOnMap?: (fileUrl: string) => Promise<OnMap>;
 }
 
 /** null: never set, the width decides. */
@@ -168,6 +171,13 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   let selected: string | null = opts.podReady ? (tree.tiles.find((t) => t.act === "threshold")?.id ?? null) : null;
   let editing = false;
   let carded = false; // workbench: the card is shown from the draft; done stays the pod's to say
+  /** Signed in, what this tab has seen done before S4 reads it from the pod (on the map: tile B). Never written anywhere. */
+  const doneHere = new Set<string>();
+  /** What the screen shows as done: the pod's, plus this tab's card and what this tab put on the map. */
+  const doneNow = () => {
+    const extra = [...doneHere, ...(carded ? ["describe"] : [])].filter((id) => !opts.done.has(id));
+    return extra.length ? new Set([...opts.done, ...extra]) : opts.done;
+  };
   /** Tile B (14.3): what the pod server offers (null: not asked yet or being asked), and the door chosen. */
   let offers: OffersState = null;
   let offersAsked = false;
@@ -248,7 +258,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   let met = metWords(tree, opts.done);
 
   const drawWords = () => {
-    wordsEl.innerHTML = renderWords(tree, opts.done, openWord);
+    wordsEl.innerHTML = renderWords(tree, doneNow(), openWord);
   };
 
   const wide = matchMedia(WIDE);
@@ -277,8 +287,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   const draw = () => {
     // Signed in, a card drawn in this tab opens tile B (the way to put it on the pod) until S4 reads tile A's done
     // from the pod itself. Nothing is added to opts.done: the pod's own record stays untouched.
-    const shown = carded && !opts.done.has("describe") ? new Set([...opts.done, "describe"]) : opts.done;
-    const states = tileStates(tree.tiles, shown, completable);
+    const states = tileStates(tree.tiles, doneNow(), completable);
     const { cleared, open } = tally(states);
     tallyEl.innerHTML = `Cleared <b>${cleared}</b> · Open <b>${open}</b>`;
     if (!selected || states.get(selected) === "fog") {
@@ -293,7 +302,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     row.innerHTML = renderHexRow(tree.tiles, states, selected);
     if (!row.hidden) alignTips(row);
     // A word unlocks right after its tile (AC5): say so once, politely.
-    const nowMet = metWords(tree, opts.done);
+    const nowMet = metWords(tree, doneNow());
     const fresh = tree.words.filter((w) => nowMet.has(w.id) && !met.has(w.id));
     met = nowMet;
     if (fresh.length) announce(`New word: ${fresh.map((w) => w.label).join(", ")}. It's under What you can do.`);
@@ -493,6 +502,14 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
       step.querySelector<HTMLInputElement>("#f-name")?.focus();
     } else if (target.id === "publish-go") {
       void runPublish();
+    } else if (target.id === "copy-address") {
+      const said = step.querySelector<HTMLElement>("#copy-status");
+      const ui = publishWords(tree.tiles.find((t) => t.act === "threshold"));
+      // The address is on screen as text either way: a refused clipboard costs the shortcut, not the address.
+      void navigator.clipboard
+        ?.writeText(target.dataset.copy ?? "")
+        .then(() => { if (said) said.textContent = ui("uiCopied"); })
+        .catch(() => {});
     } else if (target.id === "prior-signin" && opts.priorPod) {
       void signInNow(step as unknown as HTMLFormElement, thresholdWords(tree.tiles.find((t) => t.act === "threshold")), opts.priorPod);
     } else if (target.id === "prior-another") {
@@ -584,15 +601,16 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
       const finished = publish.file === "done" && publish.pub === "done";
       if (focus) box.querySelector<HTMLElement>(finished ? "#publish-status" : "#publish-go")?.focus();
     };
-    // Both steps or none: a panel that could end on the file alone would say "anyone can read it" untrue.
-    if (publishing || !opts.publishSpace || !opts.makePublic) return;
-    const publishSpace = opts.publishSpace;
-    const makePublic = opts.makePublic;
+    // All the steps or none: a panel that could end early would claim what didn't happen.
+    if (publishing || !opts.publishSpace || !opts.makePublic || !opts.putOnMap) return;
+    const { publishSpace, makePublic, putOnMap } = opts;
     publishing = true;
     // Each failure is said in the words of the step that failed (AC5).
-    const say = (e: PublishError) => {
+    const say = (e: PublishError, stepName: "file" | "pub" | "map") => {
       const missing = e.missing.map((m) => ui(({ name: "uiMissingName", town: "uiMissingTown", country: "uiMissingCountry", pin: "uiMissingPin" } as const)[m]));
       const status = String(e.status ?? "no status");
+      // The map's own failures: its silence is not the pod's.
+      if (stepName === "map") return ui(e.code === "map-refused" ? "uiMapRefused" : "uiMapDown");
       switch (e.code) {
         case "incomplete": return ui("uiPublishIncomplete", { missing: missing.join(", ") });
         case "expired": return ui("uiPublishExpired");
@@ -610,18 +628,20 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
       }
     };
     const asError = (err: unknown) => (err instanceof PublishError ? err : new PublishError("refused", String(err)));
+    let arrived = false;
     try {
-      // A retry resumes from the step that failed (AC5): a file already written is not written again,
-      // unless the public step found it gone.
-      const resume = publish.file === "done" && publish.pub === "failed" && publish.failedCode !== "gone";
-      if (!resume) {
+      // A retry resumes from the step that failed (AC5): what is done is not done again, except that a
+      // file the public step found gone is written anew.
+      const fileOk = publish.file === "done" && !(publish.pub === "failed" && publish.failedCode === "gone");
+      const pubOk = fileOk && publish.pub === "done";
+      if (!fileOk) {
         publish = { ...IDLE, file: "working" };
         paint();
         let result: FileResult;
         try {
           result = await publishSpace(opts.draft);
         } catch (err) {
-          publish = { ...publish, file: "failed", message: say(asError(err)) };
+          publish = { ...publish, file: "failed", message: say(asError(err), "file") };
           return;
         }
         const address = result.url;
@@ -634,20 +654,40 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
         const dropped = result.dropped.length
           ? ui("uiPublishDropped", { fields: result.dropped.map((k) => words.field(k).label.toLowerCase()).join(", ") })
           : "";
-        publish = { ...publish, file: "done", fileLine, dropped };
+        publish = { ...publish, file: "done", fileLine, dropped, fileUrl: address };
       }
-      publish = { ...publish, pub: "working", message: "", failedCode: null };
+      if (!pubOk) {
+        publish = { ...publish, pub: "working", map: "idle", message: "", failedCode: null };
+        paint();
+        try {
+          const pub = await makePublic();
+          publish = { ...publish, pub: "done", pubLine: ui(pub.status === "made-public" ? "uiStepPublicDone" : "uiStepPublicAlready") };
+        } catch (err) {
+          const e = asError(err);
+          publish = { ...publish, pub: "failed", message: say(e, "pub"), failedCode: e.code };
+          return;
+        }
+      }
+      publish = { ...publish, map: "working", message: "" };
       paint();
       try {
-        const pub = await makePublic();
-        publish = { ...publish, pub: "done", pubLine: ui(pub.status === "made-public" ? "uiStepPublicDone" : "uiStepPublicAlready") };
+        const onMap = await putOnMap(publish.fileUrl);
+        publish = { ...publish, map: "done", onMap };
+        arrived = true;
       } catch (err) {
-        const e = asError(err);
-        publish = { ...publish, pub: "failed", message: say(e), failedCode: e.code };
+        publish = { ...publish, map: "failed", message: say(asError(err), "map") };
       }
     } finally {
       publishing = false;
-      if (step.isConnected) paint(true);
+      if (arrived) {
+        // On the map: tile B is done in this tab (S4 reads it from the pod), its word unlocks, and the
+        // threshold replaces the steps. The whole page redraws; focus goes to the one way on.
+        doneHere.add("keep");
+        if (step.isConnected) {
+          draw();
+          (step.querySelector<HTMLElement>(".wb-out [data-go]") ?? step.querySelector<HTMLElement>(".wb-step-title"))?.focus();
+        }
+      } else if (step.isConnected) paint(true);
     }
   };
 

@@ -15,7 +15,7 @@ import { bernard, esc } from "./html";
 import { hasPreview, renderPreview, type Draft } from "./previews";
 import type { PodMade } from "../lib/handoff";
 import type { PodFormState } from "./podform";
-import { renderPublish, renderPublishBox, type PublishState } from "./publish";
+import { onTheMap, renderPublish, renderPublishBox, type PublishState } from "./publish";
 import { renderPodReady, renderThreshold, thresholdTitle, type Door, type OffersState } from "./threshold";
 
 export interface StepContext {
@@ -125,11 +125,12 @@ function openStep(tile: Tile, state: TileState, ctx: StepContext): string {
   if (tile.act === "describe") return describeStep(tile, state, ctx);
   // Done, tile B keeps showing what it showed (below): 14.4 writes the file and gives it its own "done" view.
   // Signed in with a pod: there is nothing to choose any more, only to put on the map (14.4).
-  if (tile.act === "threshold" && state !== "done" && ctx.publish) {
+  // On the map in this tab, tile B is done and shows the threshold (AC4b) rather than its done preview.
+  if (tile.act === "threshold" && ctx.publish && (state !== "done" || onTheMap(ctx.publish))) {
     return `
     <div class="wb-step-head">
       <h2 class="wb-step-title" tabindex="-1">${esc(tile.title)}</h2>
-    </div>${renderPublish(tile, ctx.publish)}`;
+    </div>${renderPublish(tile, ctx.publish, ctx.draft.city ?? "", ctx.tiles.find((t) => t.id === "change"))}`;
   }
   if (tile.act === "threshold" && state !== "done") {
     const t = { offers: ctx.offers ?? null, door: ctx.door ?? null, draft: ctx.draft, pod: ctx.pod ?? null, prior: ctx.prior ?? null, makeAnother: ctx.makeAnother ?? false };
