@@ -14,22 +14,20 @@
  * `settings/README.md` beside it, never over one already there; every change
  * after that is one conditional whole-document write (`updateDocument`: read,
  * change, `If-Match`), so a second tab or another app is never overwritten
- * unseen. If the profile has a private Type Index, the file is registered
- * there so other apps can find it; `pim:preferencesFile` is left to the pod
- * (decided 2026-10-30).
+ * unseen. The file is registered in the private Type Index so the owner's other
+ * apps can find it (lib/typeindex.ts; the indexes are made when the pod lacks them).
  */
 import { DataFactory, Parser, Writer } from "n3";
 import { authFetch } from "../lib/auth";
 import { updateDocument, type ConditionalError } from "../lib/conditional";
 import { readTurtle } from "../lib/read";
+import { ensureIndexes, registerType } from "../lib/typeindex";
 import { SESSION_ID } from "../config";
 import { ONB } from "../tree/parse";
 
 const { namedNode, literal, quad } = DataFactory;
 const RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
 const XSD_BOOLEAN = "http://www.w3.org/2001/XMLSchema#boolean";
-const SOLID = "http://www.w3.org/ns/solid/terms#";
-const PIM = "http://www.w3.org/ns/pim/space#";
 
 const T = {
   HomeSettings: ONB + "HomeSettings",
@@ -151,7 +149,7 @@ export async function changeHomeSettings(
     if (!res.ok) throw new Error(`Could not create ${url} (${res.status}).`);
     // The settings are written: nothing after this may report them as lost.
     await ensureSettingsReadme(podRoot).catch((e) => console.warn("Could not write the settings README:", e));
-    await registerInTypeIndex(webId, url).catch((e) =>
+    await registerInTypeIndex(webId, url, podRoot).catch((e) =>
       console.warn("settings/mom-home.ttl was written but not registered in the Type Index:", e)
     );
   }
@@ -184,49 +182,12 @@ export async function ensureSettingsReadme(podRoot: string): Promise<void> {
   if (!res.ok && res.status !== 412) console.warn(`Could not write the settings README (${res.status}).`);
 }
 
-/** The documents followed from a profile stay on the profile's own origin (or the pod's): the session's credentials go nowhere else. */
-async function objectOf(docUrl: string, subject: string, predicate: string, origins: string[]): Promise<string | null> {
-  if (!origins.includes(new URL(docUrl).origin)) {
-    console.warn(`Not following ${docUrl}: outside ${origins.join(", ")}.`);
-    return null;
-  }
-  const res = await readTurtle(docUrl);
-  if (!res.ok) return null;
-  const quads = new Parser({ baseIRI: docUrl }).parse(await res.text());
-  return quads.find((q) => q.subject.value === subject && q.predicate.value === predicate)?.object.value ?? null;
-}
-
-/** The private Type Index: named in the profile, or in the preferences file it points to. */
-export async function findPrivateTypeIndex(webId: string, origins = [new URL(webId).origin]): Promise<string | null> {
-  const profile = webId.split("#")[0];
-  const direct = await objectOf(profile, webId, SOLID + "privateTypeIndex", origins);
-  if (direct) return direct;
-  const prefs = await objectOf(profile, webId, PIM + "preferencesFile", origins);
-  return prefs ? objectOf(prefs.split("#")[0], webId, SOLID + "privateTypeIndex", origins) : null;
-}
-
-/** Turtle to append to a Type Index: full IRIs, so it doesn't depend on the file's prefixes. */
-export function registrationTurtle(indexUrl: string, instance: string): string {
-  return `\n<${indexUrl}#mom-home-settings> <${RDF_TYPE}> <${SOLID}TypeRegistration> ;\n  <${SOLID}forClass> <${T.HomeSettings}> ;\n  <${SOLID}instance> <${instance}> .\n`;
-}
-
-/** Registers the file in the private Type Index, once; no index: nothing to do. */
-export async function registerInTypeIndex(webId: string, instance: string): Promise<void> {
-  const origins = [...new Set([new URL(webId).origin, new URL(instance).origin])];
-  const index = await findPrivateTypeIndex(webId, origins);
-  if (!index) return;
-  const url = index.split("#")[0];
-  if (!origins.includes(new URL(url).origin)) return;
-  await updateDocument(url, (text) => {
-    const quads = new Parser({ baseIRI: url }).parse(text);
-    const listed = quads.some((q) => q.predicate.value === SOLID + "instance" && q.object.value === instance);
-    if (listed) return text;
-    const next = text.replace(/\s*$/, "\n") + registrationTurtle(url, instance);
-    // A file that ended mid-statement would swallow the registration into it,
-    // and this is a document other apps depend on: check before writing.
-    const parsed = new Parser({ baseIRI: url }).parse(next);
-    const ok = parsed.some((q) => q.subject.value === `${url}#mom-home-settings` && q.object.value === instance);
-    if (!ok) throw new Error(`${url} would not read as expected after the addition; left as it is.`);
-    return next;
-  });
+/**
+ * Registers the settings file in the private Type Index, once (lib/typeindex.ts):
+ * the indexes are made and linked first when the pod lacks them, insert-only on
+ * the profile (docs/decisions.md, 2026-11-03).
+ */
+export async function registerInTypeIndex(webId: string, instance: string, podRoot: string): Promise<void> {
+  const { privateIndex } = await ensureIndexes(webId, podRoot);
+  await registerType(privateIndex, T.HomeSettings, instance, "mom-home-settings");
 }

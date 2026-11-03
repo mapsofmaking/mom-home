@@ -33,7 +33,8 @@ import { makeDraftStore } from "./lib/draft";
 import { hasForwarded, readForwarded } from "./lib/forwarded";
 import { clearPodMade, peekPodMade, takePodMade, type PodMade } from "./lib/handoff";
 import { putOnMap, readPublished, type OnMap } from "./lib/onmap";
-import { makeSpacePublic, PublishError, readSpaceFile, spaceFileUrl, spaceIsPublic, writeSpaceFile } from "./lib/publish";
+import { makeSpacePublic, PublishError, readSpaceAt, readSpaceFile, spaceFileUrl, spaceIsPublic, writeSpaceFile } from "./lib/publish";
+import { registerSpace, spacesInPublicIndex } from "./lib/typeindex";
 import type { Draft } from "./workbench/previews";
 import type { Tree } from "./tree/parse";
 
@@ -162,6 +163,17 @@ function renderOnboardingView(): void {
  */
 let writes: Promise<void> = Promise.resolve();
 
+/**
+ * The space, findable by type (#14): listed in the pod's public Type Index. Never in the coordinator's way:
+ * sign-in finds the space without it (the pod root), and the next sign-in tries again, so a failure is said
+ * in the console only.
+ */
+function listSpace(webId: string, podRoot: string, fileUrl: string): void {
+  void registerSpace(webId, podRoot, fileUrl.split("#")[0] + "#space").catch((err) =>
+    console.warn("The space is on the map but not in the public Type Index; the next sign-in tries again:", err)
+  );
+}
+
 function renderWorkbenchView(
   name: string,
   pod: { webId: string; root: string; done: Set<string>; settings: HomeSettings; published?: { fileUrl: string; onMap: OnMap } | null } | null = null,
@@ -187,7 +199,14 @@ function renderWorkbenchView(
         }
       : undefined,
     makePublic: pod ? () => makeSpacePublic(spaceFileUrl(pod.root), pod.webId) : undefined,
-    putOnMap: pod ? (fileUrl) => putOnMap(fileUrl) : undefined,
+    putOnMap: pod
+      ? async (fileUrl) => {
+          const onMap = await putOnMap(fileUrl);
+          // The Type Index goes last (story Dev Notes): the pod says "published" once the map has it.
+          listSpace(pod.webId, pod.root, fileUrl);
+          return onMap;
+        }
+      : undefined,
     // Already on the map at sign-in: tile B shows the threshold, read from the pod and the map.
     published: pod?.published ?? null,
     onFold: pod
@@ -280,7 +299,20 @@ async function main(): Promise<void> {
     const root = podRoot;
     // The space, read back from the pod (#11): the pod is the source, so the form and the card are filled from it.
     // A session refused here is the error view's "sign in again"; a file that can't be read costs the card, not the page.
-    const found = await readSpaceFile(root).catch((err) => {
+    // Where the space is: the pod's public Type Index first (#14), each entry in turn, then the pod root's
+    // space.ttl: a stale entry never hides a space that is there.
+    const listed = await spacesInPublicIndex(webId, root).catch(() => [] as string[]);
+    const firstReadable = async () => {
+      for (const at of listed) {
+        const read = await readSpaceAt(at).catch((err) => {
+          if (err instanceof PublishError && err.code === "expired") throw err;
+          return null;
+        });
+        if (read) return read;
+      }
+      return readSpaceFile(root);
+    };
+    const found = await firstReadable().catch((err) => {
       if (err instanceof PublishError && err.code === "expired") throw err;
       console.warn("Could not read space.ttl:", err);
       return null;
@@ -291,6 +323,8 @@ async function main(): Promise<void> {
     }
     // On the map is read too (#14): the map holds the file's address, and a stranger can read the file.
     const published = found ? await readPublished(found.url, () => spaceIsPublic(found.url)) : null;
+    // Public and on the map but not in the index (a registration that failed before): list it now, quietly.
+    if (found && published && !listed.includes(found.space)) listSpace(webId, root, found.url);
     // Settings that can't be read cost the remembered fold, not the page.
     const [name, doneOnPod, settings] = await Promise.all([
       displayName(webId),
