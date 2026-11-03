@@ -177,7 +177,7 @@ function listSpace(webId: string, podRoot: string, fileUrl: string): void {
 
 function renderWorkbenchView(
   name: string,
-  pod: { webId: string; root: string; done: Set<string>; settings: HomeSettings; published?: { fileUrl: string; onMap: OnMap } | null; onPod?: { fileUrl: string; open: boolean } | null } | null = null,
+  pod: { webId: string; root: string; done: Set<string>; settings: HomeSettings; published?: { fileUrl: string; onMap: OnMap } | null; onPod?: { fileUrl: string; open: boolean } | null; spaceText?: string | null } | null = null,
   podReady: PodMade | null = null
 ): void {
   const wbFold: FoldState = pod ? { folded: pod.settings.folded } : fold;
@@ -212,6 +212,8 @@ function renderWorkbenchView(
     saveHours: pod ? (hours) => saveHours(spaceFileUrl(pod.root), hours) : undefined,
     // Then the map reads it now (S2, #37): registered again, the card read back until it says the new hours.
     mapRead: pod ? (hours) => rereadOnMap(spaceFileUrl(pod.root), hours) : undefined,
+    // The file as the pod held it at sign-in: tile C shows it before the first change (C1).
+    spaceText: pod?.spaceText ?? null,
     // Already on the map at sign-in: tile B shows the threshold, read from the pod and the map.
     published: pod?.published ?? null,
     // On the pod, not on the map yet: the steps start from what is there (S5, #15).
@@ -346,7 +348,7 @@ async function main(): Promise<void> {
     // Just made in this tab (14.3 AC6): tile B says the pod is ready, once.
     // The one-shot "pod ready" panel is for an empty pod: once the space file is there, the pod speaks for itself.
     const made = takePodMade(webId);
-    renderWorkbenchView(name, { webId, root, done: doneOnPod, settings, published: published && found ? { fileUrl: found.url, onMap: published } : null, onPod: found && !published && found.url === spaceFileUrl(root) ? { fileUrl: found.url, open: readable } : null }, found ? null : made);
+    renderWorkbenchView(name, { webId, root, done: doneOnPod, settings, published: published && found ? { fileUrl: found.url, onMap: published } : null, onPod: found && !published && found.url === spaceFileUrl(root) ? { fileUrl: found.url, open: readable } : null, spaceText: found?.text ?? null }, found ? null : made);
   } catch (err) {
     renderErrorView(webId, err);
   }

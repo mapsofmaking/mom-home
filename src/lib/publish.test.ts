@@ -116,7 +116,8 @@ describe("readSpaceFile (#11)", () => {
   it("reads the space at the pod root back into a draft", async () => {
     held = mine;
     const r = await readSpaceFile(POD, pod);
-    expect(r).toEqual({ url: POD + "space.ttl", space: POD + "space.ttl#space", draft });
+    expect(r).toMatchObject({ url: POD + "space.ttl", space: POD + "space.ttl#space", draft });
+    expect(r!.text).toContain("schema:name");
     expect(calls.map((c) => c.method)).toEqual(["GET"]);
   });
 

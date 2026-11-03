@@ -31,6 +31,8 @@ export interface Pin {
   country: string;
   /** The card's opening hours as the map holds them ("" when none). */
   hours: string;
+  /** The card's address as the map shows it ("" when none). */
+  address: string;
 }
 
 export interface OnMap {
@@ -88,10 +90,11 @@ export async function readPin(id: string, fetchImpl: Fetch = (u, i) => fetch(u, 
   const res = await ask(fetchImpl, `/api/space/${encodeURIComponent(id)}/pin`, { headers: { Accept: "application/json" } }, 10_000);
   if (res.status === 404) return null;
   if (!res.ok) throw new PublishError("map-down", `The map's pin answered ${res.status}.`, res.status);
-  const p = (await res.json()) as Partial<Pin> & { opening_hours?: unknown };
+  const p = (await res.json()) as Partial<Pin> & { opening_hours?: unknown; address?: unknown };
   if (typeof p.lat !== "number" || typeof p.lon !== "number") return null;
   const hours = typeof p.opening_hours === "string" ? p.opening_hours : "";
-  return { id, name: p.name ?? "", lat: p.lat, lon: p.lon, city: p.city ?? "", country: p.country ?? "", hours };
+  const address = typeof p.address === "string" ? p.address : "";
+  return { id, name: p.name ?? "", lat: p.lat, lon: p.lon, city: p.city ?? "", country: p.country ?? "", hours, address };
 }
 
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));

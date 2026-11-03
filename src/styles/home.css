@@ -216,10 +216,17 @@
 .wb-code span { display: block; }
 .wb-code .wb-code-gap { color: #8a8576; }
 .wb-code .chg { margin: 0 calc(-1 * var(--space-12)); padding: 0 var(--space-12); background: color-mix(in oklab, var(--code-key) 20%, transparent); box-shadow: inset 3px 0 var(--code-key); }
-/* Tile C saved: the file, then the card, left to right the way a change travels; stacked when the step is narrow. */
+/* Tile C: the file, then the card, left to right the way a change travels (storyboard C1-C3); stacked when narrow. */
 .wb-flow { display: flex; flex-direction: column; gap: var(--space-14); }
 .wb-flow-file, .wb-flow-card { display: flex; flex-direction: column; gap: var(--space-8); min-width: 0; }
-.pv-facts dd.hit { font-weight: 700; }
+.wb-flow-arrow { display: none; }
+.wb-flow .wb-code { font-size: 11px; line-height: 1.5; }
+.wb-facts-box { display: flex; flex-direction: column; gap: var(--space-8); padding: var(--space-10) var(--space-12); background: var(--surface-white); border: var(--stroke-rule) solid var(--rule); }
+.wb-facts-box .pv-facts { margin: 0; }
+.wb-facts-box .hit { font-weight: 700; color: var(--ink); }
+.wb-hours-actions { display: flex; align-items: center; gap: var(--space-14); flex-wrap: wrap; }
+#hours-was b { color: var(--ink); font-weight: 600; }
 @container (min-width: 760px) {
-  .wb-flow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  .wb-flow { display: grid; grid-template-columns: minmax(0, 1fr) 16px minmax(0, 1fr); gap: var(--space-8); align-items: start; }
+  .wb-flow-arrow { display: block; align-self: center; font: 600 18px/1 var(--font-mono); color: var(--muted); text-align: center; }
 }
