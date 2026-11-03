@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./auth", () => ({ authFetch: vi.fn() }));
-import { PublishError, readSpaceFile, spaceFileUrl, writeSpaceFile } from "./publish";
+import { authFetch } from "./auth";
+import { makeSpacePublic, PublishError, readSpaceFile, spaceFileUrl, writeSpaceFile } from "./publish";
 import { spaceFile } from "./spacefile";
 
 const POD = "https://weld-done.pod.example/";
@@ -136,5 +137,97 @@ describe("readSpaceFile (#11)", () => {
 
   it("is unreachable when the pod doesn't answer", async () => {
     await expect(readSpaceFile(POD, async () => { throw new TypeError("network"); })).rejects.toMatchObject({ code: "unreachable" });
+  });
+});
+
+describe("makeSpacePublic (14.4 S2, #12; kit ADR 003)", () => {
+  const FILE = POD + "space.ttl";
+  const ACL = FILE + ".acl";
+  const OWNER = POD + "profile/card#me";
+  const PUBLIC_READ = `@prefix acl: <http://www.w3.org/ns/auth/acl#>.\n@prefix foaf: <http://xmlns.com/foaf/0.1/>.\n
+<#owner> a acl:Authorization; acl:agent <${OWNER}>; acl:accessTo <./space.ttl>; acl:mode acl:Read, acl:Write, acl:Control.
+<#public> a acl:Authorization; acl:agentClass foaf:Agent; acl:accessTo <./space.ttl>; acl:mode acl:Read.\n`;
+
+  /** The pod's rules for the file: null = no own .acl (inherited). */
+  let acl: string | null;
+  let headStatus: number;
+  let writes: { url: string; headers: Record<string, string>; body: string }[];
+  const anonOk: typeof fetch = async () => new Response(mine, { status: 200 });
+
+  beforeEach(() => {
+    acl = null;
+    headStatus = 200;
+    writes = [];
+    vi.mocked(authFetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (method === "HEAD") return new Response(null, { status: headStatus, headers: { Link: '<space.ttl.acl>; rel="acl"' } });
+      if (url === ACL && method === "GET") return acl === null ? new Response("", { status: 404 }) : new Response(acl, { status: 200, headers: { ETag: '"v1"' } });
+      if (url === ACL && method === "PUT") {
+        const headers = init!.headers as Record<string, string>;
+        if (headers["If-None-Match"] === "*" && acl !== null) return new Response("", { status: 412 });
+        writes.push({ url, headers, body: String(init!.body) });
+        acl = String(init!.body);
+        return new Response("", { status: 201 });
+      }
+      return new Response("", { status: 500 });
+    });
+  });
+
+  it("gives the file its own rules: the owner keeps Read, Write, Control; anyone may Read that one file", async () => {
+    expect(await makeSpacePublic(FILE, OWNER, anonOk)).toEqual({ status: "made-public" });
+    expect(writes).toHaveLength(1);
+    const { headers, body } = writes[0];
+    expect(headers["If-None-Match"]).toBe("*"); // never clobbers rules written meanwhile
+    expect(body).toContain(`acl:agent <${OWNER}>`);
+    expect(body).toContain("acl:mode acl:Read, acl:Write, acl:Control");
+    expect(body).toContain("acl:agentClass foaf:Agent");
+    // Rule 1: the target is the file, never "./" (the folder: the whole pod root).
+    expect(body).toContain("acl:accessTo <./space.ttl>");
+    expect(body).not.toMatch(/accessTo <\.\/>/);
+    expect(body).not.toContain("acl:default");
+  });
+
+  it("writes nothing when anyone can already read it (a retry resumes)", async () => {
+    acl = PUBLIC_READ;
+    expect(await makeSpacePublic(FILE, OWNER, anonOk)).toEqual({ status: "already-public" });
+    expect(writes).toHaveLength(0);
+  });
+
+  it("keeps a grant already there, with If-Match on the version it read", async () => {
+    acl = `@prefix acl: <http://www.w3.org/ns/auth/acl#>.
+<#owner> a acl:Authorization; acl:agent <${OWNER}>; acl:accessTo <./space.ttl>; acl:mode acl:Read, acl:Write, acl:Control.
+<#friend> a acl:Authorization; acl:agent <https://friend.example/card#me>; acl:accessTo <./space.ttl>; acl:mode acl:Read, acl:Write.\n`;
+    await makeSpacePublic(FILE, OWNER, anonOk);
+    expect(writes[0].headers["If-Match"]).toBe('"v1"');
+    expect(writes[0].body).toContain("acl:agent <https://friend.example/card#me>");
+    expect(writes[0].body).toContain("acl:agentClass foaf:Agent");
+  });
+
+  it("refuses rules it does not understand, and writes nothing (rule 3)", async () => {
+    acl = `@prefix acl: <http://www.w3.org/ns/auth/acl#>.
+<#group> a acl:Authorization; acl:agentGroup <https://pod.example/group#us>; acl:accessTo <./space.ttl>; acl:mode acl:Read.\n`;
+    await expect(makeSpacePublic(FILE, OWNER, anonOk)).rejects.toMatchObject({ code: "rules-unknown" });
+    expect(writes).toHaveLength(0);
+  });
+
+  it("refuses an owner WebID that could break out of the Turtle (rule 4)", async () => {
+    await expect(makeSpacePublic(FILE, "https://evil.example/card#me> ; acl:mode acl:Control", anonOk)).rejects.toBeInstanceOf(PublishError);
+    expect(writes).toHaveLength(0);
+  });
+
+  it("says the session ended on 401/403, never that the file is missing", async () => {
+    headStatus = 401;
+    await expect(makeSpacePublic(FILE, OWNER, anonOk)).rejects.toMatchObject({ code: "expired", status: 401 });
+  });
+
+  it("proves it with a read that carries no credentials, and fails when that read is refused", async () => {
+    const seen: RequestInit[] = [];
+    const anon: typeof fetch = async (_u, init) => {
+      seen.push(init!);
+      return new Response("", { status: 401 });
+    };
+    await expect(makeSpacePublic(FILE, OWNER, anon)).rejects.toMatchObject({ code: "not-public", status: 401 });
+    expect(seen[0].credentials).toBe("omit");
   });
 });

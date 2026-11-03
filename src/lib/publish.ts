@@ -7,6 +7,7 @@
  * Plain requests through `authFetch`: the session holds the access, nothing is
  * kept here. A 401 or 403 is "your session ended", never "the file is missing".
  */
+import { getAccess, setPublicAccess } from "./acl";
 import { authFetch } from "./auth";
 import { draftFromTurtle, sameStatements, spaceFile, SpaceFileError, type SpaceFile, type SpaceFileProblem } from "./spacefile";
 import type { Draft } from "../workbench/previews";
@@ -21,7 +22,11 @@ export type PublishCode =
   /** The pod said no. */
   | "refused"
   /** The pod took the write but what it holds can't be read back as a space. */
-  | "unreadable";
+  | "unreadable"
+  /** The file's access rules hold something this app doesn't understand: left alone (ADR 003 rule 3). */
+  | "rules-unknown"
+  /** The rules were written, but an anonymous read still doesn't return the file. */
+  | "not-public";
 
 export class PublishError extends Error {
   readonly code: PublishCode;
@@ -142,4 +147,56 @@ export async function readSpaceFile(podRoot: string, fetchImpl: Fetch = (url, in
   }
   if (!draft) throw new PublishError("unreadable", "The file at space.ttl holds no space.");
   return { url, space: `${url}#space`, draft };
+}
+
+export interface PublicResult {
+  /** made-public: public Read added now. already-public: it was there, nothing written. */
+  status: "made-public" | "already-public";
+}
+
+/** An error from acl.ts (a ConditionalError or a plain Error) in this file's terms. */
+function aclFailure(err: unknown, what: string): PublishError {
+  if (err instanceof PublishError) return err;
+  const status = (err as { status?: number }).status;
+  if (status === 401 || status === 403) return new PublishError("expired", `${what}: the pod refused this session (${status}).`, status);
+  if (typeof status === "number") return new PublishError("refused", `${what} (${status}).`, status);
+  if (/does not understand/.test((err as Error).message ?? "")) return new PublishError("rules-unknown", (err as Error).message);
+  // A fetch that never answered is a TypeError; anything else without a status is the pod refusing.
+  if (err instanceof TypeError) return new PublishError("unreachable", `${what}: ${(err as Error).message}`);
+  return new PublishError("refused", `${what}: ${(err as Error).message}`);
+}
+
+/**
+ * Step 2: anyone can read the space file; the rest of the pod stays private
+ * (Story 14.4 AC3, #12). The rules are the file's own `.acl`, hand-written by
+ * acl.ts (kit ADR 003): the target is the file's own name, the owner keeps Read,
+ * Write and Control, rules it doesn't understand are refused, never rewritten,
+ * and other grants already there are kept. Asks first (a retry resumes): when
+ * public Read is already granted, nothing is written. Then the proof: a read
+ * without credentials must return the file.
+ */
+export async function makeSpacePublic(
+  fileUrl: string,
+  ownerWebId: string,
+  anonFetch: Fetch = (url, init) => fetch(url, init)
+): Promise<PublicResult> {
+  let status: PublicResult["status"];
+  try {
+    const access = await getAccess(fileUrl, ownerWebId);
+    if (access.unknown.length) {
+      throw new PublishError("rules-unknown", "The file's access rules hold something this app does not understand; left alone.");
+    }
+    if (access.public.includes("read")) {
+      status = "already-public";
+    } else {
+      await setPublicAccess(fileUrl, ownerWebId, [...access.public, "read"]);
+      status = "made-public";
+    }
+  } catch (err) {
+    throw aclFailure(err, "Could not set who can read the file");
+  }
+  // The proof is what a stranger gets: no session, no cookie.
+  const anon = await send(anonFetch, fileUrl, { headers: { Accept: "text/turtle" }, credentials: "omit" });
+  if (!anon.ok) throw new PublishError("not-public", `An anonymous read of the file returned ${anon.status}.`, anon.status);
+  return { status };
 }

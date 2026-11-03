@@ -32,7 +32,7 @@ import { readDone } from "./tiles/done";
 import { makeDraftStore } from "./lib/draft";
 import { hasForwarded, readForwarded } from "./lib/forwarded";
 import { clearPodMade, peekPodMade, takePodMade, type PodMade } from "./lib/handoff";
-import { PublishError, readSpaceFile, writeSpaceFile } from "./lib/publish";
+import { makeSpacePublic, PublishError, readSpaceFile, spaceFileUrl, writeSpaceFile } from "./lib/publish";
 import type { Draft } from "./workbench/previews";
 import type { Tree } from "./tree/parse";
 
@@ -178,6 +178,7 @@ function renderWorkbenchView(
     podReady,
     // Signed in with a pod: tile B puts the space on the map (Story 14.4). Without a pod (the dev preview) there is nothing to write to.
     publishSpace: pod ? (d) => writeSpaceFile(pod.root, d) : undefined,
+    makePublic: pod ? () => makeSpacePublic(spaceFileUrl(pod.root), pod.webId) : undefined,
     onFold: pod
       ? (folded) => {
           // One write at a time, in the order of the clicks: the pod ends on the last toggle.

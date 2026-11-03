@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PublishError, type FileResult } from "../lib/publish";
+import { PublishError, type FileResult, type PublicResult } from "../lib/publish";
 import { parseTree } from "../tree/parse";
 import { renderPage } from "./page";
 import type { Draft } from "./previews";
@@ -145,5 +145,56 @@ describe("tile B, signed in with a pod (14.4)", () => {
     finish(ok());
     await settle();
     expect(text(root, "#publish")).toContain(keep.ui.uiStepFileWritten.replace("{address}", URL_));
+  });
+});
+
+describe("the public step (14.4 S2, #12)", () => {
+  const pub = (status: PublicResult["status"] = "made-public") => vi.fn(async (): Promise<PublicResult> => ({ status }));
+
+  it("after the file, opens it to anyone, says so, and ends with the next step named", async () => {
+    const makePublic = pub();
+    const root = open(vi.fn(async () => ok()), { makePublic });
+    root.querySelector<HTMLElement>("#publish-go")!.click();
+    await settle();
+    await settle();
+    expect(makePublic).toHaveBeenCalledTimes(1);
+    expect(root.querySelectorAll("li")).toHaveLength(2);
+    expect(text(root, "#publish")).toContain(keep.ui.uiStepPublicDone);
+    expect(text(root, "#publish-status")).toContain(keep.ui.uiPublishNext);
+    expect(root.querySelector("#publish-go")).toBeNull();
+  });
+
+  it("says when anyone could already read it", async () => {
+    const root = open(vi.fn(async () => ok("already-there")), { makePublic: pub("already-public") });
+    root.querySelector<HTMLElement>("#publish-go")!.click();
+    await settle();
+    await settle();
+    expect(text(root, "#publish")).toContain(keep.ui.uiStepPublicAlready);
+  });
+
+  it("never runs when the file step failed", async () => {
+    const makePublic = pub();
+    const root = open(vi.fn(async () => { throw new PublishError("unreachable", "x"); }), { makePublic });
+    root.querySelector<HTMLElement>("#publish-go")!.click();
+    await settle();
+    expect(makePublic).not.toHaveBeenCalled();
+  });
+
+  it("each of its failures has its own line, the file step stays done, and the button stays for the retry", async () => {
+    const cases: [PublishError, string][] = [
+      [new PublishError("rules-unknown", "x"), keep.ui.uiPublicUnknown],
+      [new PublishError("not-public", "x", 401), keep.ui.uiPublicNotPublic.replace("{status}", "401")],
+      [new PublishError("expired", "x", 403), keep.ui.uiPublishExpired],
+    ];
+    for (const [error, line] of cases) {
+      const root = open(vi.fn(async () => ok()), { makePublic: vi.fn(async () => { throw error; }) });
+      root.querySelector<HTMLElement>("#publish-go")!.click();
+      await settle();
+      await settle();
+      expect(text(root, "#publish-status"), error.code).toBe(line);
+      expect(text(root, "#publish")).toContain(keep.ui.uiStepFileWritten.replace("{address}", URL_));
+      expect(root.querySelector<HTMLButtonElement>("#publish-go")!.disabled).toBe(false);
+      root.remove();
+    }
   });
 });

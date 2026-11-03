@@ -14,14 +14,22 @@ export const PUBLISH_UI_KEYS = [
   "uiPublishGo", "uiStepFile", "uiStepFileWorking", "uiStepFileWritten", "uiStepFileThere", "uiStepFileKept",
   "uiPublishNext", "uiPublishDropped", "uiPublishIncomplete", "uiMissingName", "uiMissingTown", "uiMissingCountry",
   "uiMissingPin", "uiPublishExpired", "uiPublishUnreachable", "uiPublishRefused", "uiPublishUnreadable",
+  "uiStepPublic", "uiStepPublicWorking", "uiStepPublicDone", "uiStepPublicAlready", "uiPublicUnknown", "uiPublicNotPublic",
 ] as const;
 export type PublishUiKey = (typeof PUBLISH_UI_KEYS)[number];
 export const publishWords = (tile: Pick<Tile, "ui"> | undefined) => tileUi<PublishUiKey>(tile, "tile B (publish)");
 
 /** Where each step is. A failed step says why, in words, and keeps the button for the retry. */
+export type StepState = "idle" | "working" | "done" | "failed";
+
 export interface PublishState {
-  file: "idle" | "working" | "done" | "failed";
-  /** The line under the steps: what happened to the file, or why it failed. Empty while idle. */
+  /** Step 1, the file (S1). */
+  file: StepState;
+  /** Step 2, anyone can read it (S2). Runs once the file is done. */
+  pub: StepState;
+  /** What the public step says about itself once done. */
+  pubLine: string;
+  /** The line under the steps: what happened, or why the step that failed did. Empty while idle. */
   message: string;
   /** What a done step says about itself (written, already there, kept). */
   fileLine: string;
@@ -29,9 +37,9 @@ export interface PublishState {
   dropped: string;
 }
 
-export const IDLE: PublishState = { file: "idle", message: "", fileLine: "", dropped: "" };
+export const IDLE: PublishState = { file: "idle", pub: "idle", pubLine: "", message: "", fileLine: "", dropped: "" };
 
-const marker = (state: PublishState["file"]) =>
+const marker = (state: StepState) =>
   state === "done"
     ? `<span class="sp-unlock-marker tint" aria-hidden="true">✓</span>`
     : state === "working"
@@ -43,27 +51,31 @@ const marker = (state: PublishState["file"]) =>
 /** The panel's inside: the steps, the line under them, the button. Pure, so the page can redraw it in place. */
 export function renderPublishPanel(tile: Tile, state: PublishState): string {
   const ui = publishWords(tile);
-  const detail =
-    state.file === "working" ? ui("uiStepFileWorking") : state.file === "done" ? state.fileLine : "";
-  const status = state.file === "done" ? [ui("uiPublishNext"), state.dropped].filter(Boolean).join(" ") : state.message;
+  const done = state.file === "done" && state.pub === "done";
+  const failed = state.file === "failed" || state.pub === "failed";
+  const status = done ? [ui("uiPublishNext"), state.dropped].filter(Boolean).join(" ") : state.message;
+  const line = (name: string, step: StepState, detail: string) =>
+    `<li class="sp-unlock-step">${marker(step)}<span class="sp-unlock-body"><strong>${esc(name)}</strong>${
+      detail ? ` <span class="wb-aside">${esc(detail)}</span>` : ""
+    }</span></li>`;
   // Before the press there is only Bernard's line and the button: an empty step marker reads as a checkbox
-  // to tick, and the step's name repeats Bernard (Nicolas, 2026-11-03). The steps show once they run.
+  // to tick, and the step's name repeats Bernard (Nicolas, 2026-11-03). Each step shows once it has started.
   const steps =
     state.file === "idle"
       ? ""
       : `
     <ol class="wb-steps" aria-label="${esc(ui("uiPublishGo"))}">
-      <li class="sp-unlock-step">${marker(state.file)}<span class="sp-unlock-body"><strong>${esc(ui("uiStepFile"))}</strong>${
-        detail ? ` <span class="wb-aside">${esc(detail)}</span>` : ""
-      }</span></li>
+      ${line(ui("uiStepFile"), state.file, state.file === "working" ? ui("uiStepFileWorking") : state.file === "done" ? state.fileLine : "")}
+      ${state.pub === "idle" ? "" : line(ui("uiStepPublic"), state.pub, state.pub === "working" ? ui("uiStepPublicWorking") : state.pub === "done" ? state.pubLine : "")}
     </ol>`;
+  const working = state.file === "working" || state.pub === "working";
   return `${steps}
-    <p class="${state.file === "failed" ? "hint is-error" : "wb-aside"}" id="publish-status" role="status" tabindex="-1">${esc(status)}</p>
+    <p class="${failed ? "hint is-error" : "wb-aside"}" id="publish-status" role="status" tabindex="-1">${esc(status)}</p>
     ${
-      state.file === "done"
+      done
         ? ""
         : `<div class="wb-form-actions"><button type="button" class="btn btn-primary wb-cta" id="publish-go"${
-            state.file === "working" ? ' disabled aria-busy="true"' : ""
+            working ? ' disabled aria-busy="true"' : ""
           }>${esc(ui("uiPublishGo"))}</button></div>`
     }`;
 }
