@@ -32,10 +32,10 @@ const ok = (status: FileResult["status"] = "written", dropped: FileResult["dropp
 const text = (root: HTMLElement, sel: string) => root.querySelector(sel)!.textContent!.replace(/\s+/g, " ").trim();
 
 describe("the publish panel (14.4 AC1)", () => {
-  it("shows the one step and the one button, and nothing is claimed before anything happened", () => {
+  it("before the press, only the button: no step list that reads as a checkbox, nothing claimed", () => {
     const html = document.createElement("div");
     html.innerHTML = renderPublishPanel(keep, IDLE);
-    expect(html.querySelector("li strong")!.textContent).toBe(keep.ui.uiStepFile);
+    expect(html.querySelector("li")).toBeNull();
     expect(html.querySelector("#publish-go")!.textContent).toBe(keep.ui.uiPublishGo);
     expect(html.querySelector("#publish-status")!.textContent).toBe("");
   });
@@ -45,6 +45,7 @@ describe("the publish panel (14.4 AC1)", () => {
     html.innerHTML = renderPublishPanel(keep, { ...IDLE, file: "working" });
     expect(html.querySelector<HTMLButtonElement>("#publish-go")!.disabled).toBe(true);
     expect(html.textContent).toContain(keep.ui.uiStepFileWorking);
+    expect(html.querySelector("li strong")!.textContent).toBe(keep.ui.uiStepFile);
   });
 });
 
