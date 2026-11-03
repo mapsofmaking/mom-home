@@ -152,7 +152,8 @@ function openStep(tile: Tile, state: TileState, ctx: StepContext): string {
 export function renderStep(tile: Tile, ctx: StepContext): string {
   // The hand-off speaks for tile B whatever its state: the pod exists, and the card is not on it yet (14.4).
   // Back from the sign-in, the first time: the pod is ready, and the button is right there.
-  if (ctx.podReady && tile.act === "threshold") {
+  // Once on the map, the threshold wins over the one-shot pod-ready panel: that panel says the pod is empty.
+  if (ctx.podReady && tile.act === "threshold" && !(ctx.publish && onTheMap(ctx.publish))) {
     return renderPodReady(tile, ctx.podReady, ctx.publish ? renderPublishBox(tile, ctx.publish) : "");
   }
   const state = ctx.states.get(tile.id) ?? "fog";

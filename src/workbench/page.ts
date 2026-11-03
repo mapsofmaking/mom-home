@@ -655,6 +655,9 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
           ? ui("uiPublishDropped", { fields: result.dropped.map((k) => words.field(k).label.toLowerCase()).join(", ") })
           : "";
         publish = { ...publish, file: "done", fileLine, dropped, fileUrl: address };
+        // The pod now holds a file with a name, a town and a pin (spaceFile refuses less): tile A is done in
+        // this tab too, as it will be read from the pod at the next sign-in (#11).
+        doneHere.add("describe");
       }
       if (!pubOk) {
         publish = { ...publish, pub: "working", map: "idle", message: "", failedCode: null };
