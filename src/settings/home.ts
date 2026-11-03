@@ -23,6 +23,7 @@ import { updateDocument, type ConditionalError } from "../lib/conditional";
 import { readTurtle } from "../lib/read";
 import { ensureIndexes, registerType } from "../lib/typeindex";
 import { SESSION_ID } from "../config";
+import { FOOTPRINT, type FootprintMark } from "../lib/footprint";
 import { ONB } from "../tree/parse";
 
 const { namedNode, literal, quad } = DataFactory;
@@ -155,7 +156,8 @@ export async function changeHomeSettings(
   }
 }
 
-export const SETTINGS_README = `# settings
+/** What home wrote before #48: a README still saying exactly this is home's to bring up to date. */
+export const README_V1 = `# settings
 
 Apps keep what they remember for you in this folder: your preferences, the
 lists they keep for you, where your data lives for them. It is on your pod so
@@ -171,14 +173,98 @@ Maps of Making home (home.mapsofmaking.org) keeps one file here:
   here: the app reads it from the space's own data.
 `;
 
-/** Writes `settings/README.md` unless something is already there: once there, it is yours. */
+const START = `<!-- ${SESSION_ID}: start -->`;
+const END = `<!-- ${SESSION_ID}: end -->`;
+
+const line = (m: FootprintMark) => `- ${m.where}: ${m.what}.`;
+const of = (kind: FootprintMark["kind"]) => FOOTPRINT.filter((m) => m.kind === kind).map(line).join("\n");
+
+/** Home's section: what it keeps on this pod, from lib/footprint.ts. Rewritten by home, between its two markers only. */
+export const README_SECTION = `${START}
+## Maps of Making home (home.mapsofmaking.org)
+
+Home keeps this section up to date. What it put on your pod (paths from your
+pod's root):
+
+${of("own")}
+
+Its entries in files other apps share too:
+
+${of("entry")}
+
+If your pod had none, home also made the standard files and links every Solid
+app uses. They are your pod's now, not home's: leaving home doesn't remove them.
+
+${of("plumbing")}
+
+Outside your pod:
+
+${of("outside")}
+${END}`;
+
+/** The README home writes when there is none: what this folder is, the files every app shares, then home's section. */
+export const SETTINGS_README = `# settings
+
+Apps keep what they remember for you in this folder: your preferences, the
+lists they keep for you, where your data lives for them. It is on your pod so
+it stays yours, and so that any app you trust can read the same thing.
+
+Changing or deleting a file here can break the app that wrote it. Change these
+settings from the apps themselves.
+
+## Shared by every app
+
+- \`prefs.ttl\`: your private preferences. It names your private Type Index.
+- \`publicTypeIndex.ttl\`: what your pod makes findable by anyone, by type.
+- \`privateTypeIndex.ttl\`: the same, for you and the apps you trust.
+
+Your profile links to them. Every app that follows the Solid conventions uses
+them, so they stay even when an app goes: an app removes only its own entries.
+
+Each app that keeps something here has a section below.
+
+${README_SECTION}
+`;
+
+/**
+ * The README as it should be, from what is there now; null: leave it alone.
+ * None yet, or still home's first version: home's whole README. Home's section
+ * there: only that section, between its markers. A README without one (another
+ * app's, or the owner's): home's section added at the end, nothing else
+ * changed. Markers home can't make sense of: left alone.
+ */
+export function nextReadme(current: string | null): string | null {
+  if (current === null || current.trim() === README_V1.trim()) return SETTINGS_README;
+  const start = current.indexOf(START);
+  const end = current.indexOf(END);
+  const once = (mark: string, at: number) => at >= 0 && current.indexOf(mark, at + 1) < 0;
+  if (start < 0 && end < 0) return current.replace(/\s*$/, "\n\n") + README_SECTION + "\n";
+  if (!once(START, start) || !once(END, end) || end < start) return null;
+  const next = current.slice(0, start) + README_SECTION + current.slice(end + END.length);
+  return next === current ? null : next;
+}
+
+/**
+ * Brings `settings/README.md` up to date (nextReadme), in one conditional write:
+ * created only if nobody did, changed only if nobody changed it since it was
+ * read. Nothing depends on the README: a refusal is a console line, never an error.
+ */
 export async function ensureSettingsReadme(podRoot: string): Promise<void> {
-  const res = await authFetch(podRoot + "settings/README.md", {
+  const url = podRoot + "settings/README.md";
+  const read = await authFetch(url, { cache: "no-store" });
+  if (!read.ok && read.status !== 404) return console.warn(`Could not read the settings README (${read.status}).`);
+  const current = read.ok ? await read.text() : null;
+  const etag = read.ok ? read.headers.get("ETag") : null;
+  const next = nextReadme(current);
+  if (next === null) return;
+  // Without the read's ETag the change can't be conditional: it would land over an edit it never saw.
+  if (current !== null && !etag) return console.warn("The settings README came without an ETag: left alone.");
+  const res = await authFetch(url, {
     method: "PUT",
-    headers: { "Content-Type": "text/markdown", "If-None-Match": "*" },
-    body: SETTINGS_README,
+    headers: { "Content-Type": "text/markdown", ...(current === null ? { "If-None-Match": "*" } : { "If-Match": etag! }) },
+    body: next,
   });
-  // 412: already there. Nothing depends on the README: never stop a write for it.
+  // 412: someone wrote it meanwhile. The next write home makes tries again.
   if (!res.ok && res.status !== 412) console.warn(`Could not write the settings README (${res.status}).`);
 }
 
