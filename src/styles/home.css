@@ -105,7 +105,9 @@
 /* The threshold, wide: the map and the file on the left, Bernard and the way on beside it; stacked on a phone. */
 .wb-arrived { display: flex; flex-direction: column; gap: var(--space-14); }
 .wb-arrived-where, .wb-arrived-next { display: flex; flex-direction: column; gap: var(--space-8); min-width: 0; }
-@media (min-width: 901px) {
+/* By the step's own width, not the window's: unfolded, the step is half the screen and stays stacked. */
+#step { container-type: inline-size; }
+@container (min-width: 760px) {
   .wb-arrived { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--space-24, 24px); align-items: start; }
   .wb-arrived-next .wb-out { border-top: 0; padding-top: 0; }
 }
