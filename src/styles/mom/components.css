@@ -148,11 +148,16 @@ kbd { font-family: var(--font-mono); border: 1px solid var(--rule); padding: 1px
 .sp-terminal-wrap { border: var(--stroke-rule) solid var(--rule); background: var(--terminal-bg); overflow: hidden; }
 .sp-terminal-head { background: var(--terminal-head); padding: 6px var(--space-10); display: flex; justify-content: space-between; border-bottom: 1px solid var(--terminal-rule); }
 .sp-terminal-head span { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.08em; color: #f7f2e7; text-transform: uppercase; }
-pre.json { margin: 0; padding: var(--space-12) var(--space-16); background: var(--code-bg); color: var(--code-fg); font-family: var(--font-mono); font-size: 11px; line-height: 1.5; white-space: pre; overflow: auto; }
-.json .k { color: var(--code-key); } .json .s { color: var(--code-string); } .json .n { color: var(--code-number); } .json .c { color: var(--code-comment); }
-pre.json.sp-terminal-body { padding: var(--space-10) var(--space-12); background: var(--terminal-bg); color: var(--terminal-fg); }
-pre.json.sp-terminal-body .k { color: var(--terminal-key); } pre.json.sp-terminal-body .s { color: var(--terminal-string); }
-pre.json.sp-terminal-body .n { color: var(--terminal-number); } pre.json.sp-terminal-body .c { color: var(--terminal-comment); }
+/* Source, as JSON or as Turtle (a space file): the same colours, the same classes.
+   k: keys / the name in a prefixed name, and `a` · s: strings · n: IRIs and numbers · c: prefixes, comments, @prefix, language tags */
+pre.json, pre.turtle { margin: 0; padding: var(--space-12) var(--space-16); background: var(--code-bg); color: var(--code-fg); font-family: var(--font-mono); font-size: 11px; line-height: 1.5; white-space: pre; overflow: auto; }
+.json .k, .turtle .k { color: var(--code-key); } .json .s, .turtle .s { color: var(--code-string); } .json .n, .turtle .n { color: var(--code-number); } .json .c, .turtle .c { color: var(--code-comment); }
+pre.sp-terminal-body { padding: var(--space-10) var(--space-12); background: var(--terminal-bg); color: var(--terminal-fg); }
+pre.sp-terminal-body .k { color: var(--terminal-key); } pre.sp-terminal-body .s { color: var(--terminal-string); }
+pre.sp-terminal-body .n { color: var(--terminal-number); } pre.sp-terminal-body .c { color: var(--terminal-comment); }
+/* One line per span when lines are marked: a changed line is tinted, with a bar on its left (home's tile C, "the line that changed"). */
+pre.sp-terminal-body .line { display: block; }
+pre.sp-terminal-body .chg { margin: 0 calc(-1 * var(--space-12)); padding: 0 var(--space-12); background: color-mix(in oklab, var(--terminal-number) 18%, transparent); box-shadow: inset 3px 0 var(--terminal-number); }
 .sp-trust-line { font-size: 11px; color: var(--muted); margin-top: var(--space-8); line-height: 1.5; font-style: italic; }
 .sp-trust-line::before { content: '↳ '; color: var(--faint); }
 .code { font-family: var(--font-mono); font-size: 11px; padding: var(--space-10) var(--space-12); background: var(--code-bg); color: var(--code-fg); border: var(--stroke-rule) solid var(--rule); white-space: pre-wrap; word-break: break-all; position: relative; }

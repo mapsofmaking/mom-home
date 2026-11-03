@@ -222,7 +222,8 @@
   onb:uiHoursUnreadable "The pod took the hours but the file doesn't say them back. Press Save again."@en ;
   onb:uiHoursWas "was {was}."@en ;
   onb:uiHoursNew "Your file had no opening hours. It has now."@en ;
-  onb:uiFileLabel "Your file · space.ttl"@en ;
+  onb:uiFileLabel "Your file"@en ;
+  onb:uiFileFrom "read from your pod"@en ;
   onb:uiStepWritten "Written to your pod"@en ;
   onb:uiStepMapReading "The map is reading it"@en ;
   onb:uiStepMapReadingWhy "This app asks the map to read it now, not at its next round."@en ;

@@ -58,7 +58,7 @@ describe("tile C, the first time (14.6 S1, #36)", () => {
     await settle();
     expect(saveHours).toHaveBeenCalledTimes(1);
     expect(text(root, "#hours-was")).toBe(`${change.ui.uiHoursLabel} ${change.ui.uiHoursWas.replace("{was}", "Mo 9-12")}`);
-    expect(text(root, ".wb-code .chg")).toBe('schema:openingHours "Tu-Fr 12:00-20:00" ;');
+    expect(text(root, "pre.wb-file .chg")).toBe('schema:openingHours "Tu-Fr 12:00-20:00" ;');
     expect(root.querySelector('[data-tile="change"]')!.className).toContain("done");
     root.remove();
   });
@@ -242,8 +242,8 @@ describe("tile C follows the storyboard: C1 before, C2 while the map reads (14.6
 
   it("C1: before saving, the pod's file (every line, the hours marked), an arrow, then the card the map holds", () => {
     const root = mount({ saveHours: vi.fn() });
-    expect(root.querySelectorAll(".wb-code span")).toHaveLength(4);
-    expect(text(root, ".wb-code .chg")).toBe('schema:openingHours "Mo 9-12" .');
+    expect(root.querySelectorAll("pre.wb-file .line")).toHaveLength(4);
+    expect(text(root, "pre.wb-file .chg")).toBe('schema:openingHours "Mo 9-12" .');
     expect(root.querySelector(".wb-flow-arrow")).not.toBeNull();
     expect(text(root, ".wb-facts-box dd.hit")).toBe("Mo 9-12");
     expect(text(root, ".wb-facts-box dd")).toBe("Rue de l'Étincelle 12");
@@ -258,7 +258,7 @@ describe("tile C follows the storyboard: C1 before, C2 while the map reads (14.6
     });
     type(root, "Mo 9-17");
     await settle();
-    expect(text(root, ".wb-code .chg")).toBe('schema:openingHours "Mo 9-17" .');
+    expect(text(root, "pre.wb-file .chg")).toBe('schema:openingHours "Mo 9-17" .');
     expect(text(root, ".wb-facts-box dd.hit")).toBe("Mo 9-12");
     expect(text(root, "#hours-map")).toContain(change.ui.uiStepMapReadingWhy);
     expect(root.querySelector("#hours-back")).toBeNull();

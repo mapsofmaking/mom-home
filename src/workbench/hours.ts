@@ -19,6 +19,7 @@ import type { Tile } from "../tree/parse";
 import { bernard, esc } from "./html";
 import { tileUi } from "./tilewords";
 import { miniMapSlot } from "./minimap";
+import { highlightTurtle, highlightTurtleLine } from "./turtle";
 import type { OnMap } from "../lib/onmap";
 
 export const HOURS_UI_KEYS = [
@@ -27,7 +28,7 @@ export const HOURS_UI_KEYS = [
   "uiHoursWas", "uiHoursNew", "uiFileLabel", "uiHoursNoAccess", "uiHoursUnconfirmed",
   "uiStepWritten", "uiStepMapReading", "uiStepMapReadingWhy", "uiStepMapRead", "uiStepMapLate", "uiMapDidntRead",
   "uiMapRefusedFile", "uiMapAgain", "uiCardLabel", "uiCardFacts", "uiAddressFact", "uiHoursFact", "uiReloadHint",
-  "uiBackToTiles", "uiTileStays",
+  "uiBackToTiles", "uiTileStays", "uiFileFrom",
 ] as const;
 export type HoursUiKey = (typeof HOURS_UI_KEYS)[number];
 export const hoursWords = (tile: Pick<Tile, "ui"> | undefined) => tileUi<HoursUiKey>(tile, "tile C (hours)");
@@ -105,14 +106,17 @@ export function renderMapSteps(tile: Tile, state: HoursState): string {
 /** The file as the pod holds it, every line, the hours marked (storyboard: the design system's terminal). */
 function renderFile(tile: Tile, state: HoursState): string {
   const ui = hoursWords(tile);
-  const lines = (state.file ?? "").replace(/\s+$/, "").split("\n");
   const body = state.file
-    ? lines.map((l) => `<span${/openingHours/.test(l) ? ' class="chg"' : ""}>${esc(l) || " "}</span>`).join("")
-    : `<span class="chg">  schema:openingHours ${esc(JSON.stringify(state.saved ?? state.typed))} ;</span>`;
+    ? highlightTurtle(state.file, /openingHours/)
+    : `<span class="line chg">${highlightTurtleLine(`  schema:openingHours ${JSON.stringify(state.saved ?? state.typed)} ;`)}</span>`;
+  // The design system's source terminal, as the map's card shows a space file (Turtle · endpoint response).
   return `
     <div class="wb-flow-file">
       <p class="wf-label">${esc(ui("uiFileLabel"))}</p>
-      <pre class="wb-code" aria-label="${esc(ui("uiFileLabel"))}">${body}</pre>
+      <div class="sp-terminal-wrap">
+        <div class="sp-terminal-head"><span>Turtle · space.ttl</span><span>${esc(ui("uiFileFrom"))}</span></div>
+        <pre class="turtle sp-terminal-body wb-file" tabindex="0" aria-label="${esc(ui("uiFileLabel"))}">${body}</pre>
+      </div>
     </div>`;
 }
 

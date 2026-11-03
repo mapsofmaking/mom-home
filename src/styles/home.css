@@ -210,23 +210,19 @@
   .wb-form.more-open .wb-more { display: none; }
 }
 
-/* Tile C (14.6): the space file as the design system's terminal shows source (storyboard C3): dark ground, the
-   changed line marked with the key colour and a bar on its left. */
-.wb-code { margin: 0; padding: var(--space-10) var(--space-12); background: #1a1a1a; color: var(--code-fg); font: 400 12.5px/1.6 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
-.wb-code span { display: block; }
-.wb-code .wb-code-gap { color: #8a8576; }
-.wb-code .chg { margin: 0 calc(-1 * var(--space-12)); padding: 0 var(--space-12); background: color-mix(in oklab, var(--code-key) 20%, transparent); box-shadow: inset 3px 0 var(--code-key); }
-/* Tile C: the file, then the card, left to right the way a change travels (storyboard C1-C3); stacked when narrow. */
+/* Tile C: the file, then the card, left to right the way a change travels (storyboard C1-C3), side by side as soon as
+   the step can hold two columns, hexes unfolded too: both compared without scrolling. Stacked on a phone. */
 .wb-flow { display: flex; flex-direction: column; gap: var(--space-14); }
 .wb-flow-file, .wb-flow-card { display: flex; flex-direction: column; gap: var(--space-8); min-width: 0; }
 .wb-flow-arrow { display: none; }
-.wb-flow .wb-code { font-size: 11px; line-height: 1.5; }
+/* The file scrolls inside its frame, kept to the card's height; long lines wrap rather than scroll sideways. */
+.wb-flow pre.wb-file { max-height: 300px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 10.5px; }
 .wb-facts-box { display: flex; flex-direction: column; gap: var(--space-8); padding: var(--space-10) var(--space-12); background: var(--surface-white); border: var(--stroke-rule) solid var(--rule); }
 .wb-facts-box .pv-facts { margin: 0; }
 .wb-facts-box .hit { font-weight: 700; color: var(--ink); }
 .wb-hours-actions { display: flex; align-items: center; gap: var(--space-14); flex-wrap: wrap; }
 #hours-was b { color: var(--ink); font-weight: 600; }
-@container (min-width: 760px) {
+@container (min-width: 520px) {
   .wb-flow { display: grid; grid-template-columns: minmax(0, 1fr) 16px minmax(0, 1fr); gap: var(--space-8); align-items: start; }
   .wb-flow-arrow { display: block; align-self: center; font: 600 18px/1 var(--font-mono); color: var(--muted); text-align: center; }
 }
