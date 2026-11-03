@@ -170,3 +170,56 @@ export function sameStatements(a: string, b: string): boolean {
     return false;
   }
 }
+
+const RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
+
+/**
+ * The other way: what a space file in the pod says, as the draft tile A shows
+ * (#11). The pod is the source: signed in, the form and the card are filled from
+ * here. Reads what `spaceFile` writes, and any file that says the same with other
+ * prefixes, order or blank-node labels. null when the document holds no
+ * `mom:Space`. A value the form can't hold (a non-decimal coordinate) is left out,
+ * never guessed.
+ */
+export function draftFromTurtle(turtle: string, base: string): Draft | null {
+  const quads: Quad[] = new Parser({ baseIRI: base }).parse(turtle);
+  const typed = quads.filter((q) => q.predicate.value === RDF_TYPE && q.object.value === MOM + "Space").map((q) => q.subject);
+  if (!typed.length) return null;
+  // The file's own `<#space>` first; otherwise the first space it names.
+  const own = `${base.split("#")[0]}#space`;
+  const subject = typed.find((s) => s.value === own) ?? typed[0];
+  const objects = (s: Term, p: string) =>
+    quads.filter((q) => q.subject.equals(s) && q.predicate.value === SCHEMA + p).map((q) => q.object);
+  const one = (s: Term | undefined, p: string): string | undefined => (s ? objects(s, p)[0]?.value : undefined);
+
+  const draft: Draft = {};
+  const set = (key: keyof Draft, value: string | undefined) => {
+    const text = value?.trim();
+    if (text) (draft as Record<string, string>)[key] = text;
+  };
+  set("name", one(subject, "name"));
+  set("description", one(subject, "description"));
+  const address = objects(subject, "address")[0];
+  set("street", one(address, "streetAddress"));
+  set("postcode", one(address, "postalCode"));
+  set("city", one(address, "addressLocality"));
+  set("country", one(address, "addressCountry")?.toUpperCase());
+  const geo = objects(subject, "geo")[0];
+  const lat = one(geo, "latitude");
+  const lon = one(geo, "longitude");
+  if (lat && lon && DECIMAL.test(lat.trim()) && DECIMAL.test(lon.trim())) {
+    set("lat", lat);
+    set("lon", lon);
+  }
+  set("email", one(subject, "email"));
+  for (const point of objects(subject, "contactPoint")) {
+    if (one(point, "contactType") !== "Matrix") continue;
+    const link = one(point, "url") ?? "";
+    // matrix.to/#/<room> back to the room as typed; any other link stays a link.
+    const room = /^https:\/\/matrix\.to\/#\/(.+)$/.exec(link)?.[1];
+    set("matrix", room ? decodeURIComponent(room) : link);
+  }
+  set("website", one(subject, "url"));
+  set("logo", one(subject, "logo"));
+  return draft;
+}

@@ -186,7 +186,11 @@ describe("done, read from the pod (AC4)", () => {
     // A pod is not a published space: a person's own pod has storage too.
     expect([...(await readDone(tree, { webId: WEBID, podRoot: POD, space: null }))]).toEqual([]);
     const card = POD + "space.ttl#space";
-    expect([...(await readDone(tree, { webId: WEBID, podRoot: POD, space: card }))].sort()).toEqual(["describe", "keep"]);
+    // A space IRI alone proves nothing: tile A wants what the file says (#11), tile B the map (S3).
+    expect([...(await readDone(tree, { webId: WEBID, podRoot: POD, space: card }))]).toEqual([]);
+    const spaceData = { name: "Weld Done", city: "Marolles", lat: "50.8", lon: "4.3" };
+    expect([...(await readDone(tree, { webId: WEBID, podRoot: POD, space: card, spaceData }))]).toEqual(["describe"]);
+    expect([...(await readDone(tree, { webId: WEBID, podRoot: POD, space: card, spaceData, onMap: true }))].sort()).toEqual(["describe", "keep"]);
   });
 
   it("counts a check that fails as not done", async () => {

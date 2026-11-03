@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { iri, literal, matrixLink, sameStatements, spaceFile, SpaceFileError, statements } from "./spacefile";
+import { draftFromTurtle, iri, literal, matrixLink, sameStatements, spaceFile, SpaceFileError, statements } from "./spacefile";
 
 /** Pinned to maps_of_making 12bb32a (test/fixtures/README.md): the file as the map reads it. */
 const fixture = readFileSync(join(__dirname, "../../test/fixtures/atelier-du-canal.ttl"), "utf8");
@@ -107,5 +107,38 @@ describe("sameStatements", () => {
     expect(sameStatements(fixture, fixture.replace("schema:", "s:").replace("@prefix s: <https://schema.org/> .", "@prefix schema: <https://schema.org/> . @prefix s: <https://schema.org/> ."))).toBe(true);
     expect(sameStatements(fixture, fixture.replace("Atelier du Canal", "Another"))).toBe(false);
     expect(sameStatements(fixture, "not turtle at all {{")).toBe(false);
+  });
+});
+
+describe("draftFromTurtle: the file in the pod back to tile A's draft (#11)", () => {
+  const base = "https://atelier.pod.example/space.ttl";
+
+  it("reads back what spaceFile writes, field for field", () => {
+    expect(draftFromTurtle(spaceFile(draft).turtle, base)).toEqual(draft);
+  });
+
+  it("reads the map's own fixture the same way", () => {
+    expect(draftFromTurtle(fixture, base)).toEqual(draft);
+  });
+
+  it("keeps web addresses and a non-matrix.to chat link as they are", () => {
+    const d = { ...draft, matrix: "https://chat.example/room", website: "https://atelier.example/", logo: "https://atelier.example/logo.png" };
+    expect(draftFromTurtle(spaceFile(d).turtle, base)).toEqual(d);
+  });
+
+  it("is null for a document that holds no space", () => {
+    expect(draftFromTurtle('<#me> <https://schema.org/name> "Not a space" .', base)).toBeNull();
+  });
+
+  it("leaves out a coordinate that isn't a plain decimal, never guesses", () => {
+    const turtle = spaceFile(draft).turtle.replace("50.8391", '"north"');
+    const d = draftFromTurtle(turtle, base)!;
+    expect(d.lat).toBeUndefined();
+    expect(d.lon).toBeUndefined();
+    expect(d.name).toBe(draft.name);
+  });
+
+  it("throws on a file that isn't Turtle", () => {
+    expect(() => draftFromTurtle("<html> nope", base)).toThrow();
   });
 });
