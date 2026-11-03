@@ -113,3 +113,28 @@ export async function putOnMap(
   }
   return { id, link: mapLink(id), pin };
 }
+
+/** The map's id for a space file's address, or null when the map doesn't hold it (#14: tile B done from the pod). */
+export async function lookupOnMap(fileUrl: string, fetchImpl: Fetch = (u, i) => fetch(u, i)): Promise<string | null> {
+  const res = await ask(fetchImpl, `/api/space-by-endpoint?url=${encodeURIComponent(fileUrl)}`, { headers: { Accept: "application/json" } }, 10_000);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new PublishError("map-down", `The map's lookup answered ${res.status}.`, res.status);
+  const { id } = (await res.json()) as { id?: unknown };
+  return typeof id === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(id) ? id : null;
+}
+
+/**
+ * Where a space stands on the map, read at sign-in: registered (the map holds the
+ * file's address) and readable by anyone. Both, or null. The pin comes along when
+ * the map has drawn it. Failures count as "not yet": tile B stays open, never wrong.
+ */
+export async function readPublished(
+  fileUrl: string,
+  publiclyReadable: () => Promise<boolean>,
+  fetchImpl: Fetch = (u, i) => fetch(u, i)
+): Promise<OnMap | null> {
+  const [id, open] = await Promise.all([lookupOnMap(fileUrl, fetchImpl).catch(() => null), publiclyReadable().catch(() => false)]);
+  if (!id || !open) return null;
+  const pin = await readPin(id, fetchImpl).catch(() => null);
+  return { id, link: mapLink(id), pin };
+}

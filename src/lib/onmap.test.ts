@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { idFromSpaceUri, mapLink, putOnMap, readPin, registerOnMap } from "./onmap";
+import { idFromSpaceUri, lookupOnMap, mapLink, putOnMap, readPin, readPublished, registerOnMap } from "./onmap";
 
 const FILE = "https://weld-done.pod.example/space.ttl";
 type Call = { url: string; init?: RequestInit };
@@ -63,5 +63,34 @@ describe("on the map (14.4 S3, #13)", () => {
     expect(on).toMatchObject({ id: "weld-done", pin: null });
     const broken = await putOnMap(FILE, fakeMap({ pin: () => new Response("", { status: 500 }) }).fetchImpl, { total: 5, every: 1 });
     expect(broken.pin).toBeNull();
+  });
+});
+
+describe("on the map, read at sign-in (14.4 S4, #14)", () => {
+  const map = (lookup: number, id = "weld-done") => {
+    const calls: string[] = [];
+    const fetchImpl = async (url: string) => {
+      calls.push(url);
+      if (url.startsWith("/api/space-by-endpoint?url=")) return new Response(JSON.stringify({ id }), { status: lookup });
+      if (url === `/api/space/${id}/pin`) return new Response(JSON.stringify({ id, name: "Weld Done", lat: 50.8, lon: 4.3, city: "Marolles", country: "BE" }), { status: 200 });
+      return new Response("", { status: 500 });
+    };
+    return { calls, fetchImpl };
+  };
+
+  it("asks the map by the file's address, encoded", async () => {
+    const m = map(200);
+    expect(await lookupOnMap(FILE, m.fetchImpl)).toBe("weld-done");
+    expect(m.calls[0]).toBe(`/api/space-by-endpoint?url=${encodeURIComponent(FILE)}`);
+    expect(await lookupOnMap(FILE, map(404).fetchImpl)).toBeNull();
+    expect(await lookupOnMap(FILE, map(200, "../x").fetchImpl)).toBeNull();
+  });
+
+  it("is on the map only when the map holds it AND a stranger can read it; failures are 'not yet'", async () => {
+    expect(await readPublished(FILE, async () => true, map(200).fetchImpl)).toMatchObject({ id: "weld-done", pin: { city: "Marolles" } });
+    expect(await readPublished(FILE, async () => false, map(200).fetchImpl)).toBeNull();
+    expect(await readPublished(FILE, async () => true, map(404).fetchImpl)).toBeNull();
+    expect(await readPublished(FILE, async () => true, map(500).fetchImpl)).toBeNull();
+    expect(await readPublished(FILE, async () => { throw new Error("x"); }, map(200).fetchImpl)).toBeNull();
   });
 });

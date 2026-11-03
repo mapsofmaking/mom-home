@@ -331,3 +331,22 @@ describe("the threshold right after the pod was made (Nicolas, live 2026-11-03)"
     root.remove();
   });
 });
+
+describe("signed in with the space already on the map (14.4 S4, #14)", () => {
+  it("lands on tile C, and tile B opens on the threshold read from the pod and the map", () => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    renderPage(root, tree, {
+      mode: "workbench", who: "weld-done", done: new Set(["describe", "keep"]), draft, fold: { folded: false },
+      onSignIn: () => {}, onSignOut: () => {}, readOffers: async () => "open",
+      publishSpace: vi.fn(async () => ok()), makePublic: async (): Promise<PublicResult> => ({ status: "already-public" }),
+      putOnMap: vi.fn(),
+      published: { fileUrl: URL_, onMap: { id: "weld-done", link: "https://mapsofmaking.org/?space=weld-done", pin: { id: "weld-done", name: "Weld Done", lat: 50.8, lon: 4.3, city: "Marolles", country: "BE" } } },
+    } as unknown as Parameters<typeof renderPage>[2]);
+    expect(root.querySelector('[aria-current="step"]')!.getAttribute("data-tile")).toBe("change");
+    root.querySelector<HTMLElement>('button[data-tile="keep"]')!.click();
+    expect(text(root, "#step")).toContain(keep.ui.uiOnMapLive);
+    expect(root.querySelector("#publish-go")).toBeNull();
+    root.remove();
+  });
+});

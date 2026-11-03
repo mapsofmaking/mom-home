@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./auth", () => ({ authFetch: vi.fn() }));
 import { authFetch } from "./auth";
-import { makeSpacePublic, PublishError, readSpaceFile, spaceFileUrl, writeSpaceFile } from "./publish";
+import { makeSpacePublic, PublishError, readSpaceFile, spaceFileUrl, spaceIsPublic, writeSpaceFile } from "./publish";
 import { spaceFile } from "./spacefile";
 
 const POD = "https://weld-done.pod.example/";
@@ -318,5 +318,16 @@ describe("makeSpacePublic (14.4 S2, #12; kit ADR 003)", () => {
     acl = PUBLIC_READ;
     await expect(makeSpacePublic(FILE, OWNER, anon(403, ""))).rejects.toMatchObject({ code: "not-public", rulesWere: "already-public" });
     await expect(makeSpacePublic(FILE, OWNER, async () => { throw new TypeError("blocked by CORS"); })).rejects.toMatchObject({ code: "not-public" });
+  });
+});
+
+describe("spaceIsPublic (14.4 S4, #14)", () => {
+  const FILE = POD + "space.ttl";
+  it("is true only for a stranger's 200 that reads as a space, sent without credentials", async () => {
+    const seen: RequestInit[] = [];
+    expect(await spaceIsPublic(FILE, async (_u, init) => { seen.push(init!); return new Response(mine, { status: 200 }); })).toBe(true);
+    expect(seen[0].credentials).toBe("omit");
+    expect(await spaceIsPublic(FILE, async () => new Response("", { status: 401 }))).toBe(false);
+    expect(await spaceIsPublic(FILE, async () => new Response("<html>login</html>", { status: 200 }))).toBe(false);
   });
 });
