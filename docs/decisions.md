@@ -9,12 +9,16 @@ Kit-level decisions (Solid, ACLs, sign-in) are ADRs in the kit repo; this file o
 ## 2026-11-03
 
 - **The `/profile/` rule, narrowed** (Nicolas, devil's-advocated). Home never rewrites the WebID profile.
-  When the Type Index links are missing, it may **add** them (`solid:publicTypeIndex`,
-  `solid:privateTypeIndex`) in one insert-only N3 Patch, and nothing else: the server appends, nothing can
-  be deleted or rewritten. Changing or removing a profile line is the owner's own act, in the backoffice.
+  When the Type Index links are missing, it may **add** them in one insert-only N3 Patch, and nothing else:
+  the server appends, nothing can be deleted or rewritten. By the Solid convention those are
+  `solid:publicTypeIndex` and `pim:preferencesFile` in the profile, the private index being named
+  (`solid:privateTypeIndex`) in the private preferences file, which home may create, or add that one link to,
+  insert-only (amended after the review of #29: the original wording named `solid:privateTypeIndex` in the
+  profile, which would publish the private index's address). An unreadable profile is refused, never patched. Changing or removing a profile line is the owner's own act, in the backoffice.
   Our pod server creates both indexes and their links when it makes a pod (solid-css-overlay template), so
   on our pods home never needs to; the patch covers pods hosted elsewhere. Home adds and updates only its
-  own entries inside the index files (conditional writes). `space.ttl` at the pod root stays the fallback.
+  own entries inside the index files (conditional writes); it opens the public index only when it made it, and
+  never widens one that was there. `space.ttl` at the pod root stays the fallback.
   Why: discovery by type is how other apps, agents and later networks find a space (several per person);
   the original rule was about not putting the space in the profile, which still holds.
 - **Planning lives in issues and the org project, not in story files** (Nicolas). One issue per slice, written as

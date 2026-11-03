@@ -63,18 +63,23 @@ describe("insertOnlyPatch: the only way home writes a profile", () => {
 });
 
 describe("ensureIndexes (#14): the pod's Type Indexes, made and linked only when missing", () => {
-  it("on a pod without them: makes the three files, opens the public index, then links the profile, insert-only", async () => {
+  it("on a pod without them: makes the three files, links the profile insert-only, then opens the public index", async () => {
     const { store, calls } = pod({ [PROFILE]: CARD });
-    expect(await ensureIndexes(WEBID, POD)).toEqual({ publicIndex: PUB, privateIndex: PRIV });
+    let patchedBeforeOpening = false;
+    makePublic.mockImplementation(async () => {
+      patchedBeforeOpening = calls.some((c) => c.url === PROFILE && c.method === "PATCH");
+      return { status: "made-public" };
+    });
+    expect(await ensureIndexes(WEBID, POD, true)).toEqual({ publicIndex: PUB, privateIndex: PRIV });
     expect(store.get(PUB)!.text).toContain("ListedDocument");
     expect(store.get(PRIV)!.text).toContain("UnlistedDocument");
     expect(store.get(PREFS)!.text).toContain(`<${WEBID}> solid:privateTypeIndex <${PRIV}>`);
     for (const url of [PUB, PRIV, PREFS]) expect(calls.find((c) => c.url === url && c.method === "PUT")!.headers["If-None-Match"]).toBe("*");
     expect(makePublic).toHaveBeenCalledWith(PUB, WEBID, expect.objectContaining({ accept: "text/turtle" }));
-    // The profile: one PATCH, last, adding exactly the two links; the profile itself is never PUT.
+    // The profile: one PATCH, before the public step, adding exactly the two links; the profile is never PUT.
     const profileWrites = calls.filter((c) => c.url === PROFILE && c.method !== "GET");
     expect(profileWrites.map((c) => c.method)).toEqual(["PATCH"]);
-    expect(calls.at(-1)!.url).toBe(PROFILE);
+    expect(patchedBeforeOpening).toBe(true);
     expect(store.get(PROFILE)!.text).toContain(CARD.trim());
     expect(store.get(PROFILE)!.text).toContain(`<${SOLID}publicTypeIndex> <${PUB}>`);
     expect(store.get(PROFILE)!.text).toContain(`<${PIM}preferencesFile> <${PREFS}>`);
@@ -119,6 +124,52 @@ describe("ensureIndexes (#14): the pod's Type Indexes, made and linked only when
   });
 });
 
+describe("ensureIndexes: what the review of #29 found", () => {
+  it("the settings path never touches the public index's rules", async () => {
+    pod({ [PROFILE]: CARD });
+    await ensureIndexes(WEBID, POD);
+    expect(makePublic).not.toHaveBeenCalled();
+  });
+
+  it("never widens a public index that was already there and isn't readable by anyone: refused", async () => {
+    pod({ [PROFILE]: CARD + `<${WEBID}> <${SOLID}publicTypeIndex> <${PUB}> .`, [PUB]: "# the owner's, private" });
+    const anon = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", { status: 401 }));
+    await expect(ensureIndexes(WEBID, POD, true)).rejects.toBeInstanceOf(TypeIndexRefused);
+    expect(makePublic).not.toHaveBeenCalled();
+    anon.mockResolvedValue(new Response("<> a <http://www.w3.org/ns/solid/terms#TypeIndex>.", { status: 200 }));
+    await expect(ensureIndexes(WEBID, POD, true)).resolves.toMatchObject({ publicIndex: PUB });
+    expect(makePublic).not.toHaveBeenCalled();
+    anon.mockRestore();
+  });
+
+  it("refuses a profile it can't parse, writing nothing (it would add links the profile may have)", async () => {
+    const { calls } = pod({ [PROFILE]: "<#me> this is { not turtle" });
+    await expect(ensureIndexes(WEBID, POD, true)).rejects.toBeInstanceOf(TypeIndexRefused);
+    expect(calls.filter((c) => c.method !== "GET")).toEqual([]);
+  });
+
+  it("stays inside the pod's own path: another pod on the same origin is refused (folder layout)", async () => {
+    const root = "https://pod.example/alice/";
+    const webId = root + "profile/card#me";
+    const { calls } = pod({ [root + "profile/card"]: `<${webId}> <${SOLID}publicTypeIndex> <https://pod.example/bob/settings/idx.ttl> .` });
+    await expect(ensureIndexes(webId, root, true)).rejects.toBeInstanceOf(TypeIndexRefused);
+    expect(calls.filter((c) => c.method !== "GET")).toEqual([]);
+    await expect(ensureIndexes("https://pod.example/bob/profile/card#me", root)).rejects.toBeInstanceOf(TypeIndexRefused);
+  });
+
+  it("uses a preferences file that is there but unlinked, and adds the private index to it if it lacks it", async () => {
+    const { calls, store } = pod({ [PROFILE]: CARD, [PREFS]: "<> a <http://www.w3.org/ns/pim/space#ConfigurationFile> . # mine" });
+    await ensureIndexes(WEBID, POD);
+    expect(calls.find((c) => c.url === PREFS && c.method === "PATCH")!.body).toContain("privateTypeIndex");
+    expect(store.get(PREFS)!.text).toContain("# mine");
+  });
+
+  it("refuses a WebID whose document is a folder", async () => {
+    pod({});
+    await expect(ensureIndexes(POD + "#me", POD)).rejects.toBeInstanceOf(TypeIndexRefused);
+  });
+});
+
 describe("registerType: home's own entries in an index, never another app's", () => {
   it("adds one registration, once, and keeps everything else", async () => {
     const { store } = pod({ [PUB]: `<${PUB}#theirs> a <${SOLID}TypeRegistration> ; <${SOLID}forClass> <https://x.example/Thing> ; <${SOLID}instance> <https://x.example/t> .` });
@@ -154,6 +205,17 @@ describe("spacesInPublicIndex: where the space is, read at sign-in", () => {
 <${PUB}#c> <${SOLID}forClass> <https://x.example/Thing> ; <${SOLID}instance> <${POD}thing.ttl> .`,
     });
     expect(await spacesInPublicIndex(WEBID, POD)).toEqual([`${POD}spaces/weld.ttl#space`]);
+  });
+
+  it("ignores entries on the same origin but in another pod (folder layout)", async () => {
+    const root = "https://pod.example/alice/";
+    const webId = root + "profile/card#me";
+    const idx = root + "settings/publicTypeIndex.ttl";
+    pod({
+      [root + "profile/card"]: `<${webId}> <${SOLID}publicTypeIndex> <${idx}> .`,
+      [idx]: `<${idx}#a> <${SOLID}forClass> <${MOM_SPACE}> ; <${SOLID}instance> <https://pod.example/bob/space.ttl#space> .`,
+    });
+    expect(await spacesInPublicIndex(webId, root)).toEqual([]);
   });
 
   it("is empty without a public index, or for a profile off the pod", async () => {

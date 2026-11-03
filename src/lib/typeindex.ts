@@ -42,25 +42,26 @@ export class TypeIndexRefused extends Error {
 
 const withRoot = (podRoot: string) => (podRoot.endsWith("/") ? podRoot : podRoot + "/");
 const doc = (iri: string) => iri.split("#")[0];
-const sameOrigin = (a: string, b: string) => {
-  try {
-    return new URL(a).origin === new URL(b).origin;
-  } catch {
-    return false;
-  }
-};
 
 /** An IRI fit to be spliced into Turtle as <…>: a plain http(s) URL with nothing that could end the token. */
 const safe = (iri: string | null | undefined): iri is string => !!iri && isValidWebId(iri);
 
-/** The object of `subject predicate ?o` in a Turtle text; null when absent or unparseable. */
+/** Inside the pod: same origin AND under the pod's path (a folder-layout server hosts other people's pods on the same origin). */
+const inPod = (iri: string | null | undefined, root: string): iri is string => safe(iri) && doc(iri).startsWith(root);
+
+/**
+ * The object of `subject predicate ?o` in a Turtle text; null when absent. A text
+ * that doesn't parse is refused, never read as "no links": that would add links a
+ * profile may already have, in a form the parser rejects.
+ */
 function objectIn(text: string, base: string, subject: string, predicate: string): string | null {
+  let quads;
   try {
-    const quads = new Parser({ baseIRI: base }).parse(text);
-    return quads.find((q) => q.subject.value === subject && q.predicate.value === predicate)?.object.value ?? null;
-  } catch {
-    return null;
+    quads = new Parser({ baseIRI: base }).parse(text);
+  } catch (err) {
+    throw new TypeIndexRefused(`${base} can't be read as Turtle (${(err as Error).message}); left as it is.`);
   }
+  return quads.find((q) => q.subject.value === subject && q.predicate.value === predicate)?.object.value ?? null;
 }
 
 /** A fresh, credentialed read (the base of a write is never a kept copy). null on 404. */
@@ -71,10 +72,12 @@ async function readFresh(url: string): Promise<string | null> {
   return res.text();
 }
 
-/** Creates a document only if nobody has: an existing one is the owner's (or another app's) and stays. */
-async function createIfMissing(url: string, body: string): Promise<void> {
+/** Creates a document only if nobody has: an existing one is the owner's (or another app's) and stays. True when made now. */
+async function createIfMissing(url: string, body: string): Promise<boolean> {
   const res = await authFetch(url, { method: "PUT", headers: { "Content-Type": "text/turtle", "If-None-Match": "*" }, body });
-  if (!res.ok && res.status !== 412) throw Object.assign(new Error(`Could not create ${url} (${res.status}).`), { status: res.status });
+  if (res.status === 412) return false;
+  if (!res.ok) throw Object.assign(new Error(`Could not create ${url} (${res.status}).`), { status: res.status });
+  return true;
 }
 
 /**
@@ -100,68 +103,92 @@ export interface Indexes {
   privateIndex: string;
 }
 
+/** Whether a stranger can read a document: no credentials, 200. */
+async function readableByAnyone(url: string): Promise<boolean> {
+  try {
+    const res = await fetch(url, { headers: { Accept: "text/turtle" }, credentials: "omit", cache: "no-store", signal: AbortSignal.timeout(10_000) });
+    return res.status === 200 && !res.redirected;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Makes sure the signer's own pod has both Type Indexes, linked from the profile,
  * and returns them. Writes only what is missing: the index files and the
- * preferences file (create-only), public read on the public index (acl.ts, ADR
- * 003), then the profile and preferences links (insert-only). Refuses a profile
- * that isn't on the pod's own origin, and an existing link that points off it.
+ * preferences file (create-only), the private-index link in preferences that
+ * lack it, then the profile's two links (both insert-only: decision 2026-11-03).
+ *
+ * `openPublic` (the space path only): the public index must be readable by
+ * anyone. Home opens it when it made it now; an existing index that is not
+ * readable is the owner's choice and is refused, never widened. The settings
+ * path never touches the public index's rules.
+ *
+ * Refused before any write: a profile off the pod, a profile that can't be
+ * parsed, links pointing outside the pod's own path.
  */
-export async function ensureIndexes(webId: string, podRoot: string): Promise<Indexes> {
+export async function ensureIndexes(webId: string, podRoot: string, openPublic = false): Promise<Indexes> {
   const root = withRoot(podRoot);
   const profile = doc(webId);
-  if (!safe(webId)) throw new TypeIndexRefused(`Not a valid WebID: ${webId}`);
-  if (!sameOrigin(profile, root)) throw new TypeIndexRefused(`The profile ${profile} is not on the pod ${root}: home doesn't write it.`);
+  if (!safe(webId) || !safe(root)) throw new TypeIndexRefused(`Not a WebID and pod that can be written safely: ${webId}, ${root}`);
+  if (profile.endsWith("/")) throw new TypeIndexRefused(`The WebID ${webId} names a folder, not a profile document.`);
+  if (!inPod(profile, root)) throw new TypeIndexRefused(`The profile ${profile} is not in the pod ${root}: home doesn't write it.`);
 
   const profileText = await readFresh(profile);
   if (profileText === null) throw new TypeIndexRefused(`The profile ${profile} isn't there.`);
   const linkedPublic = objectIn(profileText, profile, webId, SOLID + "publicTypeIndex");
   const linkedPrefs = objectIn(profileText, profile, webId, PIM + "preferencesFile");
-  for (const linked of [linkedPublic, linkedPrefs]) {
-    if (linked && !(safe(linked) && sameOrigin(linked, root))) {
-      throw new TypeIndexRefused(`The profile points at ${linked}, outside the pod: left as it is.`);
-    }
+  const directPrivate = objectIn(profileText, profile, webId, SOLID + "privateTypeIndex");
+  for (const linked of [linkedPublic, linkedPrefs, directPrivate]) {
+    if (linked && !inPod(linked, root)) throw new TypeIndexRefused(`The profile points at ${linked}, outside the pod: left as it is.`);
   }
 
-  const publicIndex = linkedPublic ?? `${root}settings/publicTypeIndex.ttl`;
-  const prefs = linkedPrefs ?? `${root}settings/prefs.ttl`;
-  const prefsText = linkedPrefs ? await readFresh(doc(prefs)) : null;
+  const publicIndex = doc(linkedPublic ?? `${root}settings/publicTypeIndex.ttl`);
+  const prefs = doc(linkedPrefs ?? `${root}settings/prefs.ttl`);
+  // An existing preferences file is read whether the profile links it or not (it may be there unlinked).
+  let prefsText = await readFresh(prefs);
+  const prefsPrivate = prefsText !== null ? objectIn(prefsText, prefs, webId, SOLID + "privateTypeIndex") : null;
   // Named in the preferences (the usual place), or straight in the profile (older apps did that).
-  const linkedPrivate =
-    (prefsText ? objectIn(prefsText, doc(prefs), webId, SOLID + "privateTypeIndex") : null) ??
-    objectIn(profileText, profile, webId, SOLID + "privateTypeIndex");
-  if (linkedPrivate && !(safe(linkedPrivate) && sameOrigin(linkedPrivate, root))) {
-    throw new TypeIndexRefused(`The preferences point at ${linkedPrivate}, outside the pod: left as it is.`);
-  }
-  const privateIndex = linkedPrivate ?? `${root}settings/privateTypeIndex.ttl`;
+  const linkedPrivate = prefsPrivate ?? directPrivate;
+  if (linkedPrivate && !inPod(linkedPrivate, root)) throw new TypeIndexRefused(`The preferences point at ${linkedPrivate}, outside the pod: left as it is.`);
+  const privateIndex = doc(linkedPrivate ?? `${root}settings/privateTypeIndex.ttl`);
 
   // The files first, so a link never points at nothing.
-  await createIfMissing(doc(publicIndex), PUBLIC_INDEX_TTL);
-  await createIfMissing(doc(privateIndex), PRIVATE_INDEX_TTL);
-  if (!prefsText) await createIfMissing(doc(prefs), prefsTtl(webId, privateIndex));
-  else if (!objectIn(prefsText, doc(prefs), webId, SOLID + "privateTypeIndex")) {
-    await patchInsertOnly(doc(prefs), [[webId, SOLID + "privateTypeIndex", privateIndex]]);
+  const madePublic = await createIfMissing(publicIndex, PUBLIC_INDEX_TTL);
+  await createIfMissing(privateIndex, PRIVATE_INDEX_TTL);
+  if (prefsText === null && !(await createIfMissing(prefs, prefsTtl(webId, privateIndex)))) {
+    // Made meanwhile (another tab): read what it says before deciding.
+    prefsText = await readFresh(prefs);
+  }
+  if (prefsText !== null && !objectIn(prefsText, prefs, webId, SOLID + "privateTypeIndex")) {
+    await patchInsertOnly(prefs, [[webId, SOLID + "privateTypeIndex", privateIndex]]);
   }
 
-  // Anyone can read the public index, and only that file (the settings folder stays private).
-  await makePublic(doc(publicIndex), webId, {
-    accept: "text/turtle",
-    isTheResource: (body) => {
-      try {
-        return new Parser({ baseIRI: doc(publicIndex) }).parse(body).some((q) => q.predicate.value === RDF_TYPE && q.object.value === SOLID + "TypeIndex");
-      } catch {
-        return false;
-      }
-    },
-  });
-
-  // The profile last, insert-only: only the links it lacks.
+  // The profile next, insert-only: only the links it lacks. Before the public step, so a refusal
+  // there never leaves index files that nothing points to.
   const missing: [string, string, string][] = [];
   if (!linkedPublic) missing.push([webId, SOLID + "publicTypeIndex", publicIndex]);
   if (!linkedPrefs) missing.push([webId, PIM + "preferencesFile", prefs]);
   if (missing.length) await patchInsertOnly(profile, missing);
 
-  return { publicIndex: doc(publicIndex), privateIndex: doc(privateIndex) };
+  if (openPublic) {
+    if (madePublic) {
+      // Anyone can read the public index, and only that file (the settings folder stays private).
+      await makePublic(publicIndex, webId, {
+        accept: "text/turtle",
+        isTheResource: (body) => {
+          try {
+            return new Parser({ baseIRI: publicIndex }).parse(body).some((q) => q.predicate.value === RDF_TYPE && q.object.value === SOLID + "TypeIndex");
+          } catch {
+            return false;
+          }
+        },
+      });
+    } else if (!(await readableByAnyone(publicIndex))) {
+      throw new TypeIndexRefused(`${publicIndex} is not readable by anyone, and it isn't home's to open: left as it is.`);
+    }
+  }
+  return { publicIndex, privateIndex };
 }
 
 /** Turtle for one registration: full IRIs, so it doesn't depend on the index's prefixes. */
@@ -201,14 +228,19 @@ export async function registerType(indexUrl: string, forClass: string, instance:
 export async function spacesInPublicIndex(webId: string, podRoot: string): Promise<string[]> {
   const root = withRoot(podRoot);
   const profile = doc(webId);
-  if (!sameOrigin(profile, root)) return [];
+  if (!inPod(profile, root)) return [];
   const read = async (url: string) => {
     const res = await readTurtle(url);
     return res.ok ? res.text() : null;
   };
   const profileText = await read(profile);
-  const index = profileText ? objectIn(profileText, profile, webId, SOLID + "publicTypeIndex") : null;
-  if (!index || !sameOrigin(index, root)) return [];
+  let index: string | null = null;
+  try {
+    index = profileText ? objectIn(profileText, profile, webId, SOLID + "publicTypeIndex") : null;
+  } catch {
+    return [];
+  }
+  if (!index || !inPod(index, root)) return [];
   const text = await read(doc(index));
   if (!text) return [];
   try {
@@ -217,7 +249,7 @@ export async function spacesInPublicIndex(webId: string, podRoot: string): Promi
     return quads
       .filter((q) => regs.has(q.subject.value) && q.predicate.value === SOLID + "instance")
       .map((q) => q.object.value)
-      .filter((i) => safe(i) && sameOrigin(i, root));
+      .filter((i) => inPod(i, root));
   } catch {
     return [];
   }
@@ -225,6 +257,6 @@ export async function spacesInPublicIndex(webId: string, podRoot: string): Promi
 
 /** The space, findable by type: the public index names its file (#14). Makes the indexes first when the pod lacks them. */
 export async function registerSpace(webId: string, podRoot: string, spaceIri: string): Promise<void> {
-  const { publicIndex } = await ensureIndexes(webId, podRoot);
+  const { publicIndex } = await ensureIndexes(webId, podRoot, true);
   await registerType(publicIndex, MOM_SPACE, spaceIri, "mom-space");
 }
