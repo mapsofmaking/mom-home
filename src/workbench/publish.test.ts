@@ -309,3 +309,25 @@ describe("on the map, and the threshold (14.4 S3, #13; AC4, AC4b)", () => {
     expect(text(root, "#publish-status")).toBe(keep.ui.uiMapDown);
   });
 });
+
+describe("the threshold right after the pod was made (Nicolas, live 2026-11-03)", () => {
+  it("replaces the pod-ready panel once on the map, and tile A and tile B both show done", async () => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    renderPage(root, tree, {
+      mode: "workbench", who: "weld-done", done: new Set(), draft, fold: { folded: false },
+      onSignIn: () => {}, onSignOut: () => {}, readOffers: async () => "open",
+      podReady: { pod: "https://weld-done.pod.example/", webId: "https://weld-done.pod.example/profile/card#me" },
+      publishSpace: vi.fn(async () => ok()),
+      makePublic: async (): Promise<PublicResult> => ({ status: "made-public" }),
+      putOnMap: vi.fn(async (): Promise<OnMap> => ({ id: "weld-done", link: "https://mapsofmaking.org/?space=weld-done", pin: { id: "weld-done", name: "Weld Done", lat: 50.8, lon: 4.3, city: "Marolles", country: "Belgium" } })),
+    } as unknown as Parameters<typeof renderPage>[2]);
+    root.querySelector<HTMLElement>("#publish-go")!.click();
+    for (let i = 0; i < 4; i++) await settle();
+    expect(root.querySelector("#publish-go")).toBeNull();
+    expect(text(root, "#step")).toContain(keep.ui.uiOnMapLive);
+    expect(root.querySelector('[data-tile="describe"]')!.className).toContain("done");
+    expect(root.querySelector('[data-tile="keep"]')!.className).toContain("done");
+    root.remove();
+  });
+});
