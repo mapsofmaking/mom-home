@@ -108,6 +108,8 @@ export interface PageOptions {
   makePublic?: () => Promise<PublicResult>;
   /** Step 3 (S3, #13): register the file's address on the map, and read the pin back. */
   putOnMap?: (fileUrl: string) => Promise<OnMap>;
+  /** Signed in with the space already on the map (#14): tile B opens on the threshold. */
+  published?: { fileUrl: string; onMap: OnMap } | null;
 }
 
 /** null: never set, the width decides. */
@@ -200,7 +202,9 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   /** "Make another one" was chosen over signing in to the pod this tab already made. */
   let makeAnother = false;
   /** Where "Put it on the map" is (Story 14.4); a step in flight holds the screen still, like a create. */
-  let publish: PublishState = { ...IDLE };
+  let publish: PublishState = opts.published
+    ? { ...IDLE, file: "done", pub: "done", map: "done", fileUrl: opts.published.fileUrl, onMap: opts.published.onMap }
+    : { ...IDLE };
   let publishing = false;
   const workbench = opts.mode === "workbench";
   // Everything that outlives the markup (root and media-query listeners,

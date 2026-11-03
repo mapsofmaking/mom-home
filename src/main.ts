@@ -32,8 +32,8 @@ import { readDone } from "./tiles/done";
 import { makeDraftStore } from "./lib/draft";
 import { hasForwarded, readForwarded } from "./lib/forwarded";
 import { clearPodMade, peekPodMade, takePodMade, type PodMade } from "./lib/handoff";
-import { putOnMap } from "./lib/onmap";
-import { makeSpacePublic, PublishError, readSpaceFile, spaceFileUrl, writeSpaceFile } from "./lib/publish";
+import { putOnMap, readPublished, type OnMap } from "./lib/onmap";
+import { makeSpacePublic, PublishError, readSpaceFile, spaceFileUrl, spaceIsPublic, writeSpaceFile } from "./lib/publish";
 import type { Draft } from "./workbench/previews";
 import type { Tree } from "./tree/parse";
 
@@ -164,7 +164,7 @@ let writes: Promise<void> = Promise.resolve();
 
 function renderWorkbenchView(
   name: string,
-  pod: { webId: string; root: string; done: Set<string>; settings: HomeSettings } | null = null,
+  pod: { webId: string; root: string; done: Set<string>; settings: HomeSettings; published?: { fileUrl: string; onMap: OnMap } | null } | null = null,
   podReady: PodMade | null = null
 ): void {
   const wbFold: FoldState = pod ? { folded: pod.settings.folded } : fold;
@@ -178,9 +178,18 @@ function renderWorkbenchView(
     fold: wbFold,
     podReady,
     // Signed in with a pod: tile B puts the space on the map (Story 14.4). Without a pod (the dev preview) there is nothing to write to.
-    publishSpace: pod ? (d) => writeSpaceFile(pod.root, d) : undefined,
+    publishSpace: pod
+      ? async (d) => {
+          const result = await writeSpaceFile(pod.root, d);
+          // Decision 2 (14.4): written and read back, the pod holds it; the browser's copy goes.
+          drafts.clear(DRAFT_ID);
+          return result;
+        }
+      : undefined,
     makePublic: pod ? () => makeSpacePublic(spaceFileUrl(pod.root), pod.webId) : undefined,
     putOnMap: pod ? (fileUrl) => putOnMap(fileUrl) : undefined,
+    // Already on the map at sign-in: tile B shows the threshold, read from the pod and the map.
+    published: pod?.published ?? null,
     onFold: pod
       ? (folded) => {
           // One write at a time, in the order of the clicks: the pod ends on the last toggle.
@@ -280,17 +289,21 @@ async function main(): Promise<void> {
       for (const k of Object.keys(draft)) delete (draft as Record<string, unknown>)[k];
       Object.assign(draft, found.draft);
     }
+    // On the map is read too (#14): the map holds the file's address, and a stranger can read the file.
+    const published = found ? await readPublished(found.url, () => spaceIsPublic(found.url)) : null;
     // Settings that can't be read cost the remembered fold, not the page.
     const [name, doneOnPod, settings] = await Promise.all([
       displayName(webId),
-      readDone(tree!, { webId, podRoot: root, space: found?.space ?? null, spaceData: found?.draft ?? null }),
+      readDone(tree!, { webId, podRoot: root, space: found?.space ?? null, spaceData: found?.draft ?? null, onMap: published !== null }),
       readHomeSettings(root).catch((err): HomeSettings => {
         console.warn("Could not read settings/mom-home.ttl:", err);
         return { folded: null, seen: [] };
       }),
     ]);
     // Just made in this tab (14.3 AC6): tile B says the pod is ready, once.
-    renderWorkbenchView(name, { webId, root, done: doneOnPod, settings }, takePodMade(webId));
+    // The one-shot "pod ready" panel is for an empty pod: once the space file is there, the pod speaks for itself.
+    const made = takePodMade(webId);
+    renderWorkbenchView(name, { webId, root, done: doneOnPod, settings, published: published && found ? { fileUrl: found.url, onMap: published } : null }, found ? null : made);
   } catch (err) {
     renderErrorView(webId, err);
   }

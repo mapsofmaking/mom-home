@@ -314,3 +314,14 @@ export async function makeSpacePublic(fileUrl: string, ownerWebId: string, anonF
     },
   });
 }
+
+/** Whether a stranger can read the space file: no credentials, exactly 200, and it reads as a space (#14). */
+export async function spaceIsPublic(fileUrl: string, anonFetch: Fetch = (url, init) => fetch(url, init)): Promise<boolean> {
+  const res = await send(anonFetch, fileUrl, { headers: { Accept: "text/turtle" }, credentials: "omit" });
+  if (res.status !== 200 || res.redirected) return false;
+  try {
+    return draftFromTurtle(await res.text(), fileUrl) !== null;
+  } catch {
+    return false;
+  }
+}
