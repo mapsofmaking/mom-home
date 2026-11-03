@@ -60,7 +60,7 @@ const PREVIEWS: Record<string, (d: Draft) => string> = {
     <div class="pv">
       <p class="pv-title">Who reads your file</p>
       ${facts([["The map", "mapsofmaking.org"], ["Hours", d.hours]])}
-      <p class="pv-meta">One edit, read by each of them. Nothing is copied.</p>
+      <p class="pv-meta">One edit, read by each of them. Nothing to retype.</p>
     </div>`,
   network: (d) => `
     <div class="pv">
