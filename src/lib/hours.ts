@@ -48,7 +48,7 @@ const bad = (what: string): never => {
 };
 
 /** An IRI in angle brackets, refused when it holds a character that could end them (it would rewrite other statements). */
-function iri(value: string): string {
+export function iri(value: string): string {
   return /[<>"{}|^`\\\s]/.test(value) ? bad("web address") : `<${value}>`;
 }
 
@@ -63,12 +63,13 @@ const fail = (res: Response, what: string): never => {
 
 interface Read {
   subject: string;
-  hours: Quad[];
+  /** The statements of `predicate` on the space, as read. */
+  found: Quad[];
   etag: string | null;
   text: string;
 }
 
-async function readHours(fileUrl: string, fetchImpl: Fetch): Promise<Read> {
+async function readStatement(fileUrl: string, predicate: string, fetchImpl: Fetch): Promise<Read> {
   const res = await send(fetchImpl, fileUrl, { headers: { Accept: "text/turtle" } });
   if (!res.ok) fail(res, "Reading the space file");
   let quads: Quad[];
@@ -85,47 +86,77 @@ async function readHours(fileUrl: string, fetchImpl: Fetch): Promise<Read> {
   if (!found) throw new PublishError("unreadable", "The space file names no space.");
   if (found.termType !== "NamedNode") throw new PublishError("unreadable", "The space in the file has no address of its own: left alone.");
   const subject = found.value;
-  return { subject, hours: quads.filter((q) => q.subject.value === subject && q.predicate.value === HOURS), etag: res.headers.get("ETag"), text };
+  return { subject, found: quads.filter((q) => q.subject.value === subject && q.predicate.value === predicate), etag: res.headers.get("ETag"), text };
 }
 
-/** The patch: the hours read go, the new ones come; nothing else in the file is touched. */
-export function hoursPatch(subject: string, old: readonly Quad[], hours: string): string {
+/** The patch: the statements read go, the new one comes; nothing else in the file is touched. `object` is N3. */
+export function statementPatch(subject: string, predicate: string, old: readonly Quad[], object: string): string {
   const s = iri(subject);
-  const deletes = old.map((q) => `${s} <${HOURS}> ${n3Term(q.object)} .`).join(" ");
+  const p = iri(predicate);
+  const deletes = old.map((q) => `${s} ${p} ${n3Term(q.object)} .`).join(" ");
   return [
     "@prefix solid: <http://www.w3.org/ns/solid/terms#> .",
     "_:change a solid:InsertDeletePatch ;",
     ...(deletes ? [`  solid:deletes { ${deletes} } ;`] : []),
-    `  solid:inserts { ${s} <${HOURS}> ${literal(hours)} . } .`,
+    `  solid:inserts { ${s} ${p} ${object} . } .`,
     "",
   ].join("\n");
+}
+
+/** The hours patch (S1): the hours read go, the new ones come. */
+export const hoursPatch = (subject: string, old: readonly Quad[], hours: string) => statementPatch(subject, HOURS, old, literal(hours));
+
+export interface StatementResult {
+  /** saved: written and read back. same: the file already says exactly this; nothing was written. */
+  status: "saved" | "same";
+  /** What the file said before; null when it said nothing. */
+  was: string | null;
+  /** The file as the pod holds it after the save, read back (or before, when nothing was written). */
+  text: string;
+}
+
+/** The new object of the statement: as N3, its value, and whether a statement read already says exactly it. */
+export interface NewObject {
+  n3: string;
+  value: string;
+  isSame: (q: Quad) => boolean;
+}
+
+/**
+ * One statement of the space file changed (tile C: the hours, S1; the logo, S6): read with its ETag, one
+ * N3 Patch with If-Match, read back. Throws a PublishError: expired, no-control, gone, conflict, unreachable,
+ * refused, unreadable, unconfirmed.
+ */
+export async function changeStatement(fileUrl: string, predicate: string, object: NewObject, fetchImpl: Fetch): Promise<StatementResult> {
+  const before = await readStatement(fileUrl, predicate, fetchImpl);
+  const was = before.found[0]?.object.value ?? null;
+  if (before.found.length === 1 && object.isSame(before.found[0])) return { status: "same", was, text: before.text };
+  // Without the read's ETag the write can't be conditional: an insert would land over a change it never saw.
+  if (!before.etag) throw new PublishError("refused", "The pod sent no ETag, so the write can't check the file is unchanged.");
+
+  const body = statementPatch(before.subject, predicate, before.found, object.n3);
+  const res = await send(fetchImpl, fileUrl, { method: "PATCH", headers: { "Content-Type": "text/n3", "If-Match": before.etag }, body });
+  if (!res.ok) fail(res, "Writing the change");
+
+  // The write is in: from here a failure is "not confirmed", never "nothing was written".
+  let after: Read;
+  try {
+    after = await readStatement(fileUrl, predicate, fetchImpl);
+  } catch (err) {
+    throw new PublishError("unconfirmed", `Written, but reading it back failed: ${(err as Error).message}`);
+  }
+  // Another writer may have changed it again since: what matters is that ours went in.
+  if (!after.found.some((q) => q.object.value === object.value)) {
+    throw new PublishError("unconfirmed", "Written, but the file read back doesn't say it: it may have changed since.");
+  }
+  return { status: "saved", was, text: after.text };
 }
 
 /** The hours, changed in the file at `fileUrl`. Throws a PublishError: expired, gone, conflict, unreachable, refused, unreadable. */
 export async function saveHours(fileUrl: string, typed: string, fetchImpl: Fetch = (u, i) => authFetch(u, i)): Promise<HoursResult> {
   const hours = typed.trim();
   if (!hours) throw new PublishError("incomplete", "No hours to write.");
-  const before = await readHours(fileUrl, fetchImpl);
-  const was = before.hours[0]?.object.value ?? null;
   const plain = (q: Quad) => q.object.termType === "Literal" && !q.object.language && q.object.datatype.value === XSD_STRING;
-  if (before.hours.length === 1 && was === hours && plain(before.hours[0])) return { status: "same", was, hours, text: before.text };
-  // Without the read's ETag the write can't be conditional: an insert would land over a change it never saw.
-  if (!before.etag) throw new PublishError("refused", "The pod sent no ETag, so the write can't check the file is unchanged.");
-
-  const body = hoursPatch(before.subject, before.hours, hours);
-  const res = await send(fetchImpl, fileUrl, { method: "PATCH", headers: { "Content-Type": "text/n3", "If-Match": before.etag }, body });
-  if (!res.ok) fail(res, "Writing the hours");
-
-  // The write is in: from here a failure is "not confirmed", never "nothing was written".
-  let after: Read;
-  try {
-    after = await readHours(fileUrl, fetchImpl);
-  } catch (err) {
-    throw new PublishError("unconfirmed", `Written, but reading it back failed: ${(err as Error).message}`);
-  }
-  // Another writer may have changed the hours again since: what matters is that ours went in.
-  if (!after.hours.some((q) => q.object.value === hours)) {
-    throw new PublishError("unconfirmed", "Written, but the file read back doesn't say these hours: it may have changed since.");
-  }
-  return { status: "saved", was, hours, text: after.text };
+  const r = await changeStatement(fileUrl, HOURS, { n3: literal(hours), value: hours, isSame: (q) => plain(q) && q.object.value === hours }, fetchImpl);
+  return { ...r, hours };
 }

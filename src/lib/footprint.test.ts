@@ -20,7 +20,8 @@ const WRITE =
 const WRITE_SITES: Record<string, number> = {
   "lib/acl.ts": 7, // kit WAC helpers: the space's rules (space-acl)
   "lib/conditional.ts": 2, // kit conditional write: used by the settings file and the index entries
-  "lib/hours.ts": 1, // space-file
+  "lib/hours.ts": 1, // space-file: changeStatement, one statement (hours, logo)
+  "lib/logo.ts": 1, // logo-file (its rules through publish.ts makePublic, schema:logo through hours.ts)
   "lib/onmap.ts": 1, // map-registration
   "lib/publish.ts": 3, // space-file, space-acl
   "lib/register.ts": 4, // account

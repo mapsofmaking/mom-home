@@ -15,6 +15,7 @@ the README section is the declaration. Removing it all is
 |---|---|---|---|
 | `space-file` | own | `space.ttl` | the space's file; tile A writes it, tile C changes one statement |
 | `space-acl` | own | the rules of `space.ttl` | anyone may read that one file |
+| `logo-file` | own | `logo` and its rules | the logo, readable by anyone; one address whatever its type |
 | `settings-file` | own | `settings/mom-home.ttl` | the fold, the tutorials seen |
 | `readme-section` | entry | `settings/README.md` | home's section, between its markers; the whole file if home made it |
 | `public-index-entry` | entry | `settings/publicTypeIndex.ttl#mom-space` | where the space file is |

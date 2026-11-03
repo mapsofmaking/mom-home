@@ -24,6 +24,7 @@ import { APP_NAME, DEFAULT_IDENTIFIER } from "./config";
 import { announce, focusView, trackInputModality } from "./ui/a11y";
 import { renderError, renderPending } from "./ui/patterns";
 import { loadTree } from "./tree/load";
+import { saveLogoAddress, uploadLogo } from "./lib/logo";
 import { renderPage, type FoldState, type PageHandle } from "./workbench/page";
 import { displayName } from "./workbench/who";
 import { changeHomeSettings, ensureSettingsReadme, readHomeSettings, type HomeSettings } from "./settings/home";
@@ -216,7 +217,10 @@ function renderWorkbenchView(
     // Tile C (14.6 S1, #36): the hours, changed in home's own space file at the pod root.
     saveHours: pod ? (hours) => saveHours(spaceFileUrl(pod.root), hours) : undefined,
     // Then the map reads it now (S2, #37): registered again, the card read back until it says the new hours.
-    mapRead: pod ? (hours) => rereadOnMap(spaceFileUrl(pod.root), hours) : undefined,
+    mapRead: pod ? (says) => rereadOnMap(spaceFileUrl(pod.root), says) : undefined,
+    // Tile C's logo (S6, #41): uploaded next to the space file, or an address already online.
+    uploadLogo: pod ? (file, current) => uploadLogo(pod.root, pod.webId, file, current) : undefined,
+    useLogoAddress: pod ? (typed) => saveLogoAddress(pod.root, typed) : undefined,
     // The file as the pod held it at sign-in: tile C shows it before the first change (C1).
     spaceText: pod?.spaceText ?? null,
     // Already on the map at sign-in: tile B shows the threshold, read from the pod and the map.

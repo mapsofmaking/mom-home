@@ -239,6 +239,33 @@
   onb:uiBackToTiles "Back to your tiles"@en ;
   onb:uiTileStays "This tile is done. It stays your shortcut for the next change."@en ;
   onb:uiReloadHint "Map open in another tab? Reload it to see the change."@en ;
+  # The logo (14.6 S6, #41): shown once the hours are in the file. No SVG until the pod site sandboxes uploads.
+  onb:uiLogoLabel "Logo"@en ;
+  onb:uiLogoUpload "Upload a logo"@en ;
+  onb:uiLogoHint "PNG, JPEG or WebP, up to 512 KB. It goes next to your space's file, and anyone can see it: it's on your card."@en ;
+  onb:uiLogoOr "Or one already online:"@en ;
+  onb:uiLogoPlaceholder "https://…"@en ;
+  onb:uiLogoUseAddress "Use this address"@en ;
+  onb:uiLogoSaving "Putting it on your pod."@en ;
+  onb:uiLogoSaved "Your file points at it now."@en ;
+  onb:uiLogoReplaced "Replaced, at the same address: your file didn't need to change. Map open in another tab? Reload it."@en ;
+  onb:uiLogoSame "That's the address your file already says. Nothing was written."@en ;
+  onb:uiLogoTooLarge "That image is over 512 KB. Pick a smaller one: nothing was written."@en ;
+  onb:uiLogoNotImage "That isn't a PNG, JPEG or WebP image. Nothing was written."@en ;
+  onb:uiLogoBadAddress "That isn't a web address. It starts with https://."@en ;
+  onb:uiLogoTaken "A file called logo is already next to your space's file, and your space doesn't use it. Nothing was written. Rename it in the backoffice, then try again."@en ;
+  onb:uiLogoNotPublic "The logo is on your pod, but a stranger can't read it yet, so your file doesn't point at it. Press again."@en ;
+  onb:uiLogoExpired "Your session ended. Sign in again, then upload it once more."@en ;
+  onb:uiLogoNoAccess "Your pod says this account can't write there. Signing in again won't help: check who can edit it in the backoffice."@en ;
+  onb:uiLogoConflict "Your file changed since this page read it. Press again: it reads the file afresh."@en ;
+  onb:uiLogoUnreachable "The pod isn't answering. Try again in a moment."@en ;
+  onb:uiLogoRefused "Your pod said no. Try again; if it keeps saying no, the people who run the pod server can see why."@en ;
+  onb:uiLogoUnconfirmed "The logo went in, but reading your file back didn't work. Press again: if it's there, nothing more is written."@en ;
+  onb:uiLogoMapReading "The map is reading it."@en ;
+  onb:uiLogoMapRead "The map shows it."@en ;
+  onb:uiLogoMapLate "The map took it; the card catches up in a moment."@en ;
+  onb:uiLogoMapDidntRead "The map didn't answer. Your file points at the logo; the map picks it up at its next read."@en ;
+  onb:uiLogoFact "Logo"@en ;
   onb:uiHoursNoAccess "Your pod says this account can't change the file. Signing in again won't help: check who can edit space.ttl in the backoffice."@en ;
   onb:uiHoursUnconfirmed "The hours went to your file, but reading it back didn't work. Press Save again: if the file says them, nothing more is written."@en ;
   onb:doneWhen """ASK { ?space schema:openingHours ?h }  # tile A doesn't ask for hours: present means set here, or by the coordinator's own edit (decided 2026-11-03)""" .
