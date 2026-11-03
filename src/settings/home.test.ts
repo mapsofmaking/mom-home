@@ -2,13 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockFetch = vi.fn();
 vi.mock("../lib/auth", () => ({ authFetch: (...args: unknown[]) => mockFetch(...args) }));
+const ensureIndexes = vi.fn();
+const registerType = vi.fn();
+vi.mock("../lib/typeindex", () => ({ ensureIndexes: (...a: unknown[]) => ensureIndexes(...a), registerType: (...a: unknown[]) => registerType(...a) }));
 
 const {
   changeHomeSettings,
   homeSettingsUrl,
   parseHomeSettings,
   readHomeSettings,
-  registrationTurtle,
   serializeHomeSettings,
   SETTINGS_README,
 } = await import("./home");
@@ -124,56 +126,23 @@ describe("reading and changing it on the pod", () => {
     expect(puts()).toHaveLength(2);
   });
 
-  it("does not follow a Type Index on another origin, and leaves a file it would break", async () => {
-    const away = "https://elsewhere.example/idx.ttl";
-    const store = pod({ [WEBID.split("#")[0]]: `<${WEBID}> <http://www.w3.org/ns/solid/terms#privateTypeIndex> <${away}> .` });
+  it("registers the new file in the private Type Index (lib/typeindex.ts), once it is written", async () => {
+    pod({});
+    const index = POD + "settings/privateTypeIndex.ttl";
+    ensureIndexes.mockResolvedValue({ publicIndex: POD + "settings/publicTypeIndex.ttl", privateIndex: index });
+    registerType.mockResolvedValue(undefined);
+    await changeHomeSettings(POD, WEBID, (s) => ({ ...s, folded: true }));
+    expect(ensureIndexes).toHaveBeenCalledWith(WEBID, POD);
+    expect(registerType).toHaveBeenCalledWith(index, expect.stringMatching(/#HomeSettings$/), URL, "mom-home-settings");
+  });
+
+  it("keeps the settings when the registration fails: it was written, nothing may report it lost", async () => {
+    const store = pod({});
+    ensureIndexes.mockRejectedValue(new Error("profile elsewhere"));
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     await changeHomeSettings(POD, WEBID, (s) => ({ ...s, folded: true }));
-    expect(mockFetch.mock.calls.some(([u]) => u === away)).toBe(false);
-    expect(store.has(away)).toBe(false);
     warn.mockRestore();
-    // Ends mid-statement: appending would swallow the registration into it.
-    const index = POD + "settings/privateTypeIndex.ttl";
-    const broken = `<${index}#a> <http://www.w3.org/ns/solid/terms#instance> <${POD}x> ;`;
-    const store2 = pod({
-      [WEBID.split("#")[0]]: `<${WEBID}> <http://www.w3.org/ns/solid/terms#privateTypeIndex> <${index}> .`,
-      [index]: broken,
-    });
-    forgetReads();
-    const warn2 = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await changeHomeSettings(POD, WEBID, (s) => ({ ...s, folded: true }));
-    warn2.mockRestore();
-    expect(store2.get(index)!.text).toBe(broken);
-  });
-
-  it("registers the file in the private Type Index, once, when the profile has one", async () => {
-    const index = POD + "settings/privateTypeIndex.ttl";
-    const profile = `<${WEBID}> <http://www.w3.org/ns/solid/terms#privateTypeIndex> <${index}> .`;
-    const store = pod({ [WEBID.split("#")[0]]: profile, [index]: "<> a <http://www.w3.org/ns/solid/terms#TypeIndex> ." });
-    await changeHomeSettings(POD, WEBID, (s) => ({ ...s, folded: true }));
-    expect(store.get(index)!.text).toContain(registrationTurtle(index, URL).trim());
-    // A second first-write (say, after the file was deleted) doesn't list it twice.
-    store.delete(URL);
-    forgetReads();
-    await changeHomeSettings(POD, WEBID, (s) => ({ ...s, folded: false }));
-    expect(store.get(index)!.text.split("mom-home-settings").length - 1).toBe(1);
-  });
-
-  it("finds the Type Index through the preferences file, and skips it when there is none", async () => {
-    const prefs = POD + "settings/prefs.ttl";
-    const index = POD + "settings/privateTypeIndex.ttl";
-    const store = pod({
-      [WEBID.split("#")[0]]: `<${WEBID}> <http://www.w3.org/ns/pim/space#preferencesFile> <${prefs}> .`,
-      [prefs]: `<${WEBID}> <http://www.w3.org/ns/solid/terms#privateTypeIndex> <${index}> .`,
-      [index]: "",
-    });
-    await changeHomeSettings(POD, WEBID, (s) => ({ ...s, folded: true }));
-    expect(store.get(index)!.text).toContain("TypeRegistration");
-
-    const bare = pod({ [WEBID.split("#")[0]]: "" });
-    forgetReads();
-    await changeHomeSettings(POD, WEBID, (s) => ({ ...s, folded: true }));
-    expect([...bare.keys()].sort()).toEqual([WEBID.split("#")[0], POD + "settings/README.md", URL].sort());
+    expect(parseHomeSettings(store.get(URL)!.text, URL).folded).toBe(true);
   });
 });
 

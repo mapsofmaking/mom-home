@@ -33,7 +33,8 @@ import { makeDraftStore } from "./lib/draft";
 import { hasForwarded, readForwarded } from "./lib/forwarded";
 import { clearPodMade, peekPodMade, takePodMade, type PodMade } from "./lib/handoff";
 import { putOnMap, readPublished, type OnMap } from "./lib/onmap";
-import { makeSpacePublic, PublishError, readSpaceFile, spaceFileUrl, spaceIsPublic, writeSpaceFile } from "./lib/publish";
+import { makeSpacePublic, PublishError, readSpaceAt, readSpaceFile, spaceFileUrl, spaceIsPublic, writeSpaceFile } from "./lib/publish";
+import { registerSpace, spacesInPublicIndex } from "./lib/typeindex";
 import type { Draft } from "./workbench/previews";
 import type { Tree } from "./tree/parse";
 
@@ -186,7 +187,17 @@ function renderWorkbenchView(
           return result;
         }
       : undefined,
-    makePublic: pod ? () => makeSpacePublic(spaceFileUrl(pod.root), pod.webId) : undefined,
+    makePublic: pod
+      ? async () => {
+          const result = await makeSpacePublic(spaceFileUrl(pod.root), pod.webId);
+          // Public now, so findable by type: the public Type Index names it (#14). The file stands without it
+          // (sign-in falls back to the pod root), so a failure here is said in the console, not to the coordinator.
+          await registerSpace(pod.webId, pod.root, spaceFileUrl(pod.root) + "#space").catch((err) =>
+            console.warn("The space is public but not in the public Type Index:", err)
+          );
+          return result;
+        }
+      : undefined,
     putOnMap: pod ? (fileUrl) => putOnMap(fileUrl) : undefined,
     // Already on the map at sign-in: tile B shows the threshold, read from the pod and the map.
     published: pod?.published ?? null,
@@ -280,7 +291,9 @@ async function main(): Promise<void> {
     const root = podRoot;
     // The space, read back from the pod (#11): the pod is the source, so the form and the card are filled from it.
     // A session refused here is the error view's "sign in again"; a file that can't be read costs the card, not the page.
-    const found = await readSpaceFile(root).catch((err) => {
+    // Where the space is: the pod's public Type Index first (#14), the pod root's space.ttl otherwise.
+    const listed = (await spacesInPublicIndex(webId, root).catch(() => []))[0];
+    const found = await (listed ? readSpaceAt(listed) : readSpaceFile(root)).catch((err) => {
       if (err instanceof PublishError && err.code === "expired") throw err;
       console.warn("Could not read space.ttl:", err);
       return null;

@@ -157,7 +157,12 @@ export interface SpaceRead {
  * is shown as such and never overwritten (step 1 never replaces a file).
  */
 export async function readSpaceFile(podRoot: string, fetchImpl: Fetch = (url, init) => authFetch(url, init)): Promise<SpaceRead | null> {
-  const url = spaceFileUrl(podRoot);
+  return readSpaceAt(spaceFileUrl(podRoot), fetchImpl);
+}
+
+/** The same, at an address the Type Index gave (#14). */
+export async function readSpaceAt(fileUrl: string, fetchImpl: Fetch = (url, init) => authFetch(url, init)): Promise<SpaceRead | null> {
+  const url = fileUrl.split("#")[0];
   const res = await send(fetchImpl, url, { headers: { Accept: "text/turtle" } });
   if (res.status === 404) return null;
   if (!res.ok) throw refuse(res, "Could not read the space file");
