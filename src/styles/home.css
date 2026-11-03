@@ -216,3 +216,10 @@
 .wb-code span { display: block; }
 .wb-code .wb-code-gap { color: #8a8576; }
 .wb-code .chg { margin: 0 calc(-1 * var(--space-12)); padding: 0 var(--space-12); background: color-mix(in oklab, var(--code-key) 20%, transparent); box-shadow: inset 3px 0 var(--code-key); }
+/* Tile C saved: the file, then the card, left to right the way a change travels; stacked when the step is narrow. */
+.wb-flow { display: flex; flex-direction: column; gap: var(--space-14); }
+.wb-flow-file, .wb-flow-card { display: flex; flex-direction: column; gap: var(--space-8); min-width: 0; }
+.pv-facts dd.hit { font-weight: 700; }
+@container (min-width: 760px) {
+  .wb-flow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+}

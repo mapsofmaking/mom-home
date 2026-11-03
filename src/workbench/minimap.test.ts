@@ -36,7 +36,7 @@ describe("the small map behind a card (14.4 S6, #16)", () => {
     const html = document.createElement("div");
     html.innerHTML = renderThreshold(keep, {
       ...IDLE, file: "done", pub: "done", map: "done", fileUrl: "https://weld-done.pod.example/space.ttl",
-      onMap: { id: "weld-done", link: "https://mapsofmaking.org/?space=weld-done", pin: { id: "weld-done", name: "Weld Done", lat: 50.8, lon: 4.3, city: "Marolles", country: "Belgium" } },
+      onMap: { id: "weld-done", link: "https://mapsofmaking.org/?space=weld-done", pin: { id: "weld-done", name: "Weld Done", lat: 50.8, lon: 4.3, city: "Marolles", country: "Belgium", hours: "" } },
     }, "", tree.tiles.find((t) => t.id === "change"));
     // The way on says its name only: an arrow read as "this leaves the page" (Nicolas, live 2026-11-03).
     expect(html.querySelector(".wb-arrived-next [data-go]")!.textContent).toBe(tree.tiles.find((t) => t.id === "change")!.title);

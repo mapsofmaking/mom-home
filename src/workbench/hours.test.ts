@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { HoursResult } from "../lib/hours";
+import type { MapReread } from "../lib/onmap";
 import { PublishError } from "../lib/publish";
 import { draftFromTurtle, spaceFile } from "../lib/spacefile";
 import { DONE_CHECKS } from "../tiles/done";
@@ -19,12 +20,12 @@ beforeEach(() => {
   vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {} }));
 });
 
-function open(saveHours: (h: string) => Promise<HoursResult>, draft: Draft = { name: "Weld Done", city: "Marolles", country: "BE", lat: "50.8", lon: "4.3" }) {
+function open(saveHours: (h: string) => Promise<HoursResult>, draft: Draft = { name: "Weld Done", city: "Marolles", country: "BE", lat: "50.8", lon: "4.3" }, mapRead?: (h: string) => Promise<MapReread>) {
   const root = document.createElement("div");
   document.body.append(root);
   renderPage(root, tree, {
     mode: "workbench", who: "weld-done", done: new Set(["describe", "keep"]), draft, fold: { folded: false },
-    onSignIn: () => {}, onSignOut: () => {}, readOffers: async () => "open", saveHours,
+    onSignIn: () => {}, onSignOut: () => {}, readOffers: async () => "open", saveHours, mapRead,
   });
   root.querySelector<HTMLElement>('button[data-tile="change"]')!.click();
   return root;
@@ -147,5 +148,77 @@ describe("hours in the space file, and tile C's done (14.6 S1, AC5)", () => {
     expect(await DONE_CHECKS.change({ ...ctx, spaceData: { ...base, hours: "Mo 9-12" } })).toBe(true);
     expect(await DONE_CHECKS.change({ ...ctx, spaceData: base })).toBe(false);
     expect(await DONE_CHECKS.change({ ...ctx, space: null, spaceData: { ...base, hours: "Mo 9-12" } })).toBe(false);
+  });
+});
+
+describe("the map reads it now; file and card (14.6 S2, #37)", () => {
+  const saved = async (h: string): Promise<HoursResult> => ({ status: "saved", was: "Mo 9-12", hours: h });
+  const reread = (hours: string, caughtUp = true): MapReread => ({
+    caughtUp,
+    onMap: { id: "weld-done", link: "https://mapsofmaking.org/?space=weld-done", pin: { id: "weld-done", name: "Weld Done", lat: 50.8, lon: 4.3, city: "Marolles", country: "BE", hours } },
+  });
+
+  it("after the save the map reads it: the steps tick, then the card shows the new hours beside the file", async () => {
+    let finish!: (r: MapReread) => void;
+    const mapRead = vi.fn(() => new Promise<MapReread>((r) => { finish = r; }));
+    const root = open(vi.fn(saved), undefined, mapRead);
+    type(root, "Mo 9-17");
+    await settle();
+    expect(mapRead).toHaveBeenCalledWith("Mo 9-17");
+    expect(text(root, "#hours-map")).toContain(change.ui.uiStepWritten);
+    expect(text(root, "#hours-map")).toContain(change.ui.uiStepMapReading);
+    finish(reread("Mo 9-17"));
+    await settle();
+    expect(text(root, "#hours-map")).toContain(change.ui.uiStepMapRead);
+    expect(text(root, "#hours-map-status")).toBe(change.ui.uiReloadHint);
+    expect(text(root, ".wb-flow-card .pv-facts dd")).toBe("Mo 9-17");
+    expect(root.querySelector(".wb-flow .wb-flow-file + .wb-flow-card")).not.toBeNull();
+    root.remove();
+  });
+
+  it("late: the map took it, the card still shows what it had, said plainly", async () => {
+    const root = open(vi.fn(saved), undefined, vi.fn(async () => reread("Mo 9-12", false)));
+    type(root, "Mo 9-17");
+    await settle(); await settle();
+    expect(text(root, "#hours-map")).toContain(change.ui.uiStepMapLate);
+    expect(text(root, ".wb-flow-card .pv-facts dd")).toBe("Mo 9-12");
+    root.remove();
+  });
+
+  it("the map's failure is its own: the file has the hours, and the button asks the map again", async () => {
+    let n = 0;
+    const mapRead = vi.fn(async (h: string) => { if (n++ === 0) throw new PublishError("map-down", "x", 502); return reread(h); });
+    const root = open(vi.fn(saved), undefined, mapRead);
+    type(root, "Mo 9-17");
+    await settle(); await settle();
+    expect(text(root, "#hours-map-status")).toBe(change.ui.uiMapDidntRead);
+    expect(root.querySelector('[data-tile="change"]')!.className).toContain("done");
+    root.querySelector<HTMLElement>("#hours-map-again")!.click();
+    await settle(); await settle();
+    expect(mapRead).toHaveBeenCalledTimes(2);
+    expect(text(root, "#hours-map")).toContain(change.ui.uiStepMapRead);
+    root.remove();
+  });
+
+  it("a map that refused the file says so in its own words", async () => {
+    const root = open(vi.fn(saved), undefined, vi.fn(async () => { throw new PublishError("map-refused", "x", 422); }));
+    type(root, "Mo 9-17");
+    await settle(); await settle();
+    expect(text(root, "#hours-map-status")).toBe(change.ui.uiMapRefusedFile);
+    root.remove();
+  });
+
+  it("the tiles don't wait for the map, and its answer never redraws another tile", async () => {
+    let finish!: (r: MapReread) => void;
+    const root = open(vi.fn(saved), undefined, vi.fn(() => new Promise<MapReread>((r) => { finish = r; })));
+    type(root, "Mo 9-17");
+    await settle();
+    root.querySelector<HTMLElement>('button[data-tile="describe"]')!.click();
+    const title = root.querySelector(".wb-step-title");
+    expect(title!.textContent).not.toBe(change.title);
+    finish(reread("Mo 9-17"));
+    await settle();
+    expect(root.querySelector(".wb-step-title")).toBe(title);
+    root.remove();
   });
 });
