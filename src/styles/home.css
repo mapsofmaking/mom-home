@@ -210,6 +210,9 @@
   .wb-form.more-open .wb-more { display: none; }
 }
 
-/* Tile C (14.6): the line of the space file that changed, read back. */
-.wb-file-line { margin: 0; padding: var(--space-10) var(--space-12); background: var(--surface-white); border: var(--stroke-rule) solid var(--rule); font: 400 13px/1.5 var(--font-mono); overflow-x: auto; }
-.wb-file-line mark { background: color-mix(in oklab, var(--state-confirmed) 25%, transparent); color: var(--ink); }
+/* Tile C (14.6): the space file as the design system's terminal shows source (storyboard C3): dark ground, the
+   changed line marked with the key colour and a bar on its left. */
+.wb-code { margin: 0; padding: var(--space-10) var(--space-12); background: #1a1a1a; color: var(--code-fg); font: 400 12.5px/1.6 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.wb-code span { display: block; }
+.wb-code .wb-code-gap { color: #8a8576; }
+.wb-code .chg { margin: 0 calc(-1 * var(--space-12)); padding: 0 var(--space-12); background: color-mix(in oklab, var(--code-key) 20%, transparent); box-shadow: inset 3px 0 var(--code-key); }

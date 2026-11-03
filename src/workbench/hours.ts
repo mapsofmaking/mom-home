@@ -61,7 +61,7 @@ function renderSaved(tile: Tile, state: HoursState): string {
     ${bernard(tile.lines.saidDone ?? "")}
     <p class="wb-aside" id="hours-was">${esc(was)}</p>
     <p class="wf-label">${esc(ui("uiFileLabel"))}</p>
-    <pre class="wb-file-line"><code><mark>schema:openingHours ${esc(JSON.stringify(state.saved ?? ""))} ;</mark></code></pre>
+    <pre class="wb-code" aria-label="${esc(ui("uiFileLabel"))}"><span>&lt;#space&gt; a mom:Space ;</span><span class="wb-code-gap">  …</span><span class="chg">  schema:openingHours ${esc(JSON.stringify(state.saved ?? ""))} ;</span><span class="wb-code-gap">  …</span></pre>
     <div class="wb-out"><button type="button" class="btn" id="hours-again">${esc(ui("uiHoursAgain"))}</button></div>`;
 }
 
