@@ -183,8 +183,9 @@ const of = (kind: FootprintMark["kind"]) => FOOTPRINT.filter((m) => m.kind === k
 export const README_SECTION = `${START}
 ## Maps of Making home (home.mapsofmaking.org)
 
-Home keeps this section up to date. What it put on your pod (paths from your
-pod's root):
+Home keeps this section up to date: what you write between its two markers is
+replaced, the rest of this file is never touched. What it put on your pod
+(paths from your pod's root):
 
 ${of("own")}
 
@@ -234,15 +235,27 @@ ${README_SECTION}
  * changed. Markers home can't make sense of: left alone.
  */
 export function nextReadme(current: string | null): string | null {
-  if (current === null || current.trim() === README_V1.trim()) return SETTINGS_README;
-  const start = current.indexOf(START);
-  const end = current.indexOf(END);
-  const once = (mark: string, at: number) => at >= 0 && current.indexOf(mark, at + 1) < 0;
-  if (start < 0 && end < 0) return current.replace(/\s*$/, "\n\n") + README_SECTION + "\n";
-  if (!once(START, start) || !once(END, end) || end < start) return null;
-  const next = current.slice(0, start) + README_SECTION + current.slice(end + END.length);
+  // Compared and written with LF: a README an editor turned to CRLF is written back once, not at every sign-in.
+  const text = current?.replace(/\r\n/g, "\n") ?? null;
+  if (text === null || text.trim() === "" || text.trim() === README_V1.trim()) return SETTINGS_README;
+  // A marker counts only alone on its line and outside a code fence: a README that quotes them is not marked.
+  const lines = text.split("\n");
+  const starts: number[] = [];
+  const ends: number[] = [];
+  let fenced = false;
+  lines.forEach((l, i) => {
+    if (/^\s*(```|~~~)/.test(l)) fenced = !fenced;
+    else if (!fenced && l.trim() === START) starts.push(i);
+    else if (!fenced && l.trim() === END) ends.push(i);
+  });
+  if (!starts.length && !ends.length) return text.replace(/\s*$/, "\n\n") + README_SECTION + "\n";
+  if (starts.length !== 1 || ends.length !== 1 || ends[0] < starts[0]) return null;
+  const next = [...lines.slice(0, starts[0]), README_SECTION, ...lines.slice(ends[0] + 1)].join("\n");
   return next === current ? null : next;
 }
+
+/** Above this, the README is not one home should be rewriting whole to change its section. */
+const README_MAX = 256 * 1024;
 
 /**
  * Brings `settings/README.md` up to date (nextReadme), in one conditional write:
@@ -253,7 +266,12 @@ export async function ensureSettingsReadme(podRoot: string): Promise<void> {
   const url = podRoot + "settings/README.md";
   const read = await authFetch(url, { cache: "no-store" });
   if (!read.ok && read.status !== 404) return console.warn(`Could not read the settings README (${read.status}).`);
+  // Only a text README is home's to touch: anything else (an HTML page, a binary) is left as it is.
+  const type = read.ok ? (read.headers.get("Content-Type") ?? "").split(";")[0].trim().toLowerCase() : "text/markdown";
+  if (type !== "text/markdown" && type !== "text/plain") return console.warn(`The settings README is ${type || "untyped"}: left alone.`);
+  if (Number(read.headers.get("Content-Length") ?? 0) > README_MAX) return console.warn("The settings README is too large to rewrite: left alone.");
   const current = read.ok ? await read.text() : null;
+  if (current !== null && (current.length > README_MAX || current.includes("�"))) return console.warn("The settings README isn't plain text home can rewrite: left alone.");
   const etag = read.ok ? read.headers.get("ETag") : null;
   const next = nextReadme(current);
   if (next === null) return;
@@ -261,7 +279,8 @@ export async function ensureSettingsReadme(podRoot: string): Promise<void> {
   if (current !== null && !etag) return console.warn("The settings README came without an ETag: left alone.");
   const res = await authFetch(url, {
     method: "PUT",
-    headers: { "Content-Type": "text/markdown", ...(current === null ? { "If-None-Match": "*" } : { "If-Match": etag! }) },
+    // Its own type kept: a text/plain README stays one.
+    headers: { "Content-Type": type, ...(current === null ? { "If-None-Match": "*" } : { "If-Match": etag! }) },
     body: next,
   });
   // 412: someone wrote it meanwhile. The next write home makes tries again.

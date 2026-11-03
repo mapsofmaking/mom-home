@@ -179,6 +179,39 @@ describe("settings/README.md says what home keeps on the pod (#48)", () => {
     expect(next).toBe(`# settings\n\nMy words.\n\n${README_SECTION}\n\n## backoffice\n\nIts words.\n`);
   });
 
+  it("markers quoted in a fence or in a sentence are not markers: the section is added, nothing replaced", () => {
+    const docs = "# notes\n\n```\n" + START + "\nexample\n" + END + "\n```\n\nHome marks with `" + START + "`.\n";
+    expect(nextReadme(docs)).toBe(docs.replace(/\s*$/, "\n\n") + README_SECTION + "\n");
+  });
+
+  it("CRLF and empty files: written back once with LF, then left alone", () => {
+    const crlf = SETTINGS_README.replace(/\n/g, "\r\n");
+    expect(nextReadme(crlf)).toBe(SETTINGS_README);
+    expect(nextReadme(nextReadme(crlf))).toBeNull();
+    expect(nextReadme("")).toBe(SETTINGS_README);
+    const appended = nextReadme("# mine\n")!;
+    expect(nextReadme(appended)).toBeNull();
+  });
+
+  it("a README that isn't text home can rewrite is left alone, and keeps its type", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    for (const [body, type] of [["<html>proxy</html>", "text/html"], ["bin�ary", "text/markdown"], ["x".repeat(300 * 1024), "text/markdown"]]) {
+      mockFetch.mockReset();
+      mockFetch.mockImplementation(async (_u: string, init: RequestInit = {}) =>
+        (init.method ?? "GET") === "GET" ? new Response(body, { status: 200, headers: { "Content-Type": type, ETag: '"1"' } }) : new Response(null, { status: 204 })
+      );
+      await ensureSettingsReadme(POD);
+      expect(puts(), type).toHaveLength(0);
+    }
+    mockFetch.mockReset();
+    mockFetch.mockImplementation(async (_u: string, init: RequestInit = {}) =>
+      (init.method ?? "GET") === "GET" ? new Response("# mine\n", { status: 200, headers: { "Content-Type": "text/plain; charset=utf-8", ETag: '"1"' } }) : new Response(null, { status: 204 })
+    );
+    await ensureSettingsReadme(POD);
+    expect((puts()[0][1] as RequestInit).headers).toMatchObject({ "Content-Type": "text/plain", "If-Match": '"1"' });
+    warn.mockRestore();
+  });
+
   it("markers it can't make sense of: left alone", () => {
     expect(nextReadme(`a\n${START}\nb`)).toBeNull();
     expect(nextReadme(`${END}\n${START}`)).toBeNull();

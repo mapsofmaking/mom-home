@@ -42,6 +42,9 @@ none, or when it still says exactly what home's first version said. Otherwise
 it changes only the text between `<!-- mom-home: start -->` and
 `<!-- mom-home: end -->`, or adds that section at the end if it isn't there.
 Every write is conditional (`If-None-Match: *` or `If-Match`), and markers it
-can't make sense of leave the file alone. Brought up to date after home
+can't make sense of leave the file alone. A marker counts only alone on its
+line and outside a code fence. Only a `text/markdown` or `text/plain` README
+under 256 KB is touched, and it keeps its type; line endings are written back
+as LF. Brought up to date after home
 registers the space, after it first writes its settings, and at sign-in when
 the space is on the pod.

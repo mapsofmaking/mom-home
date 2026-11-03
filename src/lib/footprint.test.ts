@@ -11,7 +11,7 @@ const files = (dir: string): string[] =>
 
 /** A request that changes something, or a call to a helper that writes (kit ACL and conditional writes). */
 const WRITE =
-  /method:\s*"(PUT|PATCH|DELETE|POST)"|(?<![\w.])(writeIfMatch|updateDocument|createOnly|createIfMissing|patchInsertOnly|setAccess|setPublicAccess|setAgentAccess|setAuthenticatedAccess|removeOwnRules|saveRawAcl)\(/g;
+  /method:\s*["'`](put|patch|delete|post)["'`]|(?<![\w.])(writeIfMatch|updateDocument|createOnly|createIfMissing|patchInsertOnly|setAccess|setPublicAccess|setAgentAccess|setAuthenticatedAccess|removeOwnRules|saveRawAcl)\(/g;
 
 /**
  * Every place the code writes, counted per file. A new one fails here on purpose: say in lib/footprint.ts
@@ -34,10 +34,12 @@ describe("what home leaves on a pod (lib/footprint.ts, #48)", () => {
     const found: Record<string, number> = {};
     for (const file of files(SRC)) {
       let n = 0;
-      for (const line of readFileSync(file, "utf8").split("\n")) {
-        // A helper's own definition is not a write.
-        if (/\bfunction\s+\w+\(/.test(line) && !/method:/.test(line)) continue;
-        n += [...line.matchAll(WRITE)].length;
+      // Comments don't write: block comments, and line comments not inside a URL.
+      const code = readFileSync(file, "utf8").replace(/(^|\s)\/\*[\s\S]*?\*\//g, "$1").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+      for (const line of code.split("\n")) {
+        // A helper's own definition is not a write; the first call after it on the same line is.
+        const at = line.match(/\bfunction\s+\w+\(/);
+        n += [...(at ? line.slice(at.index! + at[0].length) : line).matchAll(new RegExp(WRITE.source, "gi"))].length;
       }
       if (n) found[relative(SRC, file)] = n;
     }
