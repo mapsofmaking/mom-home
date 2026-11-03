@@ -33,7 +33,7 @@ import { announce } from "../ui/a11y";
 import { readOffers, type Offers } from "../lib/provider";
 import { AccountError, createAccount, pendingEmail, type NewAccount, type SignUp } from "../lib/register";
 import { markPodMade, type PodMade } from "../lib/handoff";
-import { PublishError, type FileResult } from "../lib/publish";
+import { PublishError, type FileResult, type PublicResult } from "../lib/publish";
 import { IDLE, publishWords, renderPublishPanel, type PublishState } from "./publish";
 import { DEFAULT_IDENTIFIER } from "../config";
 import type { Tree } from "../tree/parse";
@@ -103,6 +103,8 @@ export interface PageOptions {
   priorPod?: PodMade | null;
   /** Signed in with a pod: tile B puts the space on the map (Story 14.4). The shell passes it with the pod it knows. */
   publishSpace?: (draft: Draft) => Promise<FileResult>;
+  /** Step 2 (S2, #12): anyone can read the space file, the rest of the pod stays private. */
+  makePublic?: () => Promise<PublicResult>;
 }
 
 /** null: never set, the width decides. */
@@ -579,43 +581,74 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
       const box = step.querySelector<HTMLElement>("#publish");
       if (!box) return;
       box.innerHTML = renderPublishPanel(tile, publish);
-      if (focus) box.querySelector<HTMLElement>(publish.file === "done" ? "#publish-status" : "#publish-go")?.focus();
+      const finished = publish.file === "done" && publish.pub === "done";
+      if (focus) box.querySelector<HTMLElement>(finished ? "#publish-status" : "#publish-go")?.focus();
     };
-    if (publishing || !opts.publishSpace) return;
+    // Both steps or none: a panel that could end on the file alone would say "anyone can read it" untrue.
+    if (publishing || !opts.publishSpace || !opts.makePublic) return;
+    const publishSpace = opts.publishSpace;
+    const makePublic = opts.makePublic;
     publishing = true;
-    publish = { ...IDLE, file: "working" };
-    paint();
-    try {
-      const result = await opts.publishSpace(opts.draft);
-      const address = result.url;
-      const fileLine =
-        result.status === "written"
-          ? ui("uiStepFileWritten", { address })
-          : result.status === "already-there"
-            ? ui("uiStepFileThere")
-            : ui("uiStepFileKept");
-      const dropped = result.dropped.length
-        ? ui("uiPublishDropped", { fields: result.dropped.map((k) => words.field(k).label.toLowerCase()).join(", ") })
-        : "";
-      publish = { file: "done", message: "", fileLine, dropped };
-    } catch (err) {
-      const e = err instanceof PublishError ? err : new PublishError("refused", String(err));
+    // Each failure is said in the words of the step that failed (AC5).
+    const say = (e: PublishError) => {
       const missing = e.missing.map((m) => ui(({ name: "uiMissingName", town: "uiMissingTown", country: "uiMissingCountry", pin: "uiMissingPin" } as const)[m]));
-      const message =
-        e.code === "incomplete"
-          ? ui("uiPublishIncomplete", { missing: missing.join(", ") })
-          : e.code === "expired"
-            ? ui("uiPublishExpired")
-            : e.code === "unreachable"
-              ? ui("uiPublishUnreachable")
-              : e.code === "unreadable"
-                ? ui("uiPublishUnreadable")
-                : ui("uiPublishRefused", { status: String(e.status ?? "no status") });
-      publish = { file: "failed", message, fileLine: "", dropped: "" };
+      const status = String(e.status ?? "no status");
+      switch (e.code) {
+        case "incomplete": return ui("uiPublishIncomplete", { missing: missing.join(", ") });
+        case "expired": return ui("uiPublishExpired");
+        case "unreachable": return ui("uiPublishUnreachable");
+        case "unreadable": return ui("uiPublishUnreadable");
+        case "rules-unknown": return ui("uiPublicUnknown");
+        case "rules-wider": return ui("uiPublicWider");
+        case "no-control": return ui("uiPublicNoControl");
+        case "conflict": return ui("uiPublicConflict");
+        case "gone": return ui("uiPublicGone");
+        case "no-wac": return ui("uiPublicNoWac");
+        // Already public and still unreadable: pressing again won't help, so the line doesn't say to.
+        case "not-public": return ui(e.rulesWere === "already-public" ? "uiPublicBlocked" : "uiPublicNotPublic", { status });
+        default: return ui("uiPublishRefused", { status });
+      }
+    };
+    const asError = (err: unknown) => (err instanceof PublishError ? err : new PublishError("refused", String(err)));
+    try {
+      // A retry resumes from the step that failed (AC5): a file already written is not written again,
+      // unless the public step found it gone.
+      const resume = publish.file === "done" && publish.pub === "failed" && publish.failedCode !== "gone";
+      if (!resume) {
+        publish = { ...IDLE, file: "working" };
+        paint();
+        let result: FileResult;
+        try {
+          result = await publishSpace(opts.draft);
+        } catch (err) {
+          publish = { ...publish, file: "failed", message: say(asError(err)) };
+          return;
+        }
+        const address = result.url;
+        const fileLine =
+          result.status === "written"
+            ? ui("uiStepFileWritten", { address })
+            : result.status === "already-there"
+              ? ui("uiStepFileThere")
+              : ui("uiStepFileKept");
+        const dropped = result.dropped.length
+          ? ui("uiPublishDropped", { fields: result.dropped.map((k) => words.field(k).label.toLowerCase()).join(", ") })
+          : "";
+        publish = { ...publish, file: "done", fileLine, dropped };
+      }
+      publish = { ...publish, pub: "working", message: "", failedCode: null };
+      paint();
+      try {
+        const pub = await makePublic();
+        publish = { ...publish, pub: "done", pubLine: ui(pub.status === "made-public" ? "uiStepPublicDone" : "uiStepPublicAlready") };
+      } catch (err) {
+        const e = asError(err);
+        publish = { ...publish, pub: "failed", message: say(e), failedCode: e.code };
+      }
     } finally {
       publishing = false;
+      if (step.isConnected) paint(true);
     }
-    if (step.isConnected) paint(true);
   };
 
   /** To the pod's own page (Solid-OIDC). If it doesn't start, the pod still exists: say so, and the button signs in again. */

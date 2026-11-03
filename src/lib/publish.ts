@@ -7,6 +7,7 @@
  * Plain requests through `authFetch`: the session holds the access, nothing is
  * kept here. A 401 or 403 is "your session ended", never "the file is missing".
  */
+import { getAccess, isValidWebId, setAccess, setPublicAccess } from "./acl";
 import { authFetch } from "./auth";
 import { draftFromTurtle, sameStatements, spaceFile, SpaceFileError, type SpaceFile, type SpaceFileProblem } from "./spacefile";
 import type { Draft } from "../workbench/previews";
@@ -21,14 +22,37 @@ export type PublishCode =
   /** The pod said no. */
   | "refused"
   /** The pod took the write but what it holds can't be read back as a space. */
-  | "unreadable";
+  | "unreadable"
+  /** The file's access rules hold something this app doesn't understand: left alone (ADR 003 rule 3). */
+  | "rules-unknown"
+  /** The rules were written, but an anonymous read still doesn't return the file. */
+  | "not-public"
+  /** Anyone, or anyone signed in, can already change the file: "read only" would be a lie. */
+  | "rules-wider"
+  /** 403 on the rules: this account can't change who reads the file. Signing in again won't help. */
+  | "no-control"
+  /** The rules changed meanwhile (412): pressing again reads them afresh. */
+  | "conflict"
+  /** The file is no longer there. */
+  | "gone"
+  /** The pod server uses other access rules than WAC (no `rel="acl"`). */
+  | "no-wac";
 
 export class PublishError extends Error {
   readonly code: PublishCode;
   readonly status: number | null;
   readonly missing: SpaceFileProblem[];
-  constructor(code: PublishCode, message: string, status: number | null = null, missing: SpaceFileProblem[] = []) {
+  /** For "not-public": whether the rules were already public before this press (then pressing again won't help). */
+  readonly rulesWere: "made-public" | "already-public" | null;
+  constructor(
+    code: PublishCode,
+    message: string,
+    status: number | null = null,
+    missing: SpaceFileProblem[] = [],
+    rulesWere: "made-public" | "already-public" | null = null
+  ) {
     super(message);
+    this.rulesWere = rulesWere;
     this.name = "PublishError";
     this.code = code;
     this.status = status;
@@ -142,4 +166,147 @@ export async function readSpaceFile(podRoot: string, fetchImpl: Fetch = (url, in
   }
   if (!draft) throw new PublishError("unreadable", "The file at space.ttl holds no space.");
   return { url, space: `${url}#space`, draft };
+}
+
+export interface PublicResult {
+  /** made-public: public Read added now. already-public: it was there, nothing written. */
+  status: "made-public" | "already-public";
+}
+
+/** Who can read: the public modes and the signed-in modes, as acl.ts reads them. */
+type Modes = readonly string[];
+/** Anything beyond Read for the public or for everyone signed in: anyone could change the file. */
+const wider = (pub: Modes, signedIn: Modes) => pub.some((m) => m !== "read") || signedIn.some((m) => m !== "read");
+
+/** Races a phase against the step's time limit: a pod that hangs must not hold the panel and the tiles. */
+async function inTime<T>(work: Promise<T>, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new PublishError("unreachable", `${what}: no answer in ${TIMEOUT_MS / 1000} s.`)), TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([work, late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * An error from acl.ts in this file's terms. `reading` is true while the rules are being read and parsed:
+ * a failure without a status there is rules this app can't read (an .acl that isn't Turtle).
+ */
+function aclFailure(err: unknown, what: string, reading: boolean): PublishError {
+  if (err instanceof PublishError) return err;
+  const e = err as { status?: number; code?: string; message?: string };
+  const message = e.message ?? String(err);
+  if (e.status === 401) return new PublishError("expired", `${what}: the pod refused this session (401).`, 401);
+  // 403 is not "sign in again": signing in again gives the same 403. The signer can't change who reads it.
+  if (e.status === 403) return new PublishError("no-control", `${what}: this account can't change who reads the file (403).`, 403);
+  if (e.status === 412 || e.code === "conflict") return new PublishError("conflict", `${what}: the rules changed meanwhile.`, 412);
+  if (e.status === 404) return new PublishError("gone", `${what}: the file is no longer there (404).`, 404);
+  if (typeof e.status === "number") return new PublishError("refused", `${what} (${e.status}).`, e.status);
+  if (/advertises no access-control document/.test(message)) return new PublishError("no-wac", message);
+  // acl.ts's rule-3 refusal, also raised on the re-read after a 412 (its wording, kept identical to the backoffice's).
+  if (/does not understand/.test(message)) return new PublishError("rules-unknown", message);
+  if (err instanceof TypeError) return new PublishError("unreachable", `${what}: ${message}`);
+  if (reading) return new PublishError("rules-unknown", `${what}: the rules can't be read: ${message}`);
+  return new PublishError("refused", `${what}: ${message}`);
+}
+
+export interface MakePublicOptions {
+  /** What the anonymous read asks for (a logo is not Turtle). */
+  accept?: string;
+  /** That the anonymous answer is the resource itself, not a login or error page served as 200. */
+  isTheResource?: (body: string, contentType: string | null) => boolean;
+  anonFetch?: Fetch;
+}
+
+/**
+ * Anyone can read one file, and only that (Story 14.4 AC3, #12). A helper that
+ * takes the resource: 14.6 reuses it for a logo. The rules are the file's own
+ * `.acl`, hand-written by acl.ts (kit ADR 003): the target is the file's own name,
+ * the owner keeps Read, Write and Control, rules it doesn't understand are never
+ * rewritten, WebIDs are validated.
+ *
+ * - Files only: a folder's `.acl` would open everything in it.
+ * - Public Read and nothing more: a file anyone (or anyone signed in) can already
+ *   change is refused, never reported as "read only".
+ * - Asks first: already public, nothing is written (a retry resumes).
+ * - A file with no rules of its own gets a copy of what its folder passes on
+ *   (other agents, and the real owner if the signer isn't), plus public Read: a
+ *   new `.acl` replaces inheritance, so nothing that reached the file is lost.
+ * - The proof is a stranger's read: no credentials, exactly 200, no redirect, and
+ *   the answer is the resource.
+ */
+export async function makePublic(resourceUrl: string, ownerWebId: string, options: MakePublicOptions = {}): Promise<PublicResult> {
+  const { accept = "*/*", isTheResource = () => true, anonFetch = (url, init) => fetch(url, init) } = options;
+  if (resourceUrl.endsWith("/")) throw new PublishError("refused", "Only a file is opened to anyone, never a folder.");
+  if (!isValidWebId(ownerWebId)) throw new PublishError("refused", `Not a valid WebID: ${ownerWebId}`);
+  const what = "Could not set who can read the file";
+
+  let access: Awaited<ReturnType<typeof getAccess>>;
+  try {
+    access = await inTime(getAccess(resourceUrl, ownerWebId), what);
+  } catch (err) {
+    throw aclFailure(err, what, true);
+  }
+
+  let status: PublicResult["status"];
+  if (wider(access.public, access.authenticated)) {
+    throw new PublishError("rules-wider", "Anyone (or anyone signed in) can already change this file; left alone.");
+  }
+  if (access.public.includes("read")) {
+    // Nothing to write, so nothing to rewrite: rules it doesn't understand elsewhere in the .acl don't matter here.
+    status = "already-public";
+  } else {
+    if (access.unknown.length) throw new PublishError("rules-unknown", "The file's rules hold something this app does not understand; left alone.");
+    try {
+      if (access.inherited) {
+        // What the folder passes on reaches the file today; the new .acl must keep it.
+        const folder = await inTime(getAccess(new URL("./", resourceUrl).href, ownerWebId), what);
+        if (folder.unknown.length) throw new PublishError("rules-unknown", "The folder's rules hold something this app does not understand; left alone.");
+        if (wider(folder.inherits.public, folder.inherits.authenticated)) {
+          throw new PublishError("rules-wider", "Anyone (or anyone signed in) can already change what is in this folder; left alone.");
+        }
+        await inTime(
+          setAccess(resourceUrl, ownerWebId, { agents: folder.inherits.agents, authenticated: folder.inherits.authenticated, public: ["read"] }, null),
+          what
+        );
+      } else {
+        await inTime(setPublicAccess(resourceUrl, ownerWebId, ["read"]), what);
+      }
+      status = "made-public";
+    } catch (err) {
+      throw aclFailure(err, what, false);
+    }
+  }
+
+  // The proof is what a stranger gets: no session, no cookie, no cache (send), and it must be the file.
+  let anon: Response;
+  try {
+    anon = await send(anonFetch, resourceUrl, { headers: { Accept: accept }, credentials: "omit", redirect: "follow" });
+  } catch (err) {
+    // A fetch the browser blocks (CORS) looks like no answer; the signed-in steps just got answers.
+    throw new PublishError("not-public", `An anonymous read of the file did not go through: ${(err as Error).message}`, null, [], status);
+  }
+  const body = anon.status === 200 && !anon.redirected ? await anon.text() : null;
+  if (body === null || !isTheResource(body, anon.headers.get("content-type"))) {
+    throw new PublishError("not-public", `An anonymous read of the file returned ${anon.status}${anon.redirected ? " after a redirect" : ""}.`, anon.status, [], status);
+  }
+  return { status };
+}
+
+/** The space file, opened to anyone: the proof must read back as a space. */
+export async function makeSpacePublic(fileUrl: string, ownerWebId: string, anonFetch?: Fetch): Promise<PublicResult> {
+  return makePublic(fileUrl, ownerWebId, {
+    accept: "text/turtle",
+    anonFetch,
+    isTheResource: (body) => {
+      try {
+        return draftFromTurtle(body, fileUrl) !== null;
+      } catch {
+        return false;
+      }
+    },
+  });
 }

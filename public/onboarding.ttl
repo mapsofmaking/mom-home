@@ -142,14 +142,26 @@
   onb:uiPriorSignIn "Sign in to your pod"@en ;
   onb:uiPriorAnother "Make another one"@en ;
   # Signed in, with the pod made (Story 14.4): the steps of "Put it on the map", and what each says.
-  onb:sayPublish "Your pod is ready. Press the button: your space's file goes in it."@en ;
+  onb:sayPublish "Your pod is ready. Press the button: your space's file goes in it, and anyone can read that one file. Nothing else in your pod is opened."@en ;
   onb:uiPublishGo "Put it on the map"@en ;
   onb:uiStepFile "Write your space's file in your pod"@en ;
   onb:uiStepFileWorking "Writing it."@en ;
   onb:uiStepFileWritten "Written, and read back: {address}"@en ;
   onb:uiStepFileThere "It was already there and says the same. Left as it is."@en ;
   onb:uiStepFileKept "A file is already there and says something else. Left exactly as it is, so your edits stay."@en ;
-  onb:uiPublishNext "Your file is in your pod. Making it public, and putting it on the map, come next."@en ;
+  onb:uiPublishNext "Your file is in your pod, and anyone can read it. Putting it on the map comes next."@en ;
+  onb:uiStepPublic "Let anyone read it"@en ;
+  onb:uiStepPublicWorking "Opening that one file to anyone."@en ;
+  onb:uiStepPublicDone "Anyone can read it now: checked without signing in. Nothing else in your pod was opened."@en ;
+  onb:uiStepPublicAlready "Anyone could already read it, and it's checked without signing in. Left as it is."@en ;
+  onb:uiPublicUnknown "Who can read this file is set by rules this app doesn't understand, so they were left alone. The people who run the pod server can help."@en ;
+  onb:uiPublicNotPublic "The file is open to anyone, but reading it without signing in still fails ({status}). Press the button again."@en ;
+  onb:uiPublicBlocked "The file was already open to anyone, yet reading it without signing in fails ({status}). Pressing again won't change that: the people who run the pod server can see why."@en ;
+  onb:uiPublicWider "Anyone can already change this file, not only read it. That was left alone: check who can edit it in your pod before putting it on the map."@en ;
+  onb:uiPublicNoControl "This account can read and write the file but can't decide who reads it. The pod's owner can open it to anyone."@en ;
+  onb:uiPublicConflict "Who can read the file changed while this ran. Press the button again: it starts from what is there now."@en ;
+  onb:uiPublicGone "The file is no longer in your pod. Press the button again: it is written anew."@en ;
+  onb:uiPublicNoWac "This pod server sets who can read files another way, which this app doesn't handle yet. The people who run it can help."@en ;
   onb:uiPublishDropped "Left out of the file, because it isn't a web address: {fields}."@en ;
   onb:uiPublishIncomplete "Your description isn't complete: it still needs {missing}. Go back to the first tile, then press again."@en ;
   onb:uiMissingName "a name"@en ;
