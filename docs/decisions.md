@@ -8,6 +8,15 @@ Kit-level decisions (Solid, ACLs, sign-in) are ADRs in the kit repo; this file o
 
 ## 2026-11-03
 
+- **The `/profile/` rule, narrowed** (Nicolas, devil's-advocated). Home never rewrites the WebID profile.
+  When the Type Index links are missing, it may **add** them (`solid:publicTypeIndex`,
+  `solid:privateTypeIndex`) in one insert-only N3 Patch, and nothing else: the server appends, nothing can
+  be deleted or rewritten. Changing or removing a profile line is the owner's own act, in the backoffice.
+  Our pod server creates both indexes and their links when it makes a pod (solid-css-overlay template), so
+  on our pods home never needs to; the patch covers pods hosted elsewhere. Home adds and updates only its
+  own entries inside the index files (conditional writes). `space.ttl` at the pod root stays the fallback.
+  Why: discovery by type is how other apps, agents and later networks find a space (several per person);
+  the original rule was about not putting the space in the profile, which still holds.
 - **Planning lives in issues and the org project, not in story files** (Nicolas). One issue per slice, written as
   outcome + constraints + live check. Risky slices (accounts, passphrase, ACL, anything that writes to a pod)
   carry the `review` label and get an adversarial review on their PR; every story ends with one full review over
