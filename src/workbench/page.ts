@@ -368,6 +368,10 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     // The suggested address is checked as soon as the form opens (AC2): a bad one shows before the passphrase is reached.
     const podForm = step.querySelector<HTMLFormElement>("#f-pod");
     if (podForm && pod.name) checkName(podForm, thresholdWords(tile));
+    // Tile C's file scrolls inside its frame: the changed line is brought into view, a third from the top.
+    const file = step.querySelector<HTMLElement>("pre.wb-file");
+    const chg = file?.querySelector<HTMLElement>(".chg");
+    if (file && chg) file.scrollTop += chg.getBoundingClientRect().top - file.getBoundingClientRect().top - file.clientHeight / 3;
     // A card with a pin gets its small map, loaded on demand (S6, #16).
     void mountMiniMaps(step);
   };
