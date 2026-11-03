@@ -122,6 +122,8 @@ export interface PageOptions {
   saveHours?: (hours: string) => Promise<HoursResult>;
   /** Tile C, after a save (S2, #37): the map reads the file now, and its card is read back. */
   mapRead?: (hours: string) => Promise<MapReread>;
+  /** The space file's text as the pod held it at sign-in: tile C shows it (14.6, live sources only). */
+  spaceText?: string | null;
 }
 
 /** null: never set, the width decides. */
@@ -241,7 +243,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   let fileSaw: string | null = opts.published || opts.onPod ? draftKey(opts.draft) : null;
   let publishing = false;
   /** Tile C's hours (14.6); a save in flight holds the screen still, like a publish. */
-  let hours: HoursState = hoursIdle(opts.draft.hours);
+  let hours: HoursState = hoursIdle(opts.draft.hours, opts.spaceText ?? null, opts.published?.onMap ?? null);
   let savingHours = false;
   const workbench = opts.mode === "workbench";
   // Everything that outlives the markup (root and media-query listeners,
@@ -358,6 +360,8 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     pod.held = pendingEmail(DEFAULT_IDENTIFIER);
     pod.made = made !== null;
     clearTimeout(podTimer);
+    // Published in this tab: tile C's card is the one the map gave back then.
+    if (!hours.onMap && publish.onMap) hours = { ...hours, onMap: publish.onMap };
     step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, carded, words, offers, door, pod, podReady: podReady?.pod ?? null, prior: opts.priorPod ?? null, makeAnother, publish: opts.publishSpace ? publish : null, hours: opts.saveHours ? hours : null });
     step.scrollTop = 0;
     if (tile.act === "threshold" && !offersAsked) askOffers();
@@ -525,10 +529,14 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
       void readByMap();
       return;
     }
-    if (target.id === "hours-again") {
-      hours = hoursIdle(hours.saved ?? opts.draft.hours);
-      draw();
-      step.querySelector<HTMLInputElement>("#f-hours-value")?.focus();
+    if (target.id === "hours-back") {
+      // Back to the tiles (C3): tile C stays the shortcut for the next change, opening on the field again.
+      hours = hoursIdle(hours.saved ?? opts.draft.hours, hours.file, hours.onMap);
+      const states = tileStates(tree.tiles, doneNow(), completable);
+      const next = tree.tiles.find((t) => t.act !== "hours" && states.get(t.id) === "open");
+      if (next) select(next.id);
+      else draw();
+      step.querySelector<HTMLElement>(".wb-step-title")?.focus();
       return;
     }
     if (target.id === "example") {
@@ -802,12 +810,13 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     }
     if (result.status === "same") {
       // Nothing to write: said plainly, not as an error (AC0).
-      hours = { ...hours, status: "idle", message: ui("uiHoursSame") };
+      hours = { ...hours, status: "idle", message: ui("uiHoursSame"), file: result.text };
       paint("status");
       return;
     }
     opts.draft.hours = result.hours;
-    hours = { ...hoursIdle(result.hours), status: "saved", was: result.was, saved: result.hours, map: opts.mapRead ? "working" : "idle" };
+    // The file read back says the new hours; the card keeps the old ones until the map has read it (C2).
+    hours = { ...hoursIdle(result.hours, result.text, hours.onMap), status: "saved", was: result.was, saved: result.hours, map: opts.mapRead ? "working" : "idle" };
     // The file says the hours now: tile C is done in this tab, as the next sign-in reads it from the pod (AC5).
     doneHere.add("change");
     draw();

@@ -149,6 +149,8 @@ export interface SpaceRead {
   /** The space's IRI in the file (`…/space.ttl#space`). */
   space: string;
   draft: Draft;
+  /** The file as the pod holds it (tile C shows it, 14.6: live sources only). */
+  text: string;
 }
 
 /**
@@ -176,7 +178,7 @@ export async function readSpaceAt(fileUrl: string, fetchImpl: Fetch = (url, init
     throw new PublishError("unreadable", `The space file is not Turtle this app can read: ${(err as Error).message}`);
   }
   if (!draft) throw new PublishError("unreadable", "The file at space.ttl holds no space.");
-  return { url, space: `${url}#space`, draft };
+  return { url, space: `${url}#space`, draft, text };
 }
 
 export interface PublicResult {

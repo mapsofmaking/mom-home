@@ -30,6 +30,8 @@ export interface HoursResult {
   /** What the file said before; null when it had no hours. */
   was: string | null;
   hours: string;
+  /** The file as the pod holds it after the save, read back (or before, when nothing was written). */
+  text: string;
 }
 
 /** A term as N3 writes it: IRIs in angle brackets, literals with their language or datatype. */
@@ -63,14 +65,16 @@ interface Read {
   subject: string;
   hours: Quad[];
   etag: string | null;
+  text: string;
 }
 
 async function readHours(fileUrl: string, fetchImpl: Fetch): Promise<Read> {
   const res = await send(fetchImpl, fileUrl, { headers: { Accept: "text/turtle" } });
   if (!res.ok) fail(res, "Reading the space file");
   let quads: Quad[];
+  const text = await res.text();
   try {
-    quads = new Parser({ baseIRI: fileUrl }).parse(await res.text());
+    quads = new Parser({ baseIRI: fileUrl }).parse(text);
   } catch (err) {
     throw new PublishError("unreadable", `The space file isn't Turtle any more: ${(err as Error).message}`);
   }
@@ -81,7 +85,7 @@ async function readHours(fileUrl: string, fetchImpl: Fetch): Promise<Read> {
   if (!found) throw new PublishError("unreadable", "The space file names no space.");
   if (found.termType !== "NamedNode") throw new PublishError("unreadable", "The space in the file has no address of its own: left alone.");
   const subject = found.value;
-  return { subject, hours: quads.filter((q) => q.subject.value === subject && q.predicate.value === HOURS), etag: res.headers.get("ETag") };
+  return { subject, hours: quads.filter((q) => q.subject.value === subject && q.predicate.value === HOURS), etag: res.headers.get("ETag"), text };
 }
 
 /** The patch: the hours read go, the new ones come; nothing else in the file is touched. */
@@ -104,7 +108,7 @@ export async function saveHours(fileUrl: string, typed: string, fetchImpl: Fetch
   const before = await readHours(fileUrl, fetchImpl);
   const was = before.hours[0]?.object.value ?? null;
   const plain = (q: Quad) => q.object.termType === "Literal" && !q.object.language && q.object.datatype.value === XSD_STRING;
-  if (before.hours.length === 1 && was === hours && plain(before.hours[0])) return { status: "same", was, hours };
+  if (before.hours.length === 1 && was === hours && plain(before.hours[0])) return { status: "same", was, hours, text: before.text };
   // Without the read's ETag the write can't be conditional: an insert would land over a change it never saw.
   if (!before.etag) throw new PublishError("refused", "The pod sent no ETag, so the write can't check the file is unchanged.");
 
@@ -123,5 +127,5 @@ export async function saveHours(fileUrl: string, typed: string, fetchImpl: Fetch
   if (!after.hours.some((q) => q.object.value === hours)) {
     throw new PublishError("unconfirmed", "Written, but the file read back doesn't say these hours: it may have changed since.");
   }
-  return { status: "saved", was, hours };
+  return { status: "saved", was, hours, text: after.text };
 }

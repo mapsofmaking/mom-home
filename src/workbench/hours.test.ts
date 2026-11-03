@@ -51,20 +51,20 @@ describe("tile C, the first time (14.6 S1, #36)", () => {
   });
 
   it("saves once, shows what it was and the file's line, and tile C is done", async () => {
-    const saveHours = vi.fn(async (h: string): Promise<HoursResult> => ({ status: "saved", was: "Mo 9-12", hours: h }));
+    const saveHours = vi.fn(async (h: string): Promise<HoursResult> => ({ status: "saved", was: "Mo 9-12", hours: h, text: "" }));
     const root = open(saveHours);
     type(root, "Tu-Fr 12:00-20:00");
     root.querySelector<HTMLElement>("#hours-save")?.click();
     await settle();
     expect(saveHours).toHaveBeenCalledTimes(1);
-    expect(text(root, "#hours-was")).toBe(change.ui.uiHoursWas.replace("{was}", "Mo 9-12"));
+    expect(text(root, "#hours-was")).toBe(`${change.ui.uiHoursLabel} ${change.ui.uiHoursWas.replace("{was}", "Mo 9-12")}`);
     expect(text(root, ".wb-code .chg")).toBe('schema:openingHours "Tu-Fr 12:00-20:00" ;');
     expect(root.querySelector('[data-tile="change"]')!.className).toContain("done");
     root.remove();
   });
 
   it("the same hours: said plainly, not as an error, nothing marked done", async () => {
-    const root = open(vi.fn(async (h: string): Promise<HoursResult> => ({ status: "same", was: h, hours: h })));
+    const root = open(vi.fn(async (h: string): Promise<HoursResult> => ({ status: "same", was: h, hours: h, text: "" })));
     type(root, "Mo 9-12");
     await settle();
     expect(text(root, "#hours-status")).toBe(change.ui.uiHoursSame);
@@ -114,17 +114,19 @@ describe("tile C, the first time (14.6 S1, #36)", () => {
     root.querySelector<HTMLElement>('button[data-tile="describe"]')!.click();
     expect(saveHours).toHaveBeenCalledTimes(1);
     expect(root.querySelector("#f-hours")).not.toBeNull();
-    finish({ status: "saved", was: null, hours: "Mo 9-17" });
+    finish({ status: "saved", was: null, hours: "Mo 9-17", text: "" });
     await settle();
     expect(text(root, "#hours-was")).toBe(change.ui.uiHoursNew);
     root.remove();
   });
 
-  it("Change them again opens the field with the saved hours", async () => {
-    const root = open(vi.fn(async (h: string): Promise<HoursResult> => ({ status: "saved", was: null, hours: h })));
+  it("Back to your tiles leaves tile C; reopened, it is the field again with the saved hours (C3)", async () => {
+    const root = open(vi.fn(async (h: string): Promise<HoursResult> => ({ status: "saved", was: null, hours: h, text: "" })));
     type(root, "Mo 9-17");
     await settle();
-    root.querySelector<HTMLElement>("#hours-again")!.click();
+    root.querySelector<HTMLElement>("#hours-back")!.click();
+    expect(root.querySelector(".wb-step-title")!.textContent).not.toBe(change.title);
+    root.querySelector<HTMLElement>('button[data-tile="change"]')!.click();
     expect(root.querySelector<HTMLInputElement>("#f-hours-value")!.value).toBe("Mo 9-17");
     root.remove();
   });
@@ -152,10 +154,10 @@ describe("hours in the space file, and tile C's done (14.6 S1, AC5)", () => {
 });
 
 describe("the map reads it now; file and card (14.6 S2, #37)", () => {
-  const saved = async (h: string): Promise<HoursResult> => ({ status: "saved", was: "Mo 9-12", hours: h });
+  const saved = async (h: string): Promise<HoursResult> => ({ status: "saved", was: "Mo 9-12", hours: h, text: "" });
   const reread = (hours: string, caughtUp = true): MapReread => ({
     caughtUp,
-    onMap: { id: "weld-done", link: "https://mapsofmaking.org/?space=weld-done", pin: { id: "weld-done", name: "Weld Done", lat: 50.8, lon: 4.3, city: "Marolles", country: "BE", hours } },
+    onMap: { id: "weld-done", link: "https://mapsofmaking.org/?space=weld-done", pin: { id: "weld-done", name: "Weld Done", lat: 50.8, lon: 4.3, city: "Marolles", country: "BE", hours, address: "Rue de l'Étincelle 12" } },
   });
 
   it("after the save the map reads it: the steps tick, then the card shows the new hours beside the file", async () => {
@@ -171,8 +173,8 @@ describe("the map reads it now; file and card (14.6 S2, #37)", () => {
     await settle();
     expect(text(root, "#hours-map")).toContain(change.ui.uiStepMapRead);
     expect(text(root, "#hours-map-status")).toBe(change.ui.uiReloadHint);
-    expect(text(root, ".wb-flow-card .pv-facts dd")).toBe("Mo 9-17");
-    expect(root.querySelector(".wb-flow .wb-flow-file + .wb-flow-card")).not.toBeNull();
+    expect(text(root, ".wb-flow-card .pv-facts dd.hit")).toBe("Mo 9-17");
+    expect(root.querySelector(".wb-flow .wb-flow-file ~ .wb-flow-card")).not.toBeNull();
     root.remove();
   });
 
@@ -181,7 +183,7 @@ describe("the map reads it now; file and card (14.6 S2, #37)", () => {
     type(root, "Mo 9-17");
     await settle(); await settle();
     expect(text(root, "#hours-map")).toContain(change.ui.uiStepMapLate);
-    expect(text(root, ".wb-flow-card .pv-facts dd")).toBe("Mo 9-12");
+    expect(text(root, ".wb-flow-card .pv-facts dd.hit")).toBe("Mo 9-12");
     root.remove();
   });
 
@@ -219,6 +221,47 @@ describe("the map reads it now; file and card (14.6 S2, #37)", () => {
     finish(reread("Mo 9-17"));
     await settle();
     expect(root.querySelector(".wb-step-title")).toBe(title);
+    root.remove();
+  });
+});
+
+describe("tile C follows the storyboard: C1 before, C2 while the map reads (14.6 S2)", () => {
+  const FILE_TEXT = `@prefix schema: <https://schema.org/> .\n<#space> a mom:Space ;\n  schema:name "Weld Done" ;\n  schema:openingHours "Mo 9-12" .\n`;
+  const onMap = (hours: string) => ({ id: "weld-done", link: "https://mapsofmaking.org/?space=weld-done", pin: { id: "weld-done", name: "Weld Done", lat: 50.8, lon: 4.3, city: "Marolles", country: "BE", hours, address: "Rue de l'Étincelle 12" } });
+  const mount = (extra: Record<string, unknown>) => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    renderPage(root, tree, {
+      mode: "workbench", who: "weld-done", done: new Set(["describe", "keep"]), draft: { name: "Weld Done", hours: "Mo 9-12" }, fold: { folded: false },
+      onSignIn: () => {}, onSignOut: () => {}, readOffers: async () => "open",
+      published: { fileUrl: "https://weld-done.pod.example/space.ttl", onMap: onMap("Mo 9-12") }, spaceText: FILE_TEXT, ...extra,
+    } as Parameters<typeof renderPage>[2]);
+    root.querySelector<HTMLElement>('button[data-tile="change"]')!.click();
+    return root;
+  };
+
+  it("C1: before saving, the pod's file (every line, the hours marked), an arrow, then the card the map holds", () => {
+    const root = mount({ saveHours: vi.fn() });
+    expect(root.querySelectorAll(".wb-code span")).toHaveLength(4);
+    expect(text(root, ".wb-code .chg")).toBe('schema:openingHours "Mo 9-12" .');
+    expect(root.querySelector(".wb-flow-arrow")).not.toBeNull();
+    expect(text(root, ".wb-facts-box dd.hit")).toBe("Mo 9-12");
+    expect(text(root, ".wb-facts-box dd")).toBe("Rue de l'Étincelle 12");
+    root.remove();
+  });
+
+  it("C2: saved, the file read back says the new hours while the card still says the old ones", async () => {
+    const after = FILE_TEXT.replace("Mo 9-12", "Mo 9-17");
+    const root = mount({
+      saveHours: vi.fn(async (h: string): Promise<HoursResult> => ({ status: "saved", was: "Mo 9-12", hours: h, text: after })),
+      mapRead: vi.fn(() => new Promise<MapReread>(() => {})),
+    });
+    type(root, "Mo 9-17");
+    await settle();
+    expect(text(root, ".wb-code .chg")).toBe('schema:openingHours "Mo 9-17" .');
+    expect(text(root, ".wb-facts-box dd.hit")).toBe("Mo 9-12");
+    expect(text(root, "#hours-map")).toContain(change.ui.uiStepMapReadingWhy);
+    expect(root.querySelector("#hours-back")).toBeNull();
     root.remove();
   });
 });

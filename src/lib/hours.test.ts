@@ -50,7 +50,8 @@ describe("the hours, changed once in the space's file (14.6 S1, #36)", () => {
   it("adds hours to a file that had none, read back", async () => {
     const p = pod(FILE());
     const r = await saveHours(URL_, "  Tu-Sa 10:00-18:00 ", p.fetchImpl);
-    expect(r).toEqual({ status: "saved", was: null, hours: "Tu-Sa 10:00-18:00" });
+    expect(r).toMatchObject({ status: "saved", was: null, hours: "Tu-Sa 10:00-18:00" });
+    expect(r.text).toContain("Tu-Sa 10:00-18:00");
     expect(hoursIn(p.text())).toEqual(["Tu-Sa 10:00-18:00"]);
   });
 

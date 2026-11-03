@@ -1,11 +1,19 @@
 /**
- * Tile C, "Update it once", the first time (Story 14.6 S1, #36): one field, the
- * opening hours, and Save. The change goes into the space's file on the pod
- * (lib/hours.ts); then the file line that changed is shown, read back.
+ * Tile C, "Update it once", the first time (Story 14.6, storyboard C1 to C3): one field,
+ * the opening hours, and Save; below it, read left to right the way a change travels,
+ * the space's file as the pod holds it and the card as the map draws it (AC0, AC3).
  *
- * Its words are the tree's (`onb:ui*` on `:change`); this file decides which line,
- * never what it says. The panel (`#hours`) is redrawn in place while a save runs,
- * so nothing else on the screen moves under the coordinator.
+ * - C1, before: the file with its hours line marked, then the card with the hours it shows.
+ * - C2, while the map reads: the file already says the new hours, the card still the old
+ *   ones. The split is the lesson.
+ * - C3, done: both agree; "was" names the old value; the tile hands back to the others.
+ *
+ * Live sources only: the file is the pod's text (read at sign-in, then read back after the
+ * save, lib/hours.ts), the card the map's own (lib/onmap.ts). Nothing here draws either
+ * from what was typed.
+ *
+ * Its words are the tree's (`onb:ui*` on `:change`); this file decides which line, never
+ * what it says.
  */
 import type { Tile } from "../tree/parse";
 import { bernard, esc } from "./html";
@@ -14,11 +22,12 @@ import { miniMapSlot } from "./minimap";
 import type { OnMap } from "../lib/onmap";
 
 export const HOURS_UI_KEYS = [
-  "uiHoursLabel", "uiHoursHint", "uiHoursPlaceholder", "uiSave", "uiSaving", "uiHoursSame", "uiHoursEmpty",
+  "uiHoursLabel", "uiHoursHint", "uiHoursPlaceholder", "uiSave", "uiHoursFirst", "uiSaving", "uiHoursSame", "uiHoursEmpty",
   "uiHoursConflict", "uiHoursExpired", "uiHoursGone", "uiHoursUnreachable", "uiHoursRefused", "uiHoursUnreadable",
-  "uiHoursWas", "uiHoursNew", "uiFileLabel", "uiHoursAgain", "uiHoursNoAccess", "uiHoursUnconfirmed",
-  "uiStepWritten", "uiStepMapReading", "uiStepMapRead", "uiStepMapLate", "uiMapDidntRead", "uiMapRefusedFile", "uiMapAgain",
-  "uiCardLabel", "uiHoursFact", "uiReloadHint",
+  "uiHoursWas", "uiHoursNew", "uiFileLabel", "uiHoursNoAccess", "uiHoursUnconfirmed",
+  "uiStepWritten", "uiStepMapReading", "uiStepMapReadingWhy", "uiStepMapRead", "uiStepMapLate", "uiMapDidntRead",
+  "uiMapRefusedFile", "uiMapAgain", "uiCardLabel", "uiCardFacts", "uiAddressFact", "uiHoursFact", "uiReloadHint",
+  "uiBackToTiles", "uiTileStays",
 ] as const;
 export type HoursUiKey = (typeof HOURS_UI_KEYS)[number];
 export const hoursWords = (tile: Pick<Tile, "ui"> | undefined) => tileUi<HoursUiKey>(tile, "tile C (hours)");
@@ -32,16 +41,18 @@ export interface HoursState {
   /** Once saved: what the file said before (null: no hours), and what it says now. */
   was: string | null;
   saved: string | null;
+  /** The file as the pod holds it: read at sign-in, read back after a save. null: not read. */
+  file: string | null;
   /** Once saved (S2, #37): the map reading the file. late: it took it but hasn't redrawn yet. */
   map: "idle" | "working" | "done" | "late" | "failed";
-  /** The card as the map holds it, read back. */
+  /** The card as the map holds it: read at sign-in, read back after the map read the change. */
   onMap: OnMap | null;
   /** Why the map didn't read it. */
   mapMessage: string;
 }
 
-export const hoursIdle = (current: string | undefined): HoursState => ({
-  status: "idle", typed: current ?? "", message: "", was: null, saved: null, map: "idle", onMap: null, mapMessage: "",
+export const hoursIdle = (current: string | undefined, file: string | null = null, onMap: OnMap | null = null): HoursState => ({
+  status: "idle", typed: current ?? "", message: "", was: null, saved: null, file, map: "idle", onMap, mapMessage: "",
 });
 
 const marker = (state: HoursState["map"] | "done") =>
@@ -53,13 +64,32 @@ const marker = (state: HoursState["map"] | "done") =>
         ? `<span class="sp-unlock-marker" aria-hidden="true">!</span>`
         : `<span class="sp-unlock-marker" aria-hidden="true"></span>`;
 
+/** The form and the line under it: the part redrawn in place while the pod writes. */
+export function renderHoursPanel(tile: Tile, state: HoursState): string {
+  const ui = hoursWords(tile);
+  const busy = state.status === "saving";
+  const failed = state.status === "failed";
+  return `
+    <form id="f-hours" class="wb-form" novalidate>
+      <label class="wb-field" for="f-hours-value">${esc(ui("uiHoursLabel"))}
+        <input id="f-hours-value" class="mono" name="hours" type="text" autocomplete="off" value="${esc(state.typed)}"
+          placeholder="${esc(ui("uiHoursPlaceholder"))}" aria-describedby="f-hours-hint"${busy ? " disabled" : ""} />
+        <span class="hint" id="f-hours-hint">${esc(ui("uiHoursHint"))}</span>
+      </label>
+      <p class="${failed ? "hint is-error" : "wb-aside"}" id="hours-status" role="status" tabindex="-1">${esc(busy ? ui("uiSaving") : state.message)}</p>
+      <div class="wb-form-actions wb-hours-actions"><button type="submit" class="btn btn-primary wb-cta" id="hours-save"${
+        busy ? ' disabled aria-busy="true"' : ""
+      }>${esc(ui("uiSave"))}</button><span class="wb-aside">${esc(ui("uiHoursFirst"))}</span></div>
+    </form>`;
+}
+
 /** The steps a change travels, ticking (AC4), and the line under them. Redrawn in place while the map reads. */
 export function renderMapSteps(tile: Tile, state: HoursState): string {
   const ui = hoursWords(tile);
   const step = (m: HoursState["map"] | "done", name: string, detail = "") =>
     `<li class="sp-unlock-step">${marker(m)}<span class="sp-unlock-body"><strong>${esc(name)}</strong>${detail ? ` <span class="wb-aside">${esc(detail)}</span>` : ""}</span></li>`;
   const mapLine =
-    state.map === "working" ? step("working", ui("uiStepMapReading"))
+    state.map === "working" ? step("working", ui("uiStepMapReading"), ui("uiStepMapReadingWhy"))
     : state.map === "done" ? step("done", ui("uiStepMapRead"))
     : state.map === "late" ? step("done", ui("uiStepMapRead"), ui("uiStepMapLate"))
     : state.map === "failed" ? step("failed", ui("uiStepMapReading"))
@@ -72,12 +102,28 @@ export function renderMapSteps(tile: Tile, state: HoursState): string {
       : `<p class="wb-aside" id="hours-map-status" role="status">${state.map === "done" || state.map === "late" ? esc(ui("uiReloadHint")) : ""}</p>`}`;
 }
 
-/** The card as the map holds it (AC3): its pin and popup, and the hours it shows. Old hours until the map catches up. */
+/** The file as the pod holds it, every line, the hours marked (storyboard: the design system's terminal). */
+function renderFile(tile: Tile, state: HoursState): string {
+  const ui = hoursWords(tile);
+  const lines = (state.file ?? "").replace(/\s+$/, "").split("\n");
+  const body = state.file
+    ? lines.map((l) => `<span${/openingHours/.test(l) ? ' class="chg"' : ""}>${esc(l) || " "}</span>`).join("")
+    : `<span class="chg">  schema:openingHours ${esc(JSON.stringify(state.saved ?? state.typed))} ;</span>`;
+  return `
+    <div class="wb-flow-file">
+      <p class="wf-label">${esc(ui("uiFileLabel"))}</p>
+      <pre class="wb-code" aria-label="${esc(ui("uiFileLabel"))}">${body}</pre>
+    </div>`;
+}
+
+/** The card as the map holds it: its pin and popup, then what its profile shows. Old hours until the map caught up. */
 function renderCard(tile: Tile, state: HoursState): string {
   const ui = hoursWords(tile);
   const pin = state.onMap?.pin;
   if (!pin) return "";
+  const fresh = state.map === "done";
   return `
+    <span class="wb-flow-arrow" aria-hidden="true">→</span>
     <div class="wb-flow-card">
       <p class="wf-label">${esc(ui("uiCardLabel"))}</p>
       <div class="wb-frame">
@@ -85,46 +131,29 @@ function renderCard(tile: Tile, state: HoursState): string {
         <div class="wb-popup"><div class="sp-hero"><span class="sp-name hand">${esc(pin.name)}</span>
           <span class="sp-address">${esc([pin.city, pin.country].filter(Boolean).join(", "))}</span></div></div>
       </div>
-      <dl class="pv-facts"><dt>${esc(ui("uiHoursFact"))}</dt><dd${state.map === "done" ? ' class="hit"' : ""}>${esc(pin.hours || "—")}</dd></dl>
+      <div class="wb-facts-box">
+        <span class="wb-aside">${esc(ui("uiCardFacts"))}</span>
+        <dl class="pv-facts">
+          <dt>${esc(ui("uiAddressFact"))}</dt><dd>${esc(pin.address || "—")}</dd>
+          <dt class="hit">${esc(ui("uiHoursFact"))}</dt><dd class="hit${fresh ? " fresh" : ""}">${esc(pin.hours || "—")}</dd>
+        </dl>
+      </div>
     </div>`;
 }
 
-/** The form and the line under it: the part redrawn in place. */
-export function renderHoursPanel(tile: Tile, state: HoursState): string {
-  const ui = hoursWords(tile);
-  const busy = state.status === "saving";
-  const failed = state.status === "failed";
-  return `
-    <form id="f-hours" class="wb-form" novalidate>
-      <label class="wb-field" for="f-hours-value">${esc(ui("uiHoursLabel"))}
-        <input id="f-hours-value" name="hours" type="text" autocomplete="off" value="${esc(state.typed)}"
-          placeholder="${esc(ui("uiHoursPlaceholder"))}" aria-describedby="f-hours-hint"${busy ? " disabled" : ""} />
-        <span class="hint" id="f-hours-hint">${esc(ui("uiHoursHint"))}</span>
-      </label>
-      <p class="${failed ? "hint is-error" : "wb-aside"}" id="hours-status" role="status" tabindex="-1">${esc(busy ? ui("uiSaving") : state.message)}</p>
-      <div class="wb-form-actions"><button type="submit" class="btn btn-primary wb-cta" id="hours-save"${
-        busy ? ' disabled aria-busy="true"' : ""
-      }>${esc(ui("uiSave"))}</button></div>
-    </form>`;
-}
+const flow = (tile: Tile, state: HoursState) => `<div class="wb-flow">${renderFile(tile, state)}${renderCard(tile, state)}</div>`;
 
-/** Saved: Bernard, what it was, and the line of the file that changed, read back. */
+/** Saved: the steps, then (once the map answered) Bernard and what it was; the file and the card; the way back. */
 function renderSaved(tile: Tile, state: HoursState): string {
   const ui = hoursWords(tile);
-  const was = state.was ? ui("uiHoursWas", { was: state.was }) : ui("uiHoursNew");
-  // File first, then the card: read left to right the way a change travels (AC0, AC3).
+  const answered = state.map !== "working";
+  const was = state.was ? `<b>${esc(ui("uiHoursLabel"))}</b> ${esc(ui("uiHoursWas", { was: state.was }))}` : esc(ui("uiHoursNew"));
   return `
-    ${bernard(tile.lines.saidDone ?? "")}
+    ${answered ? bernard(tile.lines.saidDone ?? "") : ""}
     <div id="hours-map">${renderMapSteps(tile, state)}</div>
-    <p class="wb-aside" id="hours-was">${esc(was)}</p>
-    <div class="wb-flow">
-      <div class="wb-flow-file">
-        <p class="wf-label">${esc(ui("uiFileLabel"))}</p>
-        <pre class="wb-code" aria-label="${esc(ui("uiFileLabel"))}"><span>&lt;#space&gt; a mom:Space ;</span><span class="wb-code-gap">  …</span><span class="chg">  schema:openingHours ${esc(JSON.stringify(state.saved ?? ""))} ;</span><span class="wb-code-gap">  …</span></pre>
-      </div>
-      ${renderCard(tile, state)}
-    </div>
-    <div class="wb-out"><button type="button" class="btn" id="hours-again">${esc(ui("uiHoursAgain"))}</button></div>`;
+    ${answered ? `<p class="wb-aside" id="hours-was">${was}</p>` : ""}
+    ${flow(tile, state)}
+    ${answered ? `<div class="wb-out"><button type="button" class="btn" id="hours-back">${esc(ui("uiBackToTiles"))}</button><span class="wb-aside">${esc(ui("uiTileStays"))}</span></div>` : ""}`;
 }
 
 /** The step's body, signed in with the space on the pod. */
@@ -133,5 +162,7 @@ export function renderHours(tile: Tile, state: HoursState): string {
     <div class="wb-step-head">
       <h2 class="wb-step-title" tabindex="-1">${esc(tile.title)}</h2>
     </div>
-    ${state.status === "saved" ? renderSaved(tile, state) : `${bernard(tile.lines.say)}<div id="hours">${renderHoursPanel(tile, state)}</div>`}`;
+    ${state.status === "saved"
+      ? renderSaved(tile, state)
+      : `${bernard(tile.lines.say)}<div id="hours">${renderHoursPanel(tile, state)}</div>${flow(tile, state)}`}`;
 }
