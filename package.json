@@ -26,6 +26,7 @@
     "@inrupt/solid-client": "^3.0.0",
     "@inrupt/solid-client-authn-browser": "^5.0.0",
     "dompurify": "^3.4.16",
+    "maplibre-gl": "5.9.0",
     "marked": "^18.1.0",
     "n3": "1.26.0"
   }
