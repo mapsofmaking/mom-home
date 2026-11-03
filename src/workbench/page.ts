@@ -110,6 +110,11 @@ export interface PageOptions {
   putOnMap?: (fileUrl: string) => Promise<OnMap>;
   /** Signed in with the space already on the map (#14): tile B opens on the threshold. */
   published?: { fileUrl: string; onMap: OnMap } | null;
+  /**
+   * Signed in with the space file on the pod but not yet on the map (S5, #15): what the pod already holds.
+   * The steps start from there, so a sign-in after a session that ended continues where it stopped.
+   */
+  onPod?: { fileUrl: string; open: boolean } | null;
 }
 
 /** null: never set, the width decides. */
@@ -137,6 +142,17 @@ const LEGEND = `
   </div>`;
 
 /** Scales the view to its stage; on a phone the stage takes the height it needs. */
+/** A draft's content, whatever order its fields were set in and with empty fields left out: "is it the same draft?". */
+export function draftKey(draft: Draft): string {
+  const d = draft as Record<string, unknown>;
+  return JSON.stringify(
+    Object.keys(d)
+      .filter((k) => d[k] !== undefined && d[k] !== null && d[k] !== "")
+      .sort()
+      .map((k) => [k, d[k]])
+  );
+}
+
 function fit(stage: HTMLElement): void {
   const view = stage.querySelector<HTMLElement>(".hx-view");
   if (!view) return;
@@ -202,9 +218,20 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   /** "Make another one" was chosen over signing in to the pod this tab already made. */
   let makeAnother = false;
   /** Where "Put it on the map" is (Story 14.4); a step in flight holds the screen still, like a create. */
+  const pubUi = publishWords(tree.tiles.find((t) => t.act === "threshold"));
   let publish: PublishState = opts.published
     ? { ...IDLE, file: "done", pub: "done", map: "done", fileUrl: opts.published.fileUrl, onMap: opts.published.onMap }
-    : { ...IDLE };
+    : opts.onPod
+      ? {
+          ...IDLE, file: "done", fileLine: pubUi("uiStepFileThere"), fileUrl: opts.onPod.fileUrl,
+          ...(opts.onPod.open ? { pub: "done" as const, pubLine: pubUi("uiStepPublicAlready") } : {}),
+        }
+      : { ...IDLE };
+  /**
+   * The draft as the file step last saw it on the pod. A done file step is skipped on the next press only while
+   * the draft still says this: an edit made since is written, never left behind by a resume.
+   */
+  let fileSaw: string | null = opts.published || opts.onPod ? draftKey(opts.draft) : null;
   let publishing = false;
   const workbench = opts.mode === "workbench";
   // Everything that outlives the markup (root and media-query listeners,
@@ -636,7 +663,10 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     try {
       // A retry resumes from the step that failed (AC5): what is done is not done again, except that a
       // file the public step found gone is written anew.
-      const fileOk = publish.file === "done" && !(publish.pub === "failed" && publish.failedCode === "gone");
+      const fileOk =
+        publish.file === "done" &&
+        fileSaw === draftKey(opts.draft) &&
+        !(publish.pub === "failed" && publish.failedCode === "gone");
       const pubOk = fileOk && publish.pub === "done";
       if (!fileOk) {
         publish = { ...IDLE, file: "working" };
@@ -659,6 +689,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
           ? ui("uiPublishDropped", { fields: result.dropped.map((k) => words.field(k).label.toLowerCase()).join(", ") })
           : "";
         publish = { ...publish, file: "done", fileLine, dropped, fileUrl: address };
+        fileSaw = draftKey(opts.draft);
         // The pod now holds a file with a name, a town and a pin (spaceFile refuses less): tile A is done in
         // this tab too, as it will be read from the pod at the next sign-in (#11).
         doneHere.add("describe");

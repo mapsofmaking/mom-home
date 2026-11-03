@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OnMap } from "../lib/onmap";
 import { PublishError, type FileResult, type PublicResult } from "../lib/publish";
 import { parseTree } from "../tree/parse";
-import { renderPage } from "./page";
+import { draftKey, renderPage } from "./page";
 import type { Draft } from "./previews";
 import { IDLE, renderPublishPanel } from "./publish";
 
@@ -242,6 +242,81 @@ describe("a retry resumes from the step that failed (14.4 AC5, review of #23)", 
     root.querySelector<HTMLElement>("#publish-go")?.click();
     await settle();
     expect(publishSpace).not.toHaveBeenCalled();
+  });
+});
+
+describe("signed in again, it continues where it stopped (14.4 S5, #15; AC1, AC5)", () => {
+  const never = () => vi.fn(() => new Promise<OnMap>(() => {}));
+  const press = async (root: HTMLElement) => {
+    root.querySelector<HTMLElement>("#publish-go")!.click();
+    for (let i = 0; i < 3; i++) await settle();
+  };
+
+  it("the file on the pod, not yet open: the file step shows done, and pressing runs the public step and the map", async () => {
+    const publishSpace = vi.fn(async () => ok());
+    const makePublic = vi.fn(async (): Promise<PublicResult> => ({ status: "made-public" }));
+    const putOnMap = never();
+    const root = open(publishSpace, { makePublic, putOnMap, onPod: { fileUrl: URL_, open: false } });
+    expect(text(root, "#publish")).toContain(keep.ui.uiStepFileThere);
+    await press(root);
+    expect(publishSpace).not.toHaveBeenCalled();
+    expect(makePublic).toHaveBeenCalledTimes(1);
+    expect(putOnMap).toHaveBeenCalledWith(URL_);
+    root.remove();
+  });
+
+  it("the file open to anyone already: pressing runs only the map step", async () => {
+    const publishSpace = vi.fn(async () => ok());
+    const makePublic = vi.fn(async (): Promise<PublicResult> => ({ status: "made-public" }));
+    const putOnMap = never();
+    const root = open(publishSpace, { makePublic, putOnMap, onPod: { fileUrl: URL_, open: true } });
+    expect(text(root, "#publish")).toContain(keep.ui.uiStepPublicAlready);
+    await press(root);
+    expect(publishSpace).not.toHaveBeenCalled();
+    expect(makePublic).not.toHaveBeenCalled();
+    expect(putOnMap).toHaveBeenCalledTimes(1);
+    root.remove();
+  });
+
+  it("an edit made since the file was written is written first: a resume never leaves it behind", async () => {
+    const edited: Draft = { ...draft };
+    const publishSpace = vi.fn(async () => ok("written"));
+    const root = document.createElement("div");
+    document.body.append(root);
+    renderPage(root, tree, {
+      mode: "workbench", who: "Weld Done", done: new Set(["describe"]), draft: edited, fold: { folded: false },
+      onSignIn: () => {}, onSignOut: () => {}, readOffers: async () => "open", publishSpace,
+      makePublic: async (): Promise<PublicResult> => ({ status: "already-public" }), putOnMap: never(),
+      onPod: { fileUrl: URL_, open: true },
+    });
+    edited.website = "https://welddone.example/";
+    await press(root);
+    expect(publishSpace).toHaveBeenCalledTimes(1);
+    expect(publishSpace).toHaveBeenCalledWith(edited);
+    root.remove();
+  });
+
+  it("a session that ended at the public step: sign in again, press, and only the public step and the map run", async () => {
+    const publishSpace = vi.fn(async () => ok());
+    // Before: the file is written, the public step hears 401.
+    const before = open(publishSpace, { makePublic: vi.fn(async () => { throw new PublishError("expired", "x", 401); }) });
+    await press(before);
+    expect(text(before, "#publish-status")).toBe(keep.ui.uiPublishExpired);
+    before.remove();
+    // After the sign-in: the shell reads the file back from the pod, not readable by anyone yet.
+    const makePublic = vi.fn(async (): Promise<PublicResult> => ({ status: "made-public" }));
+    const putOnMap = never();
+    const after = open(publishSpace, { makePublic, putOnMap, onPod: { fileUrl: URL_, open: false } });
+    await press(after);
+    expect(publishSpace).toHaveBeenCalledTimes(1);
+    expect(makePublic).toHaveBeenCalledTimes(1);
+    expect(putOnMap).toHaveBeenCalledTimes(1);
+    after.remove();
+  });
+
+  it("the same draft whatever order its fields were set in, empty fields left out", () => {
+    expect(draftKey({ name: "A", city: "B" })).toBe(draftKey({ city: "B", name: "A", website: "" }));
+    expect(draftKey({ name: "A" })).not.toBe(draftKey({ name: "A", city: "B" }));
   });
 });
 

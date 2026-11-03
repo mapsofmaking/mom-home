@@ -176,7 +176,7 @@ function listSpace(webId: string, podRoot: string, fileUrl: string): void {
 
 function renderWorkbenchView(
   name: string,
-  pod: { webId: string; root: string; done: Set<string>; settings: HomeSettings; published?: { fileUrl: string; onMap: OnMap } | null } | null = null,
+  pod: { webId: string; root: string; done: Set<string>; settings: HomeSettings; published?: { fileUrl: string; onMap: OnMap } | null; onPod?: { fileUrl: string; open: boolean } | null } | null = null,
   podReady: PodMade | null = null
 ): void {
   const wbFold: FoldState = pod ? { folded: pod.settings.folded } : fold;
@@ -209,6 +209,8 @@ function renderWorkbenchView(
       : undefined,
     // Already on the map at sign-in: tile B shows the threshold, read from the pod and the map.
     published: pod?.published ?? null,
+    // On the pod, not on the map yet: the steps start from what is there (S5, #15).
+    onPod: pod?.onPod ?? null,
     onFold: pod
       ? (folded) => {
           // One write at a time, in the order of the clicks: the pod ends on the last toggle.
@@ -322,7 +324,9 @@ async function main(): Promise<void> {
       Object.assign(draft, found.draft);
     }
     // On the map is read too (#14): the map holds the file's address, and a stranger can read the file.
-    const published = found ? await readPublished(found.url, () => spaceIsPublic(found.url)) : null;
+    // Readable by anyone, asked once: on the map needs it, and a space not on the map yet resumes from it (S5, #15).
+    const readable = found ? await spaceIsPublic(found.url).catch(() => false) : false;
+    const published = found ? await readPublished(found.url, async () => readable) : null;
     // Public and on the map but not in the index (a registration that failed before): list it now, quietly.
     if (found && published && !listed.includes(found.space)) listSpace(webId, root, found.url);
     // Settings that can't be read cost the remembered fold, not the page.
@@ -337,7 +341,7 @@ async function main(): Promise<void> {
     // Just made in this tab (14.3 AC6): tile B says the pod is ready, once.
     // The one-shot "pod ready" panel is for an empty pod: once the space file is there, the pod speaks for itself.
     const made = takePodMade(webId);
-    renderWorkbenchView(name, { webId, root, done: doneOnPod, settings, published: published && found ? { fileUrl: found.url, onMap: published } : null }, found ? null : made);
+    renderWorkbenchView(name, { webId, root, done: doneOnPod, settings, published: published && found ? { fileUrl: found.url, onMap: published } : null, onPod: found && !published && found.url === spaceFileUrl(root) ? { fileUrl: found.url, open: readable } : null }, found ? null : made);
   } catch (err) {
     renderErrorView(webId, err);
   }
