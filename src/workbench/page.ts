@@ -245,7 +245,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
 
   const who = workbench
     ? `<span>Signed in as <b>${esc(opts.who ?? "")}</b></span>
-       <button type="button" class="btn" id="sign-out">Sign out</button>`
+       <button type="button" class="inline-link" id="sign-out">Sign out</button>`
     : `<span>On the map already? <button type="button" class="inline-link" id="sign-in">Sign in</button></span>`;
 
   root.innerHTML = `

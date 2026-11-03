@@ -119,16 +119,23 @@ export function renderThreshold(tile: Tile, state: PublishState, locality: strin
          on.pin.city ? ` · ${esc(on.pin.city)}` : ""
        }</span></p>`
     : `<p class="wb-aside">${esc(ui("uiPinLate"))}</p>`;
+  // Wide, two columns: what is on the map on the left, the way on beside it (Nicolas, live 2026-11-03).
   return `
     ${bernard((tile.lines.saidDone ?? "").replace("{locality}", place))}
-    ${pin}
-    <p class="wf-label">${esc(ui("uiFileAddress"))}</p>
-    <button type="button" class="copyable" id="copy-address" data-copy="${esc(state.fileUrl)}" aria-label="${esc(ui("uiCopy"))}: ${esc(state.fileUrl)}">${esc(state.fileUrl)}${COPY_ICON}</button>
-    <p class="wb-aside" id="copy-status" role="status"></p>
-    ${bernard(tile.lines.sayNext ?? "")}
-    <div class="wb-out">
-      ${next ? `<button type="button" class="btn btn-primary wb-cta" data-go="${esc(next.id)}">${esc(next.title)} →</button>` : ""}
-      <a class="btn" href="${esc(on.link)}" target="_blank" rel="noopener">${esc(ui("uiSeeOnMap"))}</a>
+    <div class="wb-arrived">
+      <div class="wb-arrived-where">
+        ${pin}
+        <p class="wf-label">${esc(ui("uiFileAddress"))}</p>
+        <button type="button" class="copyable" id="copy-address" data-copy="${esc(state.fileUrl)}" aria-label="${esc(ui("uiCopy"))}: ${esc(state.fileUrl)}">${esc(state.fileUrl)}${COPY_ICON}</button>
+        <p class="wb-aside" id="copy-status" role="status"></p>
+      </div>
+      <div class="wb-arrived-next">
+        ${bernard(tile.lines.sayNext ?? "")}
+        <div class="wb-out">
+          ${next ? `<button type="button" class="btn btn-primary wb-cta" data-go="${esc(next.id)}">${esc(next.title)}</button>` : ""}
+          <a class="btn" href="${esc(on.link)}" target="_blank" rel="noopener">${esc(ui("uiSeeOnMap"))}</a>
+        </div>
+      </div>
     </div>`;
 }
 

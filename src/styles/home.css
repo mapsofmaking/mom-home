@@ -99,7 +99,21 @@
    selector outweighs its .maplibregl-map { position: relative }. Without it the frame keeps its paper. */
 .wb-frame > .wb-map, .wb-frame > .wb-map.maplibregl-map { position: absolute; inset: 0; }
 .wb-frame > .wb-popup { z-index: 2; }
+/* A frame never gives up its height to the text around it (the step is a flex column). */
+.wb-frame { flex-shrink: 0; }
 .wb-frame-live { height: 220px; }
+/* The threshold, wide: the map and the file on the left, Bernard and the way on beside it; stacked on a phone. */
+.wb-arrived { display: flex; flex-direction: column; gap: var(--space-14); }
+.wb-arrived-where, .wb-arrived-next { display: flex; flex-direction: column; gap: var(--space-8); min-width: 0; }
+/* By the step's own width, not the window's: unfolded, the step is half the screen and stays stacked. */
+#step { container-type: inline-size; }
+@container (min-width: 760px) {
+  .wb-arrived { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--space-24, 24px); align-items: start; }
+  .wb-arrived-next .wb-out { border-top: 0; padding-top: 0; }
+}
+/* Tile names one size up (Nicolas, live 2026-11-03). */
+.hx-label { font-size: 13px; }
+.hx.cue .hx-label { font-size: 12px; }
 .wb-map-pin { display: block; width: 14px; height: 14px; border-radius: 50%; background: var(--state-confirmed); border: 2px solid var(--ink); box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.7); }
 .wb-map .maplibregl-ctrl-attrib { font-size: 10px; }
 /* Tile A's optional fields: a group with its own label, no box (design system: Workbench). */
