@@ -273,7 +273,10 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   };
 
   const draw = () => {
-    const states = tileStates(tree.tiles, opts.done, completable);
+    // Signed in, a card drawn in this tab opens tile B (the way to put it on the pod) until S4 reads tile A's done
+    // from the pod itself. Nothing is added to opts.done: the pod's own record stays untouched.
+    const shown = carded && !opts.done.has("describe") ? new Set([...opts.done, "describe"]) : opts.done;
+    const states = tileStates(tree.tiles, shown, completable);
     const { cleared, open } = tally(states);
     tallyEl.innerHTML = `Cleared <b>${cleared}</b> · Open <b>${open}</b>`;
     if (!selected || states.get(selected) === "fog") {
