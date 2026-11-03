@@ -42,7 +42,13 @@ export type PublishCode =
   /** The map's register answered with an error. */
   | "map-down"
   /** The write went out, but reading it back failed: it may well be there (tile C, 14.6). */
-  | "unconfirmed";
+  | "unconfirmed"
+  /** Larger than a logo may be, or than the pod takes in one upload (14.6 S6). */
+  | "too-large"
+  /** Not a PNG, JPEG or WebP image, by its own bytes (14.6 S6). */
+  | "not-image"
+  /** A file of that name is there and isn't the space's logo: left alone (14.6 S6). */
+  | "taken";
 
 export class PublishError extends Error {
   readonly code: PublishCode;

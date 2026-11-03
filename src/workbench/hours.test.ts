@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { HoursResult } from "../lib/hours";
+import type { LogoResult } from "../lib/logo";
+type LogoUpload = (file: File, current: string | null) => Promise<LogoResult>;
 import type { MapReread } from "../lib/onmap";
 import { PublishError } from "../lib/publish";
 import { draftFromTurtle, spaceFile } from "../lib/spacefile";
@@ -25,7 +27,7 @@ function open(saveHours: (h: string) => Promise<HoursResult>, draft: Draft = { n
   document.body.append(root);
   renderPage(root, tree, {
     mode: "workbench", who: "weld-done", done: new Set(["describe", "keep"]), draft, fold: { folded: false },
-    onSignIn: () => {}, onSignOut: () => {}, readOffers: async () => "open", saveHours, mapRead,
+    onSignIn: () => {}, onSignOut: () => {}, readOffers: async () => "open", saveHours, mapRead: mapRead as never,
   });
   root.querySelector<HTMLElement>('button[data-tile="change"]')!.click();
   return root;
@@ -157,7 +159,7 @@ describe("the map reads it now; file and card (14.6 S2, #37)", () => {
   const saved = async (h: string): Promise<HoursResult> => ({ status: "saved", was: "Mo 9-12", hours: h, text: "" });
   const reread = (hours: string, caughtUp = true): MapReread => ({
     caughtUp,
-    onMap: { id: "weld-done", link: "https://mapsofmaking.org/?space=weld-done", pin: { id: "weld-done", name: "Weld Done", lat: 50.8, lon: 4.3, city: "Marolles", country: "BE", hours, address: "Rue de l'Étincelle 12" } },
+    onMap: { id: "weld-done", link: "https://mapsofmaking.org/?space=weld-done", pin: { id: "weld-done", name: "Weld Done", lat: 50.8, lon: 4.3, city: "Marolles", country: "BE", hours, address: "Rue de l'Étincelle 12", logo: "" } },
   });
 
   it("after the save the map reads it: the steps tick, then the card shows the new hours beside the file", async () => {
@@ -262,6 +264,102 @@ describe("tile C follows the storyboard: C1 before, C2 while the map reads (14.6
     expect(text(root, ".wb-facts-box dd.hit")).toBe("Mo 9-12");
     expect(text(root, "#hours-map")).toContain(change.ui.uiStepMapReadingWhy);
     expect(root.querySelector("#hours-back")).toBeNull();
+    root.remove();
+  });
+});
+
+describe("the logo, once the hours are in the file (14.6 S6, #41)", () => {
+  const LOGO = "https://weld-done.pod.example/logo";
+  const pinWith = (logo: string) => ({ id: "weld-done", name: "Weld Done", lat: 50.8, lon: 4.3, city: "Marolles", country: "BE", hours: "Mo 9-17", address: "", logo });
+  const result = (status: "saved" | "same", url = LOGO): LogoResult => ({ status, was: null, text: `<#space> <https://schema.org/logo> <${url}> .`, url, opened: "made-public" });
+
+  function visit(hours: string | undefined, opts: { upload?: LogoUpload; address?: (t: string) => Promise<LogoResult>; mapRead?: (s: unknown) => Promise<MapReread> } = {}) {
+    const root = document.createElement("div");
+    document.body.append(root);
+    const upload = vi.fn(opts.upload ?? (async () => result("saved")));
+    const address = vi.fn(opts.address ?? (async (t: string) => result("saved", t)));
+    const mapRead = vi.fn(opts.mapRead ?? (async () => ({ caughtUp: true, onMap: { id: "weld-done", link: "", pin: pinWith(LOGO) } })));
+    const draft: Draft = { name: "Weld Done", city: "Marolles", country: "BE", lat: "50.8", lon: "4.3", ...(hours ? { hours } : {}) };
+    renderPage(root, tree, {
+      mode: "workbench", who: "weld-done", done: new Set(["describe", "keep"]), draft, fold: { folded: false },
+      onSignIn: () => {}, onSignOut: () => {}, readOffers: async () => "open", saveHours: vi.fn(), mapRead: mapRead as never,
+      uploadLogo: upload, useLogoAddress: address,
+    });
+    root.querySelector<HTMLElement>('button[data-tile="change"]')!.click();
+    return { root, upload, address, mapRead, draft };
+  }
+  const pick = (root: HTMLElement, file: File) => {
+    const input = root.querySelector<HTMLInputElement>("#logo-file")!;
+    Object.defineProperty(input, "files", { value: [file], configurable: true });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+  const png = () => new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], "logo.png", { type: "image/png" });
+
+  it("the first time is the hours only; with hours in the file, the logo panel shows below them", () => {
+    const first = visit(undefined);
+    expect(first.root.querySelector("#logo")).toBeNull();
+    first.root.remove();
+    const later = visit("Mo 9-17");
+    expect(text(later.root, "#logo-pick")).toBe(change.ui.uiLogoUpload);
+    expect(later.root.querySelector<HTMLInputElement>("#logo-file")!.accept).toBe("image/png,image/jpeg,image/webp");
+    later.root.remove();
+  });
+
+  it("an upload: the file shows its logo line, the map reads the new address, and the card shows it as an image", async () => {
+    const { root, upload, mapRead, draft } = visit("Mo 9-17");
+    pick(root, png());
+    await settle(); await settle();
+    expect(upload).toHaveBeenCalledWith(expect.any(File), null);
+    expect(draft.logo).toBe(LOGO);
+    expect(text(root, "#logo-status")).toContain(change.ui.uiLogoSaved);
+    expect(text(root, "#logo-status")).toContain(change.ui.uiLogoMapRead);
+    const says = mapRead.mock.calls[0][0] as (p: ReturnType<typeof pinWith>) => boolean;
+    expect(says(pinWith(LOGO))).toBe(true);
+    expect(says(pinWith(""))).toBe(false);
+    expect(root.querySelector("pre.wb-file .chg")!.textContent).toContain("logo");
+    expect(root.querySelector<HTMLImageElement>(".wb-facts-box img.wb-card-logo")!.getAttribute("src")).toBe(LOGO);
+    root.remove();
+  });
+
+  it("replaced at the same address: said so, and the map has nothing new to read", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null));
+    const { root, mapRead } = visit("Mo 9-17", { upload: async () => result("same") });
+    pick(root, png());
+    await settle(); await settle();
+    expect(text(root, "#logo-status")).toBe(change.ui.uiLogoReplaced);
+    expect(mapRead).not.toHaveBeenCalled();
+    expect(fetchSpy).toHaveBeenCalledWith(LOGO, expect.objectContaining({ cache: "reload" }));
+    fetchSpy.mockRestore();
+    root.remove();
+  });
+
+  it("each refusal has its own line, and nothing else changes", async () => {
+    for (const [code, key] of [["too-large", "uiLogoTooLarge"], ["not-image", "uiLogoNotImage"], ["taken", "uiLogoTaken"], ["not-public", "uiLogoNotPublic"]] as const) {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const { root, mapRead, draft } = visit("Mo 9-17", { upload: async () => { throw new PublishError(code, code); } });
+      pick(root, png());
+      await settle(); await settle();
+      expect(text(root, "#logo-status")).toBe(change.ui[key]);
+      expect(root.querySelector("#logo-status")!.classList.contains("is-error")).toBe(true);
+      expect(mapRead).not.toHaveBeenCalled();
+      expect(draft.logo).toBeUndefined();
+      warn.mockRestore();
+      root.remove();
+    }
+  });
+
+  it("an address already online goes through its own call, and a bad one is said in its own words", async () => {
+    const { root, address, upload } = visit("Mo 9-17", { address: async () => { throw new PublishError("not-image", "x"); } });
+    root.querySelector<HTMLInputElement>("#f-logo-url")!.value = "weld.example/logo.png";
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    root.querySelector<HTMLElement>("#logo-use")!.click();
+    await settle(); await settle();
+    warn.mockRestore();
+    expect(address).toHaveBeenCalledWith("weld.example/logo.png");
+    expect(upload).not.toHaveBeenCalled();
+    expect(text(root, "#logo-status")).toBe(change.ui.uiLogoBadAddress);
+    // What was typed stays.
+    expect(root.querySelector<HTMLInputElement>("#f-logo-url")!.value).toBe("weld.example/logo.png");
     root.remove();
   });
 });

@@ -39,8 +39,8 @@ export const FOOTPRINT: readonly FootprintMark[] = [
     id: "space-file",
     kind: "own",
     where: "space.ttl",
-    what: "your space's file: what the map shows about it",
-    writtenBy: ["lib/publish.ts:writeSpaceFile", "lib/hours.ts:saveHours"],
+    what: "your space's file: what the map shows about it (home changes its hours and logo lines)",
+    writtenBy: ["lib/publish.ts:writeSpaceFile", "lib/hours.ts:changeStatement"],
   },
   {
     id: "space-acl",
@@ -48,6 +48,13 @@ export const FOOTPRINT: readonly FootprintMark[] = [
     where: "the access rules of space.ttl (space.ttl.acl on this server)",
     what: "lets anyone read that one file, so the map can",
     writtenBy: ["lib/publish.ts:makeSpacePublic"],
+  },
+  {
+    id: "logo-file",
+    kind: "own",
+    where: "logo, and its access rules",
+    what: "your space's logo, readable by anyone so the card can show it",
+    writtenBy: ["lib/logo.ts:uploadLogo"],
   },
   {
     id: "settings-file",

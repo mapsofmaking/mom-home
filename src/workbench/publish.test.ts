@@ -324,7 +324,7 @@ describe("on the map, and the threshold (14.4 S3, #13; AC4, AC4b)", () => {
   const onMap = (pin = true): OnMap => ({
     id: "weld-done",
     link: "https://mapsofmaking.org/?space=weld-done",
-    pin: pin ? { id: "weld-done", name: "Weld Done", lat: 50.8371, lon: 4.3458, city: "Marolles", country: "Belgium", hours: "", address: "" } : null,
+    pin: pin ? { id: "weld-done", name: "Weld Done", lat: 50.8371, lon: 4.3458, city: "Marolles", country: "Belgium", hours: "", address: "", logo: "" } : null,
   });
   const go = async (root: HTMLElement) => {
     root.querySelector<HTMLElement>("#publish-go")!.click();
@@ -395,7 +395,7 @@ describe("the threshold right after the pod was made (Nicolas, live 2026-11-03)"
       podReady: { pod: "https://weld-done.pod.example/", webId: "https://weld-done.pod.example/profile/card#me" },
       publishSpace: vi.fn(async () => ok()),
       makePublic: async (): Promise<PublicResult> => ({ status: "made-public" }),
-      putOnMap: vi.fn(async (): Promise<OnMap> => ({ id: "weld-done", link: "https://mapsofmaking.org/?space=weld-done", pin: { id: "weld-done", name: "Weld Done", lat: 50.8, lon: 4.3, city: "Marolles", country: "Belgium", hours: "", address: "" } })),
+      putOnMap: vi.fn(async (): Promise<OnMap> => ({ id: "weld-done", link: "https://mapsofmaking.org/?space=weld-done", pin: { id: "weld-done", name: "Weld Done", lat: 50.8, lon: 4.3, city: "Marolles", country: "Belgium", hours: "", address: "", logo: "" } })),
     } as unknown as Parameters<typeof renderPage>[2]);
     root.querySelector<HTMLElement>("#publish-go")!.click();
     for (let i = 0; i < 4; i++) await settle();

@@ -21,6 +21,7 @@ import { tileUi } from "./tilewords";
 import { miniMapSlot } from "./minimap";
 import { highlightTurtle, highlightTurtleLine } from "./turtle";
 import type { OnMap } from "../lib/onmap";
+import { logoFact, renderLogoPanel, type LogoState } from "./logo";
 
 export const HOURS_UI_KEYS = [
   "uiHoursLabel", "uiHoursHint", "uiHoursPlaceholder", "uiSave", "uiHoursFirst", "uiSaving", "uiHoursSame", "uiHoursEmpty",
@@ -50,10 +51,12 @@ export interface HoursState {
   onMap: OnMap | null;
   /** Why the map didn't read it. */
   mapMessage: string;
+  /** The line the file marks: the hours, or the logo once it changed (S6, #41). */
+  mark: "openingHours" | "logo";
 }
 
 export const hoursIdle = (current: string | undefined, file: string | null = null, onMap: OnMap | null = null): HoursState => ({
-  status: "idle", typed: current ?? "", message: "", was: null, saved: null, file, map: "idle", onMap, mapMessage: "",
+  status: "idle", typed: current ?? "", message: "", was: null, saved: null, file, map: "idle", onMap, mapMessage: "", mark: "openingHours",
 });
 
 const marker = (state: HoursState["map"] | "done") =>
@@ -107,7 +110,7 @@ export function renderMapSteps(tile: Tile, state: HoursState): string {
 function renderFile(tile: Tile, state: HoursState): string {
   const ui = hoursWords(tile);
   const body = state.file
-    ? highlightTurtle(state.file, /openingHours/)
+    ? highlightTurtle(state.file, state.mark === "logo" ? /schema:logo\b|schema\.org\/logo>/ : /openingHours/)
     : `<span class="line chg">${highlightTurtleLine(`  schema:openingHours ${JSON.stringify(state.saved ?? state.typed)} ;`)}</span>`;
   // The design system's source terminal, as the map's card shows a space file (Turtle · endpoint response).
   return `
@@ -140,6 +143,7 @@ function renderCard(tile: Tile, state: HoursState): string {
         <dl class="pv-facts">
           <dt>${esc(ui("uiAddressFact"))}</dt><dd>${esc(pin.address || "—")}</dd>
           <dt class="hit">${esc(ui("uiHoursFact"))}</dt><dd class="hit${fresh ? " fresh" : ""}">${esc(pin.hours || "—")}</dd>
+          ${logoFact(tile, pin.logo)}
         </dl>
       </div>
     </div>`;
@@ -160,13 +164,16 @@ function renderSaved(tile: Tile, state: HoursState): string {
     ${answered ? `<div class="wb-out"><button type="button" class="btn" id="hours-back">${esc(ui("uiBackToTiles"))}</button><span class="wb-aside">${esc(ui("uiTileStays"))}</span></div>` : ""}`;
 }
 
-/** The step's body, signed in with the space on the pod. */
-export function renderHours(tile: Tile, state: HoursState): string {
+/**
+ * The step's body, signed in with the space on the pod. `logo`: the hours are in the file, so the logo
+ * panel shows below them (S6, #41); absent the first time, which is the hours only.
+ */
+export function renderHours(tile: Tile, state: HoursState, logo: LogoState | null = null): string {
   return `
     <div class="wb-step-head">
       <h2 class="wb-step-title" tabindex="-1">${esc(tile.title)}</h2>
     </div>
     ${state.status === "saved"
       ? renderSaved(tile, state)
-      : `${bernard(tile.lines.say)}<div id="hours">${renderHoursPanel(tile, state)}</div>${flow(tile, state)}`}`;
+      : `${bernard(tile.lines.say)}<div id="hours">${renderHoursPanel(tile, state)}</div>${logo ? `<div id="logo">${renderLogoPanel(tile, logo)}</div>` : ""}${flow(tile, state)}`}`;
 }

@@ -17,6 +17,7 @@ import type { PodMade } from "../lib/handoff";
 import type { PodFormState } from "./podform";
 import { onTheMap, renderPublish, renderPublishBox, type PublishState } from "./publish";
 import { renderHours, type HoursState } from "./hours";
+import type { LogoState } from "./logo";
 import { renderPodReady, renderThreshold, thresholdTitle, type Door, type OffersState } from "./threshold";
 
 export interface StepContext {
@@ -43,6 +44,8 @@ export interface StepContext {
   publish?: PublishState | null;
   /** Signed in with the space on the pod: tile C changes the hours (Story 14.6). Absent: signed out, the preview. */
   hours?: HoursState | null;
+  /** Tile C's logo (S6, #41): once the hours are in the file. Absent: no logo panel. */
+  logo?: LogoState | null;
 }
 
 function waitsFor(tile: Tile, ctx: StepContext): string {
@@ -127,7 +130,7 @@ function describeStep(tile: Tile, state: TileState, ctx: StepContext): string {
 function openStep(tile: Tile, state: TileState, ctx: StepContext): string {
   if (tile.act === "describe") return describeStep(tile, state, ctx);
   // Signed in with the space on the pod: tile C is real (14.6 S1).
-  if (tile.act === "hours" && ctx.hours) return renderHours(tile, ctx.hours);
+  if (tile.act === "hours" && ctx.hours) return renderHours(tile, ctx.hours, ctx.logo ?? null);
   // Done, tile B keeps showing what it showed (below): 14.4 writes the file and gives it its own "done" view.
   // Signed in with a pod: there is nothing to choose any more, only to put on the map (14.4).
   // On the map in this tab, tile B is done and shows the threshold (AC4b) rather than its done preview.

@@ -33,11 +33,13 @@ import { announce } from "../ui/a11y";
 import { readOffers, type Offers } from "../lib/provider";
 import { AccountError, createAccount, pendingEmail, type NewAccount, type SignUp } from "../lib/register";
 import { markPodMade, type PodMade } from "../lib/handoff";
-import type { MapReread, OnMap } from "../lib/onmap";
+import type { MapReread, OnMap, Pin } from "../lib/onmap";
 import { PublishError, type FileResult, type PublicResult } from "../lib/publish";
 import { IDLE, publishWords, renderPublishPanel, type PublishState } from "./publish";
 import { hoursIdle, hoursWords, renderHoursPanel, renderMapSteps, type HoursState } from "./hours";
 import type { HoursResult } from "../lib/hours";
+import type { LogoResult } from "../lib/logo";
+import { logoIdle, logoWords, renderLogoPanel, type LogoState } from "./logo";
 import { DEFAULT_IDENTIFIER } from "../config";
 import type { Tree } from "../tree/parse";
 import {
@@ -120,8 +122,12 @@ export interface PageOptions {
   onPod?: { fileUrl: string; open: boolean } | null;
   /** Tile C (Story 14.6 S1, #36): the opening hours, changed in the space's file. Signed in with the space on the pod. */
   saveHours?: (hours: string) => Promise<HoursResult>;
-  /** Tile C, after a save (S2, #37): the map reads the file now, and its card is read back. */
-  mapRead?: (hours: string) => Promise<MapReread>;
+  /** Tile C, after a save (S2, #37): the map reads the file now, and its card is read back until it says the change. */
+  mapRead?: (says: string | ((pin: Pin) => boolean)) => Promise<MapReread>;
+  /** Tile C's logo (S6, #41), uploaded next to the space file; `current`: what schema:logo says now. */
+  uploadLogo?: (file: File, current: string | null) => Promise<LogoResult>;
+  /** Tile C's logo given as an address already online (S6): only schema:logo changes. */
+  useLogoAddress?: (typed: string) => Promise<LogoResult>;
   /** The space file's text as the pod held it at sign-in: tile C shows it (14.6, live sources only). */
   spaceText?: string | null;
 }
@@ -243,6 +249,9 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   /** Tile C's hours (14.6); a save in flight holds the screen still, like a publish. */
   let hours: HoursState = hoursIdle(opts.draft.hours, opts.spaceText ?? null, opts.published?.onMap ?? null);
   let savingHours = false;
+  /** Tile C's logo (S6); one upload at a time, and tiles wait for it. */
+  let logo: LogoState = logoIdle();
+  let savingLogo = false;
   const workbench = opts.mode === "workbench";
   // Everything that outlives the markup (root and media-query listeners,
   // observers) is undone by destroy(), so a redraw never stacks a second set.
@@ -360,7 +369,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     clearTimeout(podTimer);
     // Published in this tab: tile C's card is the one the map gave back then.
     if (!hours.onMap && publish.onMap) hours = { ...hours, onMap: publish.onMap };
-    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, carded, words, offers, door, pod, podReady: podReady?.pod ?? null, prior: opts.priorPod ?? null, makeAnother, publish: opts.publishSpace ? publish : null, hours: opts.saveHours ? hours : null });
+    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, carded, words, offers, door, pod, podReady: podReady?.pod ?? null, prior: opts.priorPod ?? null, makeAnother, publish: opts.publishSpace ? publish : null, hours: opts.saveHours ? hours : null, logo: opts.uploadLogo && opts.draft.hours?.trim() ? logo : null });
     step.scrollTop = 0;
     if (tile.act === "threshold" && !offersAsked) askOffers();
     // The suggested address is checked as soon as the form opens (AC2): a bad one shows before the passphrase is reached.
@@ -392,7 +401,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
 
   const select = (id: string) => {
     // A create is in flight: a redraw now would drop its answer (the form is replaced). Tiles wait for it.
-    if (creating || publishing || savingHours) return;
+    if (creating || publishing || savingHours || savingLogo) return;
     podReady = null;
     selected = id;
     editing = false;
@@ -452,6 +461,11 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     if (form.id === "f-hours") {
       event.preventDefault();
       void runHours(form);
+      return;
+    }
+    if (form.id === "f-logo") {
+      event.preventDefault();
+      void runLogo({ typed: form.querySelector<HTMLInputElement>("#f-logo-url")?.value ?? "" });
       return;
     }
     if (form.id !== "f-describe") return;
@@ -527,6 +541,10 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   step.addEventListener("click", (event) => {
     const target = (event.target as Element).closest<HTMLElement>("button");
     if (!target) return;
+    if (target.id === "logo-pick") {
+      step.querySelector<HTMLInputElement>("#logo-file")?.click();
+      return;
+    }
     if (target.id === "hours-map-again") {
       void readByMap();
       return;
@@ -771,7 +789,8 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
    * it runs; what was typed is kept whatever happens. Each failure says its one way forward.
    */
   const runHours = async (form: HTMLFormElement) => {
-    if (savingHours || !opts.saveHours) return;
+    // One write to the space file at a time: a logo upload patches it too.
+    if (savingHours || savingLogo || !opts.saveHours) return;
     const tile = tree.tiles.find((t) => t.act === "hours")!;
     const ui = hoursWords(tile);
     const typed = form.querySelector<HTMLInputElement>("#f-hours-value")?.value ?? "";
@@ -853,6 +872,94 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     const had = document.activeElement?.id;
     draw();
     step.querySelector<HTMLElement>(hours.map === "failed" ? "#hours-map-status" : had ? `#${had}` : ".wb-step-title")?.focus();
+  };
+
+  // The picked image goes up at once: one choice, one upload (S6). The input is emptied so the same file can be picked again.
+  step.addEventListener("change", (event) => {
+    const input = event.target as HTMLInputElement;
+    if (input.id !== "logo-file") return;
+    const file = input.files?.[0];
+    input.value = "";
+    if (file) void runLogo({ file });
+  });
+
+  /**
+   * Tile C's logo (14.6 S6, #41): uploaded (lib/logo.ts: checked, written, opened, proved, pointed at), or an address
+   * already online. The panel is redrawn in place while it runs; the file then shows its logo line. When the address
+   * in the file changed, the map reads it now, as for the hours; a replacement at the same address has nothing new
+   * for the map to read, so the browser's copy of the image is refreshed instead.
+   */
+  const runLogo = async (what: { file: File } | { typed: string }) => {
+    if (savingLogo || savingHours || !opts.uploadLogo || !opts.useLogoAddress) return;
+    const { uploadLogo, useLogoAddress } = opts;
+    const tile = tree.tiles.find((t) => t.act === "hours")!;
+    const ui = logoWords(tile);
+    const uploading = "file" in what;
+    const paint = (focus = false) => {
+      const box = step.querySelector<HTMLElement>("#logo");
+      if (!box) return;
+      box.innerHTML = renderLogoPanel(tile, logo);
+      if (focus) box.querySelector<HTMLElement>("#logo-status")?.focus();
+    };
+    savingLogo = true;
+    logo = { ...logo, status: "saving", typed: uploading ? logo.typed : what.typed, message: "", map: "idle" };
+    paint();
+    let result: LogoResult | null = null;
+    try {
+      result = uploading ? await uploadLogo(what.file, opts.draft.logo ?? null) : await useLogoAddress(what.typed);
+    } catch (err) {
+      const code = err instanceof PublishError ? err.code : "refused";
+      const keys = {
+        "too-large": "uiLogoTooLarge", "not-image": uploading ? "uiLogoNotImage" : "uiLogoBadAddress", taken: "uiLogoTaken",
+        "not-public": "uiLogoNotPublic", expired: "uiLogoExpired", "no-control": "uiLogoNoAccess", conflict: "uiLogoConflict",
+        unreachable: "uiLogoUnreachable", unconfirmed: "uiLogoUnconfirmed",
+      } as const;
+      logo = { ...logo, status: "failed", message: ui(keys[code as keyof typeof keys] ?? "uiLogoRefused") };
+      console.warn("The logo was not saved:", err);
+    } finally {
+      savingLogo = false;
+    }
+    if (!step.isConnected) return;
+    if (!result) {
+      if (!step.querySelector("#logo")) draw();
+      paint(true);
+      return;
+    }
+    opts.draft.logo = result.url;
+    const changed = result.status === "saved";
+    logo = {
+      ...logo, status: "done", typed: uploading ? logo.typed : "",
+      message: ui(changed ? "uiLogoSaved" : uploading ? "uiLogoReplaced" : "uiLogoSame"),
+      map: changed && opts.mapRead ? "working" : "idle",
+    };
+    // Replaced at the same address: the browser's copy is refreshed, so the card shows the new image.
+    if (uploading && !changed) await fetch(result.url, { cache: "reload", credentials: "omit" }).catch(() => {});
+    hours = { ...hours, file: result.text, mark: "logo" };
+    if (selected === tile.id && hours.status !== "saved") {
+      draw();
+      step.querySelector<HTMLElement>("#logo-status")?.focus();
+    }
+    if (changed) void readLogoByMap(result.url);
+  };
+
+  /** The map reads the new logo address (S6), as it reads new hours; its card is read back until it shows it. */
+  const readLogoByMap = async (url: string) => {
+    if (!opts.mapRead) return;
+    const tile = tree.tiles.find((t) => t.act === "hours")!;
+    let read: MapReread | null = null;
+    try {
+      read = await opts.mapRead((pin) => pin.logo === url);
+    } catch (err) {
+      console.warn("The map didn't read the logo:", err);
+    }
+    // A newer logo since: this answer is about an older one, and is dropped.
+    if (opts.draft.logo !== url || savingLogo) return;
+    logo = { ...logo, map: read ? (read.caughtUp ? "done" : "late") : "failed" };
+    if (read) hours = { ...hours, onMap: read.onMap };
+    if (!step.isConnected || selected !== tile.id || hours.status === "saved" || savingHours || savingLogo) return;
+    const had = document.activeElement?.id;
+    draw();
+    step.querySelector<HTMLElement>(had ? `#${had}` : "#logo-status")?.focus();
   };
 
   /** To the pod's own page (Solid-OIDC). If it doesn't start, the pod still exists: say so, and the button signs in again. */

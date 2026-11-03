@@ -46,7 +46,7 @@ describe("on the map (14.4 S3, #13)", () => {
   });
 
   it("reads the pin as the map draws it; not drawn yet is null, not an error", async () => {
-    expect(await readPin("weld-done", fakeMap().fetchImpl)).toEqual({ id: "weld-done", name: "Weld Done", lat: 50.8371, lon: 4.3458, city: "Marolles", country: "Belgium", hours: "", address: "" });
+    expect(await readPin("weld-done", fakeMap().fetchImpl)).toEqual({ id: "weld-done", name: "Weld Done", lat: 50.8371, lon: 4.3458, city: "Marolles", country: "Belgium", hours: "", address: "", logo: "" });
     expect(await readPin("weld-done", fakeMap({ lag: 1 }).fetchImpl)).toBeNull();
   });
 

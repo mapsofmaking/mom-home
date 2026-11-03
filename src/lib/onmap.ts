@@ -33,6 +33,8 @@ export interface Pin {
   hours: string;
   /** The card's address as the map shows it ("" when none). */
   address: string;
+  /** The address the card's logo is drawn from ("" when none; 14.6 S6, #41). */
+  logo: string;
 }
 
 export interface OnMap {
@@ -90,11 +92,13 @@ export async function readPin(id: string, fetchImpl: Fetch = (u, i) => fetch(u, 
   const res = await ask(fetchImpl, `/api/space/${encodeURIComponent(id)}/pin`, { headers: { Accept: "application/json" } }, 10_000);
   if (res.status === 404) return null;
   if (!res.ok) throw new PublishError("map-down", `The map's pin answered ${res.status}.`, res.status);
-  const p = (await res.json()) as Partial<Pin> & { opening_hours?: unknown; address?: unknown };
+  const p = (await res.json()) as Partial<Pin> & { opening_hours?: unknown; address?: unknown; logo?: unknown };
   if (typeof p.lat !== "number" || typeof p.lon !== "number") return null;
   const hours = typeof p.opening_hours === "string" ? p.opening_hours : "";
   const address = typeof p.address === "string" ? p.address : "";
-  return { id, name: p.name ?? "", lat: p.lat, lon: p.lon, city: p.city ?? "", country: p.country ?? "", hours, address };
+  // Only a web address is a logo: the card draws it with <img>, never anything else.
+  const logo = typeof p.logo === "string" && /^https?:\/\//i.test(p.logo) ? p.logo : "";
+  return { id, name: p.name ?? "", lat: p.lat, lon: p.lon, city: p.city ?? "", country: p.country ?? "", hours, address, logo };
 }
 
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -145,31 +149,33 @@ export async function readPublished(
   return { id, link: mapLink(id), pin };
 }
 
-/** What the map holds after a change: its card, and whether it already says the new hours. */
+/** What the map holds after a change: its card, and whether it already says what changed. */
 export interface MapReread {
   onMap: OnMap;
-  /** The card shows the new hours; false: the map took the file but hasn't redrawn yet. */
+  /** The card shows the change; false: the map took the file but hasn't redrawn yet. */
   caughtUp: boolean;
 }
 
 /**
  * Tile C (Story 14.6 S2, #37): the map reads the changed file now, not at its next tick. Registering a
  * known address again re-reads it in place (decided 2026-11-03; the map's per-space refresh comes with
- * 14.9). Then the card is read back until it says the new hours, briefly: late is not a failure.
+ * 14.9). Then the card is read back until it says the change, briefly: late is not a failure.
+ * `says`: the new hours, or what the card must show (the logo, S6).
  */
 export async function rereadOnMap(
   fileUrl: string,
-  hours: string,
+  says: string | ((pin: Pin) => boolean),
   fetchImpl: Fetch = (u, i) => fetch(u, i),
   wait = { total: PIN_WAIT_MS, every: PIN_EVERY_MS }
 ): Promise<MapReread> {
   const id = await registerOnMap(fileUrl, fetchImpl);
+  const caught = (p: Pin | null) => !!p && (typeof says === "string" ? p.hours === says : says(p));
   const until = Date.now() + wait.total;
   let pin: Pin | null = null;
   for (;;) {
     pin = await readPin(id, fetchImpl).catch(() => pin);
-    if (pin?.hours === hours || Date.now() + wait.every > until) break;
+    if (caught(pin) || Date.now() + wait.every > until) break;
     await pause(wait.every);
   }
-  return { onMap: { id, link: mapLink(id), pin }, caughtUp: pin?.hours === hours };
+  return { onMap: { id, link: mapLink(id), pin }, caughtUp: caught(pin) };
 }
