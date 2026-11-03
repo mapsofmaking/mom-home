@@ -109,6 +109,17 @@ describe("renderPage", () => {
     expect(done.size).toBe(0);
   });
 
+  it("signed in, the card's way on opens tile B, not a locked preview", () => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    renderPage(root, tree, { ...options("workbench"), publishSpace: async () => ({ kind: "written" }) } as unknown as PageOptions);
+    submit(root);
+    root.querySelector<HTMLElement>('[data-go="keep"]')!.click();
+    expect(root.querySelector(".wb-step-title")!.textContent).not.toContain("Out there for real");
+    expect(root.querySelector("#publish-go")).not.toBeNull();
+    root.remove();
+  });
+
   it("selects a reached tile, never fog, when nothing is open", () => {
     const root = document.createElement("div");
     const everything = new Set(tree.tiles.map((t) => t.id));
