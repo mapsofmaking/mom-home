@@ -13,9 +13,9 @@
  *
  * Fold is one state of the page, never of a tile (Nicolas, 2026-10-31: the
  * dry run's fold followed the selected tile, and the page seemed to move by
- * itself). It changes twice only: once on purpose, after tile C's tutorial
- * (`foldForFirstTime`, 14.6), and whenever the coordinator uses the toggle,
- * "Fold" / "Show all", in the same corner of the hex panel. Picking a tile
+ * itself). Only the coordinator changes it, with the toggle, "Fold" /
+ * "Show all", in the same corner of the hex panel; the page never folds by
+ * itself (no planned first fold, 2026-11-03, docs/decisions.md). Picking a tile
  * never moves the layout. The shell keeps the state (`FoldState`): for the
  * tab signed out, in settings/mom-home.ttl signed in (S6). Unset, a desktop
  * arrives unfolded and a phone folded, so the form leads.
@@ -93,10 +93,6 @@ export interface PageOptions {
   fold: FoldState;
   /** The coordinator folded or unfolded: the shell keeps it (signed in, in settings/mom-home.ttl). */
   onFold?: (folded: boolean) => void;
-  /** Signed in: the IRIs of the tiles whose tutorial was seen (settings/mom-home.ttl). Absent: no tutorial is remembered. */
-  seen?: Set<string>;
-  /** A tile's tutorial ended the first time (tile C: the planned fold, S3 #38): the shell keeps it seen, with the fold. */
-  onTutorialSeen?: (tileIri: string, folded: boolean) => void;
   onSignIn: () => void;
   onSignOut: () => void;
   /** What the pod server offers (tile B, 14.3 AC4); the app reads its descriptor, tests pass their own. */
@@ -327,22 +323,6 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     // Folded, the way back is whichever bar the width shows (hexrow.ts: toolbar or phone strip).
     const back = [...root.querySelectorAll<HTMLElement>("[data-unfold]")].find((b) => b.getClientRects().length);
     (value ? (back ?? root.querySelector<HTMLElement>("#unfold")) : root.querySelector<HTMLElement>("#fold"))?.focus();
-  };
-
-  /**
-   * The one planned fold (14.1 AC7, 14.6 S3 #38): the first time tile C's tutorial ends, the hexes fold, no
-   * animation, and the step gets the room. Once per coordinator (the tutorial is kept seen in settings), even
-   * over an earlier "Show all": from then on the toggle alone decides. Focus stays on the step, where Bernard
-   * names the way back. True if the layout changed (a phone, or a fold already chosen, has nothing to fold).
-   */
-  const foldForFirstTime = (tile: { iri: string }): boolean => {
-    if (!opts.seen || opts.seen.has(tile.iri)) return false;
-    opts.seen.add(tile.iri);
-    const changed = !folded();
-    opts.fold.folded = true;
-    layout();
-    opts.onTutorialSeen?.(tile.iri, true);
-    return changed;
   };
 
   const draw = () => {
@@ -870,8 +850,6 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
       hours = { ...hours, map: "failed", mapMessage: ui(refused ? "uiMapRefusedFile" : "uiMapDidntRead") };
     }
     if (!step.isConnected || selected !== tile.id || hours.status !== "saved") return;
-    // The map has read it: the tutorial ends here (C3). Not on a failure: the lesson isn't whole yet.
-    if (hours.map !== "failed" && foldForFirstTime(tile)) hours = { ...hours, folded: true };
     const had = document.activeElement?.id;
     draw();
     step.querySelector<HTMLElement>(hours.map === "failed" ? "#hours-map-status" : had ? `#${had}` : ".wb-step-title")?.focus();

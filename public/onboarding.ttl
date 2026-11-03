@@ -204,8 +204,6 @@
   onb:act "hours" ; onb:preview "readers" ; onb:unlocksWord :endpoint ;
   onb:say "Hours change. Change them here. Once."@en ;
   onb:saidDone "One edit, in your file. The map reads it from there: nothing to retype anywhere else."@en ;
-  # Said once, as the hexes fold for the first time (14.6 S3, #38): it names the way back.
-  onb:sayFold "I folded your tiles up there to give this room. They're one click away, top right: Show all."@en ;
   onb:sayTool "Your profile, as the map reads it. Change what's changed."@en ;
   onb:saidSaved "Saved once, in your file. The map picks it up from there."@en ;
   onb:uiHoursLabel "Opening hours"@en ;

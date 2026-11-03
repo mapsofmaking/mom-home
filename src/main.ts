@@ -233,18 +233,6 @@ function renderWorkbenchView(
             });
         }
       : undefined,
-    // The tutorials seen (S3, #38): tile C's ends with the one planned fold, kept with it in one write.
-    seen: pod ? new Set(pod.settings.seen) : undefined,
-    onTutorialSeen: pod
-      ? (tileIri, folded) => {
-          writes = writes
-            .then(() => changeHomeSettings(pod.root, pod.webId, (s) => ({ ...s, folded, seen: [...s.seen, tileIri] })))
-            .catch((err) => {
-              // Not said aloud: Bernard is speaking. Unkept, the next visit folds once more, nothing worse.
-              console.warn("Could not keep the tutorial and the fold in settings/mom-home.ttl:", err);
-            });
-        }
-      : undefined,
     onSignIn: () => renderLoginView(),
     onSignOut: signOut,
   });
