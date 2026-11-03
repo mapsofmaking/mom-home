@@ -8,7 +8,7 @@
  * kept here. A 401 or 403 is "your session ended", never "the file is missing".
  */
 import { authFetch } from "./auth";
-import { sameStatements, spaceFile, SpaceFileError, type SpaceFile, type SpaceFileProblem } from "./spacefile";
+import { draftFromTurtle, sameStatements, spaceFile, SpaceFileError, type SpaceFile, type SpaceFileProblem } from "./spacefile";
 import type { Draft } from "../workbench/previews";
 
 export type PublishCode =
@@ -112,4 +112,34 @@ export async function writeSpaceFile(
     throw new PublishError("unreadable", "The pod holds the file, but not as it was written.");
   }
   return { url, status: "written", dropped: file.dropped };
+}
+
+export interface SpaceRead {
+  url: string;
+  /** The space's IRI in the file (`…/space.ttl#space`). */
+  space: string;
+  draft: Draft;
+}
+
+/**
+ * Reading the space back from the pod at sign-in (#11): the file at the root,
+ * where step 1 writes it (the Type Index lookup comes with S4). null when there
+ * is no file yet. A 401/403 is "your session ended" (`expired`), never "no file";
+ * a file that is there but holds no space, or isn't Turtle, is `unreadable`: it
+ * is shown as such and never overwritten (step 1 never replaces a file).
+ */
+export async function readSpaceFile(podRoot: string, fetchImpl: Fetch = (url, init) => authFetch(url, init)): Promise<SpaceRead | null> {
+  const url = spaceFileUrl(podRoot);
+  const res = await send(fetchImpl, url, { headers: { Accept: "text/turtle" } });
+  if (res.status === 404) return null;
+  if (!res.ok) throw refuse(res, "Could not read the space file");
+  const text = await res.text();
+  let draft: Draft | null;
+  try {
+    draft = draftFromTurtle(text, url);
+  } catch (err) {
+    throw new PublishError("unreadable", `The space file is not Turtle this app can read: ${(err as Error).message}`);
+  }
+  if (!draft) throw new PublishError("unreadable", "The file at space.ttl holds no space.");
+  return { url, space: `${url}#space`, draft };
 }

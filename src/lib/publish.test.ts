@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./auth", () => ({ authFetch: vi.fn() }));
-import { PublishError, spaceFileUrl, writeSpaceFile } from "./publish";
+import { PublishError, readSpaceFile, spaceFileUrl, writeSpaceFile } from "./publish";
 import { spaceFile } from "./spacefile";
 
 const POD = "https://weld-done.pod.example/";
@@ -106,5 +106,35 @@ describe("writeSpaceFile (14.4 AC2, AC5)", () => {
     const r = await writeSpaceFile(POD, { ...draft, website: "javascript:alert(1)" }, pod);
     expect(r.dropped).toEqual(["website"]);
     expect(held).not.toContain("javascript");
+  });
+});
+
+describe("readSpaceFile (#11)", () => {
+  const answer = (status: number, body = ""): typeof fetch => async () => new Response(body, { status });
+
+  it("reads the space at the pod root back into a draft", async () => {
+    held = mine;
+    const r = await readSpaceFile(POD, pod);
+    expect(r).toEqual({ url: POD + "space.ttl", space: POD + "space.ttl#space", draft });
+    expect(calls.map((c) => c.method)).toEqual(["GET"]);
+  });
+
+  it("is null when there is no file yet", async () => {
+    expect(await readSpaceFile(POD, pod)).toBeNull();
+  });
+
+  it("says the session ended on 401 and 403, never that the file is missing", async () => {
+    for (const status of [401, 403]) {
+      await expect(readSpaceFile(POD, answer(status))).rejects.toMatchObject({ code: "expired", status });
+    }
+  });
+
+  it("says unreadable for a file that holds no space or isn't Turtle", async () => {
+    await expect(readSpaceFile(POD, answer(200, '<#x> <https://schema.org/name> "x" .'))).rejects.toMatchObject({ code: "unreadable" });
+    await expect(readSpaceFile(POD, answer(200, "<html> nope"))).rejects.toBeInstanceOf(PublishError);
+  });
+
+  it("is unreachable when the pod doesn't answer", async () => {
+    await expect(readSpaceFile(POD, async () => { throw new TypeError("network"); })).rejects.toMatchObject({ code: "unreachable" });
   });
 });

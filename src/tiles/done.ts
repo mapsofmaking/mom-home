@@ -13,6 +13,7 @@
  * page that won't load.
  */
 import type { Tree } from "../tree/parse";
+import type { Draft } from "../workbench/previews";
 
 export interface DoneContext {
   /** Who signed in: a person, or a space's own account. Never assumed to be the space. */
@@ -25,6 +26,10 @@ export interface DoneContext {
    * 14.3/14.4; several spaces per person = a picker, later).
    */
   space: string | null;
+  /** What the space's file says, read at sign-in (#11); null when there is no file. */
+  spaceData?: Draft | null;
+  /** The space is on the map (S3 sets it from the register answer); until then tile B is not done. */
+  onMap?: boolean;
 }
 
 export type DoneCheck = (ctx: DoneContext) => Promise<boolean>;
@@ -41,10 +46,15 @@ export const DONE_CHECKS: Readonly<Record<string, DoneCheck>> = {
   // readable. Having a pod proves nothing: a person's own pod has storage too
   // (that false positive shipped in S6 and was caught the same day). The
   // card's address and the self-hosted door come with 14.3/14.4.
-  keep: async (ctx) => ctx.space !== null,
+  // A file in the pod is not yet "published": it is private until S2 and off the map until S3.
+  keep: async (ctx) => ctx.space !== null && ctx.onMap === true,
   // describe: nobody publishes without describing. The card's own check (name
   // and address in it) replaces this with 14.2/14.3.
-  describe: async (ctx) => ctx.space !== null,
+  // describe: the space's file says a name, a town and a pin (#11): what a card needs.
+  describe: async (ctx) => {
+    const d = ctx.spaceData;
+    return ctx.space !== null && !!(d?.name && d.city && d.lat && d.lon);
+  },
   change: notYet, // → 14.6: hours modified after the card was created
   join: notYet, // → its story: org:memberOf a network
   event: notYet,

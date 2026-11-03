@@ -32,7 +32,7 @@ import { readDone } from "./tiles/done";
 import { makeDraftStore } from "./lib/draft";
 import { hasForwarded, readForwarded } from "./lib/forwarded";
 import { clearPodMade, peekPodMade, takePodMade, type PodMade } from "./lib/handoff";
-import { writeSpaceFile } from "./lib/publish";
+import { PublishError, readSpaceFile, writeSpaceFile } from "./lib/publish";
 import type { Draft } from "./workbench/previews";
 import type { Tree } from "./tree/parse";
 
@@ -266,11 +266,21 @@ async function main(): Promise<void> {
   try {
     podRoot = await getPrimaryPodUrl(webId);
     const root = podRoot;
+    // The space, read back from the pod (#11): the pod is the source, so the form and the card are filled from it.
+    // A session refused here is the error view's "sign in again"; a file that can't be read costs the card, not the page.
+    const found = await readSpaceFile(root).catch((err) => {
+      if (err instanceof PublishError && err.code === "expired") throw err;
+      console.warn("Could not read space.ttl:", err);
+      return null;
+    });
+    if (found) {
+      for (const k of Object.keys(draft)) delete (draft as Record<string, unknown>)[k];
+      Object.assign(draft, found.draft);
+    }
     // Settings that can't be read cost the remembered fold, not the page.
     const [name, doneOnPod, settings] = await Promise.all([
       displayName(webId),
-      // No space is looked up yet (Type Index, 14.3/14.4): nothing counts as done.
-      readDone(tree!, { webId, podRoot: root, space: null }),
+      readDone(tree!, { webId, podRoot: root, space: found?.space ?? null, spaceData: found?.draft ?? null }),
       readHomeSettings(root).catch((err): HomeSettings => {
         console.warn("Could not read settings/mom-home.ttl:", err);
         return { folded: null, seen: [] };
@@ -344,12 +354,14 @@ function renderLoadingView(webId: string): void {
  * so the copy says that rather than leaving someone staring at a status code.
  */
 function renderErrorView(webId: string, err: unknown): void {
+  // The space-file read (#11) says "expired" in its own words; same answer as the kit's 401/403.
+  const ended = isAuthError(err) || (err instanceof PublishError && err.code === "expired");
   app.innerHTML = `
     <main class="screen stack">
       ${renderError({
-        title: isAuthError(err) ? "Your session ended" : "Could not reach your pod",
+        title: ended ? "Your session ended" : "Could not reach your pod",
         detail: describePodError(err),
-        recovery: isAuthError(err)
+        recovery: ended
           ? "Nothing was lost — your work is in the pod, not in this tab. Signing in again brings it back."
           : "Your pod is unaffected. This is about reaching it from here, not about what is in it.",
         action: { label: "Sign in again", id: "logout" },
