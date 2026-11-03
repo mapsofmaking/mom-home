@@ -57,6 +57,7 @@ import { renderHexRow } from "./hexrow";
 import { renderHexView } from "./hexview";
 import type { Draft } from "./previews";
 import { renderStep } from "./step";
+import { dropAllMaps, mountMiniMaps } from "./minimap";
 import { suggestPodName } from "../lib/podname";
 import {
   checkEmail,
@@ -354,6 +355,8 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     // The suggested address is checked as soon as the form opens (AC2): a bad one shows before the passphrase is reached.
     const podForm = step.querySelector<HTMLFormElement>("#f-pod");
     if (podForm && pod.name) checkName(podForm, thresholdWords(tile));
+    // A card with a pin gets its small map, loaded on demand (S6, #16).
+    void mountMiniMaps(step);
   };
 
   /** Asks the pod server once the first time tile B opens (and again on "Try again"); the answer redraws it. */
@@ -825,6 +828,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     destroy() {
       life.abort();
       clearTimeout(podTimer);
+      dropAllMaps();
       observers.forEach((o) => o.disconnect());
     },
   };

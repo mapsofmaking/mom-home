@@ -8,6 +8,7 @@
  * Copy reference: the dry run's PREVIEWS ("Maps of Making Dry Run").
  */
 import { esc } from "./html";
+import { miniMapSlot } from "./minimap";
 
 /** What the coordinator has typed so far. Signed out it lives in memory (AC4). */
 export interface Draft {
@@ -42,6 +43,7 @@ const facts = (rows: [string, string | undefined][]) =>
 const PREVIEWS: Record<string, (d: Draft) => string> = {
   mapcard: (d) => `
     <div class="wb-frame">
+      ${miniMapSlot(d.lat, d.lon)}
       <div class="wb-popup">
         <div class="sp-hero"><span class="sp-name hand">${name(d)}</span>
           <span class="sp-address">${esc(d.city) || "Where you are"}</span></div>

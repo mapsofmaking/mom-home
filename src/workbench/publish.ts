@@ -10,6 +10,7 @@ import type { OnMap } from "../lib/onmap";
 import type { Tile } from "../tree/parse";
 import { bernard, esc } from "./html";
 import { tileUi } from "./tilewords";
+import { miniMapSlot } from "./minimap";
 
 export const PUBLISH_UI_KEYS = [
   "uiPublishGo", "uiStepFile", "uiStepFileWorking", "uiStepFileWritten", "uiStepFileThere", "uiStepFileKept",
@@ -98,7 +99,7 @@ const COPY_ICON = `<svg class="copy-icon" viewBox="0 0 16 16" aria-hidden="true"
 
 /**
  * The threshold, "You're on the map" (Story 14.4 AC4b): Bernard, the pin as the map
- * draws it (read back, labelled live; never drawn here), the file's address to copy,
+ * draws it (read back, labelled live; its card and a small map under it, S6), the file's address to copy,
  * and Bernard pointing at tile C, which is the one way on. `next` is tile C.
  */
 export function renderThreshold(tile: Tile, state: PublishState, locality: string, next: Tile | undefined): string {
@@ -107,6 +108,13 @@ export function renderThreshold(tile: Tile, state: PublishState, locality: strin
   const place = on.pin?.city || locality;
   const pin = on.pin
     ? `<p class="wf-label">${esc(ui("uiOnMapLive"))}</p>
+       <div class="wb-frame wb-frame-live">
+         ${miniMapSlot(on.pin.lat, on.pin.lon)}
+         <div class="wb-popup">
+           <div class="sp-hero"><span class="sp-name hand">${esc(on.pin.name)}</span>
+             <span class="sp-address">${esc([on.pin.city, on.pin.country].filter(Boolean).join(", "))}</span></div>
+         </div>
+       </div>
        <p class="wb-pin ok"><span class="wb-pin-line">${esc(on.pin.name)} · ${esc(on.pin.lat.toFixed(5))}, ${esc(on.pin.lon.toFixed(5))}${
          on.pin.city ? ` · ${esc(on.pin.city)}` : ""
        }</span></p>`
