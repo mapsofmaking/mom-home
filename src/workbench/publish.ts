@@ -46,12 +46,18 @@ export function renderPublishPanel(tile: Tile, state: PublishState): string {
   const detail =
     state.file === "working" ? ui("uiStepFileWorking") : state.file === "done" ? state.fileLine : "";
   const status = state.file === "done" ? [ui("uiPublishNext"), state.dropped].filter(Boolean).join(" ") : state.message;
-  return `
+  // Before the press there is only Bernard's line and the button: an empty step marker reads as a checkbox
+  // to tick, and the step's name repeats Bernard (Nicolas, 2026-11-03). The steps show once they run.
+  const steps =
+    state.file === "idle"
+      ? ""
+      : `
     <ol class="wb-steps" aria-label="${esc(ui("uiPublishGo"))}">
       <li class="sp-unlock-step">${marker(state.file)}<span class="sp-unlock-body"><strong>${esc(ui("uiStepFile"))}</strong>${
         detail ? ` <span class="wb-aside">${esc(detail)}</span>` : ""
       }</span></li>
-    </ol>
+    </ol>`;
+  return `${steps}
     <p class="${state.file === "failed" ? "hint is-error" : "wb-aside"}" id="publish-status" role="status" tabindex="-1">${esc(status)}</p>
     ${
       state.file === "done"
