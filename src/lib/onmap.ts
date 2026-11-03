@@ -29,6 +29,8 @@ export interface Pin {
   lon: number;
   city: string;
   country: string;
+  /** The card's opening hours as the map holds them ("" when none). */
+  hours: string;
 }
 
 export interface OnMap {
@@ -86,9 +88,10 @@ export async function readPin(id: string, fetchImpl: Fetch = (u, i) => fetch(u, 
   const res = await ask(fetchImpl, `/api/space/${encodeURIComponent(id)}/pin`, { headers: { Accept: "application/json" } }, 10_000);
   if (res.status === 404) return null;
   if (!res.ok) throw new PublishError("map-down", `The map's pin answered ${res.status}.`, res.status);
-  const p = (await res.json()) as Partial<Pin>;
+  const p = (await res.json()) as Partial<Pin> & { opening_hours?: unknown };
   if (typeof p.lat !== "number" || typeof p.lon !== "number") return null;
-  return { id, name: p.name ?? "", lat: p.lat, lon: p.lon, city: p.city ?? "", country: p.country ?? "" };
+  const hours = typeof p.opening_hours === "string" ? p.opening_hours : "";
+  return { id, name: p.name ?? "", lat: p.lat, lon: p.lon, city: p.city ?? "", country: p.country ?? "", hours };
 }
 
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -137,4 +140,33 @@ export async function readPublished(
   if (!id || !open) return null;
   const pin = await readPin(id, fetchImpl).catch(() => null);
   return { id, link: mapLink(id), pin };
+}
+
+/** What the map holds after a change: its card, and whether it already says the new hours. */
+export interface MapReread {
+  onMap: OnMap;
+  /** The card shows the new hours; false: the map took the file but hasn't redrawn yet. */
+  caughtUp: boolean;
+}
+
+/**
+ * Tile C (Story 14.6 S2, #37): the map reads the changed file now, not at its next tick. Registering a
+ * known address again re-reads it in place (decided 2026-11-03; the map's per-space refresh comes with
+ * 14.9). Then the card is read back until it says the new hours, briefly: late is not a failure.
+ */
+export async function rereadOnMap(
+  fileUrl: string,
+  hours: string,
+  fetchImpl: Fetch = (u, i) => fetch(u, i),
+  wait = { total: PIN_WAIT_MS, every: PIN_EVERY_MS }
+): Promise<MapReread> {
+  const id = await registerOnMap(fileUrl, fetchImpl);
+  const until = Date.now() + wait.total;
+  let pin: Pin | null = null;
+  for (;;) {
+    pin = await readPin(id, fetchImpl).catch(() => pin);
+    if (pin?.hours === hours || Date.now() + wait.every > until) break;
+    await pause(wait.every);
+  }
+  return { onMap: { id, link: mapLink(id), pin }, caughtUp: pin?.hours === hours };
 }

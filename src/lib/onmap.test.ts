@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { idFromSpaceUri, lookupOnMap, mapLink, putOnMap, readPin, readPublished, registerOnMap } from "./onmap";
+import { idFromSpaceUri, lookupOnMap, mapLink, putOnMap, readPin, readPublished, registerOnMap, rereadOnMap } from "./onmap";
 
 const FILE = "https://weld-done.pod.example/space.ttl";
 type Call = { url: string; init?: RequestInit };
@@ -46,7 +46,7 @@ describe("on the map (14.4 S3, #13)", () => {
   });
 
   it("reads the pin as the map draws it; not drawn yet is null, not an error", async () => {
-    expect(await readPin("weld-done", fakeMap().fetchImpl)).toEqual({ id: "weld-done", name: "Weld Done", lat: 50.8371, lon: 4.3458, city: "Marolles", country: "Belgium" });
+    expect(await readPin("weld-done", fakeMap().fetchImpl)).toEqual({ id: "weld-done", name: "Weld Done", lat: 50.8371, lon: 4.3458, city: "Marolles", country: "Belgium", hours: "" });
     expect(await readPin("weld-done", fakeMap({ lag: 1 }).fetchImpl)).toBeNull();
   });
 
@@ -92,5 +92,33 @@ describe("on the map, read at sign-in (14.4 S4, #14)", () => {
     expect(await readPublished(FILE, async () => true, map(404).fetchImpl)).toBeNull();
     expect(await readPublished(FILE, async () => true, map(500).fetchImpl)).toBeNull();
     expect(await readPublished(FILE, async () => { throw new Error("x"); }, map(200).fetchImpl)).toBeNull();
+  });
+});
+
+describe("the map reads a changed file now (14.6 S2, #37)", () => {
+  const card = (hours: string) => () => new Response(JSON.stringify({ id: "weld-done", name: "Weld Done", lat: 50.8, lon: 4.3, city: "Marolles", country: "BE", opening_hours: hours }), { status: 200 });
+  const quick = { total: 50, every: 1 };
+
+  it("registers the file again, then reads the card until it says the new hours", async () => {
+    let n = 0;
+    const map = fakeMap({ pin: () => card(n++ < 2 ? "Mo 9-12" : "Mo 9-17")() });
+    const r = await rereadOnMap(FILE, "Mo 9-17", map.fetchImpl, quick);
+    expect(r.caughtUp).toBe(true);
+    expect(r.onMap.pin!.hours).toBe("Mo 9-17");
+    expect(map.calls[0].url).toBe("/api/register-url");
+    expect(JSON.parse(map.calls[0].init!.body as string)).toEqual({ url: FILE });
+  });
+
+  it("a card that hasn't caught up yet is late, not a failure: the old hours come back", async () => {
+    const r = await rereadOnMap(FILE, "Mo 9-17", fakeMap({ pin: card("Mo 9-12") }).fetchImpl, quick);
+    expect(r.caughtUp).toBe(false);
+    expect(r.onMap.pin!.hours).toBe("Mo 9-12");
+  });
+
+  it("a map that refuses or doesn't answer the register says so", async () => {
+    const refused = await rereadOnMap(FILE, "x", fakeMap({ register: () => new Response("no", { status: 422 }) }).fetchImpl, quick).catch((e) => e);
+    expect(refused.code).toBe("map-refused");
+    const down = await rereadOnMap(FILE, "x", fakeMap({ register: () => new Response("", { status: 502 }) }).fetchImpl, quick).catch((e) => e);
+    expect(down.code).toBe("map-down");
   });
 });

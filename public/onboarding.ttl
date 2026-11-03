@@ -223,6 +223,16 @@
   onb:uiHoursNew "Your file had no opening hours. It has now."@en ;
   onb:uiFileLabel "Your file · space.ttl · the line that changed"@en ;
   onb:uiHoursAgain "Change them again"@en ;
+  onb:uiStepWritten "Written to your pod"@en ;
+  onb:uiStepMapReading "The map is reading it"@en ;
+  onb:uiStepMapRead "The map read it"@en ;
+  onb:uiStepMapLate "It took the file; the card catches up within a minute."@en ;
+  onb:uiMapDidntRead "The map didn't answer. Your file has the hours; press the button to ask the map again."@en ;
+  onb:uiMapRefusedFile "The map read your file and didn't take it. Your file has the hours; the people who run the map can see why."@en ;
+  onb:uiMapAgain "Ask the map again"@en ;
+  onb:uiCardLabel "Your card on the map"@en ;
+  onb:uiHoursFact "Hours"@en ;
+  onb:uiReloadHint "Map open in another tab? Reload it to see the change."@en ;
   onb:uiHoursNoAccess "Your pod says this account can't change the file. Signing in again won't help: check who can edit space.ttl in the backoffice."@en ;
   onb:uiHoursUnconfirmed "The hours went to your file, but reading it back didn't work. Press Save again: if the file says them, nothing more is written."@en ;
   onb:doneWhen """ASK { ?space schema:openingHours ?h }  # tile A doesn't ask for hours: present means set here, or by the coordinator's own edit (decided 2026-11-03)""" .

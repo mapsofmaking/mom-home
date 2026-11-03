@@ -33,10 +33,10 @@ import { announce } from "../ui/a11y";
 import { readOffers, type Offers } from "../lib/provider";
 import { AccountError, createAccount, pendingEmail, type NewAccount, type SignUp } from "../lib/register";
 import { markPodMade, type PodMade } from "../lib/handoff";
-import type { OnMap } from "../lib/onmap";
+import type { MapReread, OnMap } from "../lib/onmap";
 import { PublishError, type FileResult, type PublicResult } from "../lib/publish";
 import { IDLE, publishWords, renderPublishPanel, type PublishState } from "./publish";
-import { hoursIdle, hoursWords, renderHoursPanel, type HoursState } from "./hours";
+import { hoursIdle, hoursWords, renderHoursPanel, renderMapSteps, type HoursState } from "./hours";
 import type { HoursResult } from "../lib/hours";
 import { DEFAULT_IDENTIFIER } from "../config";
 import type { Tree } from "../tree/parse";
@@ -120,6 +120,8 @@ export interface PageOptions {
   onPod?: { fileUrl: string; open: boolean } | null;
   /** Tile C (Story 14.6 S1, #36): the opening hours, changed in the space's file. Signed in with the space on the pod. */
   saveHours?: (hours: string) => Promise<HoursResult>;
+  /** Tile C, after a save (S2, #37): the map reads the file now, and its card is read back. */
+  mapRead?: (hours: string) => Promise<MapReread>;
 }
 
 /** null: never set, the width decides. */
@@ -519,6 +521,10 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   step.addEventListener("click", (event) => {
     const target = (event.target as Element).closest<HTMLElement>("button");
     if (!target) return;
+    if (target.id === "hours-map-again") {
+      void readByMap();
+      return;
+    }
     if (target.id === "hours-again") {
       hours = hoursIdle(hours.saved ?? opts.draft.hours);
       draw();
@@ -801,11 +807,41 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
       return;
     }
     opts.draft.hours = result.hours;
-    hours = { status: "saved", typed: result.hours, message: "", was: result.was, saved: result.hours };
+    hours = { ...hoursIdle(result.hours), status: "saved", was: result.was, saved: result.hours, map: opts.mapRead ? "working" : "idle" };
     // The file says the hours now: tile C is done in this tab, as the next sign-in reads it from the pod (AC5).
     doneHere.add("change");
     draw();
     step.querySelector<HTMLElement>(".wb-step-title")?.focus();
+    void readByMap();
+  };
+
+  /**
+   * The map reads the changed file (S2, #37). The tiles don't wait for it: the file is written, and the answer
+   * only redraws tile C if tile C is still the one on screen (a redraw elsewhere would lose what's being typed).
+   */
+  let mapAsked = 0;
+  const readByMap = async () => {
+    const saved = hours.saved;
+    if (!opts.mapRead || hours.status !== "saved" || !saved) return;
+    const asked = ++mapAsked;
+    const tile = tree.tiles.find((t) => t.act === "hours")!;
+    const ui = hoursWords(tile);
+    hours = { ...hours, map: "working", mapMessage: "" };
+    const box = step.querySelector<HTMLElement>("#hours-map");
+    if (box) box.innerHTML = renderMapSteps(tile, hours);
+    try {
+      const read = await opts.mapRead(saved);
+      if (asked !== mapAsked) return;
+      hours = { ...hours, map: read.caughtUp ? "done" : "late", onMap: read.onMap };
+    } catch (err) {
+      if (asked !== mapAsked) return;
+      const refused = err instanceof PublishError && err.code === "map-refused";
+      hours = { ...hours, map: "failed", mapMessage: ui(refused ? "uiMapRefusedFile" : "uiMapDidntRead") };
+    }
+    if (!step.isConnected || selected !== tile.id || hours.status !== "saved") return;
+    const had = document.activeElement?.id;
+    draw();
+    step.querySelector<HTMLElement>(hours.map === "failed" ? "#hours-map-status" : had ? `#${had}` : ".wb-step-title")?.focus();
   };
 
   /** To the pod's own page (Solid-OIDC). If it doesn't start, the pod still exists: say so, and the button signs in again. */
