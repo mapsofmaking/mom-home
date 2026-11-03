@@ -584,52 +584,66 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
       const finished = publish.file === "done" && publish.pub === "done";
       if (focus) box.querySelector<HTMLElement>(finished ? "#publish-status" : "#publish-go")?.focus();
     };
-    if (publishing || !opts.publishSpace) return;
+    // Both steps or none: a panel that could end on the file alone would say "anyone can read it" untrue.
+    if (publishing || !opts.publishSpace || !opts.makePublic) return;
+    const publishSpace = opts.publishSpace;
+    const makePublic = opts.makePublic;
     publishing = true;
-    publish = { ...IDLE, file: "working" };
-    paint();
-    // Each failure is said in the words of the step that failed; a press again starts over, and each step
-    // asks first whether it is already done (the file is "already there", the rules already public).
+    // Each failure is said in the words of the step that failed (AC5).
     const say = (e: PublishError) => {
       const missing = e.missing.map((m) => ui(({ name: "uiMissingName", town: "uiMissingTown", country: "uiMissingCountry", pin: "uiMissingPin" } as const)[m]));
+      const status = String(e.status ?? "no status");
       switch (e.code) {
         case "incomplete": return ui("uiPublishIncomplete", { missing: missing.join(", ") });
         case "expired": return ui("uiPublishExpired");
         case "unreachable": return ui("uiPublishUnreachable");
         case "unreadable": return ui("uiPublishUnreadable");
         case "rules-unknown": return ui("uiPublicUnknown");
-        case "not-public": return ui("uiPublicNotPublic", { status: String(e.status ?? "no status") });
-        default: return ui("uiPublishRefused", { status: String(e.status ?? "no status") });
+        case "rules-wider": return ui("uiPublicWider");
+        case "no-control": return ui("uiPublicNoControl");
+        case "conflict": return ui("uiPublicConflict");
+        case "gone": return ui("uiPublicGone");
+        case "no-wac": return ui("uiPublicNoWac");
+        // Already public and still unreadable: pressing again won't help, so the line doesn't say to.
+        case "not-public": return ui(e.rulesWere === "already-public" ? "uiPublicBlocked" : "uiPublicNotPublic", { status });
+        default: return ui("uiPublishRefused", { status });
       }
     };
     const asError = (err: unknown) => (err instanceof PublishError ? err : new PublishError("refused", String(err)));
     try {
-      let result: FileResult;
-      try {
-        result = await opts.publishSpace(opts.draft);
-      } catch (err) {
-        publish = { ...publish, file: "failed", message: say(asError(err)) };
-        return;
+      // A retry resumes from the step that failed (AC5): a file already written is not written again,
+      // unless the public step found it gone.
+      const resume = publish.file === "done" && publish.pub === "failed" && publish.failedCode !== "gone";
+      if (!resume) {
+        publish = { ...IDLE, file: "working" };
+        paint();
+        let result: FileResult;
+        try {
+          result = await publishSpace(opts.draft);
+        } catch (err) {
+          publish = { ...publish, file: "failed", message: say(asError(err)) };
+          return;
+        }
+        const address = result.url;
+        const fileLine =
+          result.status === "written"
+            ? ui("uiStepFileWritten", { address })
+            : result.status === "already-there"
+              ? ui("uiStepFileThere")
+              : ui("uiStepFileKept");
+        const dropped = result.dropped.length
+          ? ui("uiPublishDropped", { fields: result.dropped.map((k) => words.field(k).label.toLowerCase()).join(", ") })
+          : "";
+        publish = { ...publish, file: "done", fileLine, dropped };
       }
-      const address = result.url;
-      const fileLine =
-        result.status === "written"
-          ? ui("uiStepFileWritten", { address })
-          : result.status === "already-there"
-            ? ui("uiStepFileThere")
-            : ui("uiStepFileKept");
-      const dropped = result.dropped.length
-        ? ui("uiPublishDropped", { fields: result.dropped.map((k) => words.field(k).label.toLowerCase()).join(", ") })
-        : "";
-      // Without the public step (no pod to set rules on), the file is where this run ends.
-      publish = { ...publish, file: "done", fileLine, dropped, pub: opts.makePublic ? "working" : "done" };
-      if (!opts.makePublic) return;
+      publish = { ...publish, pub: "working", message: "", failedCode: null };
       paint();
       try {
-        const pub = await opts.makePublic();
+        const pub = await makePublic();
         publish = { ...publish, pub: "done", pubLine: ui(pub.status === "made-public" ? "uiStepPublicDone" : "uiStepPublicAlready") };
       } catch (err) {
-        publish = { ...publish, pub: "failed", message: say(asError(err)) };
+        const e = asError(err);
+        publish = { ...publish, pub: "failed", message: say(e), failedCode: e.code };
       }
     } finally {
       publishing = false;

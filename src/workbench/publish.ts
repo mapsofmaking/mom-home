@@ -15,6 +15,7 @@ export const PUBLISH_UI_KEYS = [
   "uiPublishNext", "uiPublishDropped", "uiPublishIncomplete", "uiMissingName", "uiMissingTown", "uiMissingCountry",
   "uiMissingPin", "uiPublishExpired", "uiPublishUnreachable", "uiPublishRefused", "uiPublishUnreadable",
   "uiStepPublic", "uiStepPublicWorking", "uiStepPublicDone", "uiStepPublicAlready", "uiPublicUnknown", "uiPublicNotPublic",
+  "uiPublicBlocked", "uiPublicWider", "uiPublicNoControl", "uiPublicConflict", "uiPublicGone", "uiPublicNoWac",
 ] as const;
 export type PublishUiKey = (typeof PUBLISH_UI_KEYS)[number];
 export const publishWords = (tile: Pick<Tile, "ui"> | undefined) => tileUi<PublishUiKey>(tile, "tile B (publish)");
@@ -35,9 +36,11 @@ export interface PublishState {
   fileLine: string;
   /** Left out of the file, said once the file is done. */
   dropped: string;
+  /** The code of the public step's failure: a retry resumes there, except when the file was gone. */
+  failedCode: string | null;
 }
 
-export const IDLE: PublishState = { file: "idle", pub: "idle", pubLine: "", message: "", fileLine: "", dropped: "" };
+export const IDLE: PublishState = { file: "idle", pub: "idle", pubLine: "", message: "", fileLine: "", dropped: "", failedCode: null };
 
 const marker = (state: StepState) =>
   state === "done"
