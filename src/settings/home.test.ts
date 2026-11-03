@@ -13,7 +13,12 @@ const {
   readHomeSettings,
   serializeHomeSettings,
   SETTINGS_README,
+  README_SECTION,
+  README_V1,
+  nextReadme,
+  ensureSettingsReadme,
 } = await import("./home");
+const { FOOTPRINT } = await import("../lib/footprint");
 const { forgetReads } = await import("../lib/read");
 const { readDone, DONE_CHECKS } = await import("../tiles/done");
 const { parseTree } = await import("../tree/parse");
@@ -81,10 +86,12 @@ describe("reading and changing it on the pod", () => {
     expect(parseHomeSettings(store.get(URL)!.text, URL).folded).toBe(true);
   });
 
-  it("never writes over a README already there", async () => {
-    const store = pod({ [POD + "settings/README.md"]: "mine", [WEBID.split("#")[0]]: "" });
+  it("a README already there keeps every word: home only adds its own section at the end", async () => {
+    const store = pod({ [POD + "settings/README.md"]: "# mine\n\nMy notes.\n", [WEBID.split("#")[0]]: "" });
     await changeHomeSettings(POD, WEBID, (s) => ({ ...s, folded: true }));
-    expect(store.get(POD + "settings/README.md")!.text).toBe("mine");
+    const text = store.get(POD + "settings/README.md")!.text;
+    expect(text.startsWith("# mine\n\nMy notes.\n\n")).toBe(true);
+    expect(text).toContain(README_SECTION);
   });
 
   it("changes an existing file with one conditional whole-document write", async () => {
@@ -143,6 +150,96 @@ describe("reading and changing it on the pod", () => {
     await changeHomeSettings(POD, WEBID, (s) => ({ ...s, folded: true }));
     warn.mockRestore();
     expect(parseHomeSettings(store.get(URL)!.text, URL).folded).toBe(true);
+  });
+});
+
+describe("settings/README.md says what home keeps on the pod (#48)", () => {
+  const README = POD + "settings/README.md";
+  const START = "<!-- mom-home: start -->";
+  const END = "<!-- mom-home: end -->";
+
+  it("names everything in the footprint, plumbing apart from home's own", () => {
+    for (const m of FOOTPRINT) expect(README_SECTION).toContain(m.where);
+    expect(SETTINGS_README).toContain("publicTypeIndex.ttl");
+    expect(SETTINGS_README.indexOf(README_SECTION)).toBeGreaterThan(SETTINGS_README.indexOf("## Shared by every app"));
+  });
+
+  it("none yet, or home's first version: home's whole README", () => {
+    expect(nextReadme(null)).toBe(SETTINGS_README);
+    expect(nextReadme(README_V1)).toBe(SETTINGS_README);
+  });
+
+  it("up to date: nothing to write", () => {
+    expect(nextReadme(SETTINGS_README)).toBeNull();
+  });
+
+  it("home's section changed: only the text between its markers is replaced", () => {
+    const owners = `# settings\n\nMy words.\n\n${START}\nold list\n${END}\n\n## backoffice\n\nIts words.\n`;
+    const next = nextReadme(owners)!;
+    expect(next).toBe(`# settings\n\nMy words.\n\n${README_SECTION}\n\n## backoffice\n\nIts words.\n`);
+  });
+
+  it("markers quoted in a fence or in a sentence are not markers: the section is added, nothing replaced", () => {
+    const docs = "# notes\n\n```\n" + START + "\nexample\n" + END + "\n```\n\nHome marks with `" + START + "`.\n";
+    expect(nextReadme(docs)).toBe(docs.replace(/\s*$/, "\n\n") + README_SECTION + "\n");
+  });
+
+  it("CRLF and empty files: written back once with LF, then left alone", () => {
+    const crlf = SETTINGS_README.replace(/\n/g, "\r\n");
+    expect(nextReadme(crlf)).toBe(SETTINGS_README);
+    expect(nextReadme(nextReadme(crlf))).toBeNull();
+    expect(nextReadme("")).toBe(SETTINGS_README);
+    const appended = nextReadme("# mine\n")!;
+    expect(nextReadme(appended)).toBeNull();
+  });
+
+  it("a README that isn't text home can rewrite is left alone, and keeps its type", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    for (const [body, type] of [["<html>proxy</html>", "text/html"], ["bin�ary", "text/markdown"], ["x".repeat(300 * 1024), "text/markdown"]]) {
+      mockFetch.mockReset();
+      mockFetch.mockImplementation(async (_u: string, init: RequestInit = {}) =>
+        (init.method ?? "GET") === "GET" ? new Response(body, { status: 200, headers: { "Content-Type": type, ETag: '"1"' } }) : new Response(null, { status: 204 })
+      );
+      await ensureSettingsReadme(POD);
+      expect(puts(), type).toHaveLength(0);
+    }
+    mockFetch.mockReset();
+    mockFetch.mockImplementation(async (_u: string, init: RequestInit = {}) =>
+      (init.method ?? "GET") === "GET" ? new Response("# mine\n", { status: 200, headers: { "Content-Type": "text/plain; charset=utf-8", ETag: '"1"' } }) : new Response(null, { status: 204 })
+    );
+    await ensureSettingsReadme(POD);
+    expect((puts()[0][1] as RequestInit).headers).toMatchObject({ "Content-Type": "text/plain", "If-Match": '"1"' });
+    warn.mockRestore();
+  });
+
+  it("markers it can't make sense of: left alone", () => {
+    expect(nextReadme(`a\n${START}\nb`)).toBeNull();
+    expect(nextReadme(`${END}\n${START}`)).toBeNull();
+    expect(nextReadme(`${START}\n${END}\n${START}\n${END}`)).toBeNull();
+  });
+
+  it("writes conditionally: If-Match on the ETag read, nothing without one, and a 412 is not an error", async () => {
+    const store = pod({ [README]: README_V1 });
+    await ensureSettingsReadme(POD);
+    expect((puts()[0][1] as RequestInit).headers).toMatchObject({ "If-Match": '"1"' });
+    expect(store.get(README)!.text).toBe(SETTINGS_README);
+
+    mockFetch.mockReset();
+    mockFetch.mockImplementation(async (_u: string, init: RequestInit = {}) =>
+      (init.method ?? "GET") === "GET" ? new Response("mine", { status: 200 }) : new Response(null, { status: 204 })
+    );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await ensureSettingsReadme(POD);
+    expect(puts()).toHaveLength(0);
+
+    mockFetch.mockReset();
+    mockFetch.mockImplementation(async (_u: string, init: RequestInit = {}) =>
+      (init.method ?? "GET") === "GET" ? new Response("", { status: 404 }) : new Response("", { status: 412 })
+    );
+    await expect(ensureSettingsReadme(POD)).resolves.toBeUndefined();
+    expect((puts()[0][1] as RequestInit).headers).toMatchObject({ "If-None-Match": "*" });
+    expect(warn).not.toHaveBeenCalledWith(expect.stringContaining("412"));
+    warn.mockRestore();
   });
 });
 

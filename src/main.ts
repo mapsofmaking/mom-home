@@ -26,7 +26,7 @@ import { renderError, renderPending } from "./ui/patterns";
 import { loadTree } from "./tree/load";
 import { renderPage, type FoldState, type PageHandle } from "./workbench/page";
 import { displayName } from "./workbench/who";
-import { changeHomeSettings, readHomeSettings, type HomeSettings } from "./settings/home";
+import { changeHomeSettings, ensureSettingsReadme, readHomeSettings, type HomeSettings } from "./settings/home";
 import { forgetReads } from "./lib/read";
 import { readDone } from "./tiles/done";
 import { makeDraftStore } from "./lib/draft";
@@ -170,9 +170,14 @@ let writes: Promise<void> = Promise.resolve();
  * in the console only.
  */
 function listSpace(webId: string, podRoot: string, fileUrl: string): void {
-  void registerSpace(webId, podRoot, fileUrl.split("#")[0] + "#space").catch((err) =>
-    console.warn("The space is on the map but not in the public Type Index; the next sign-in tries again:", err)
-  );
+  void registerSpace(webId, podRoot, fileUrl.split("#")[0] + "#space")
+    .then(() => keepReadme(podRoot))
+    .catch((err) => console.warn("The space is on the map but not in the public Type Index; the next sign-in tries again:", err));
+}
+
+/** settings/README.md says what home keeps on the pod (#48): brought up to date after home writes there, and at sign-in. */
+function keepReadme(podRoot: string): Promise<void> {
+  return ensureSettingsReadme(podRoot).catch((err) => console.warn("Could not bring the settings README up to date:", err));
 }
 
 function renderWorkbenchView(
@@ -336,6 +341,8 @@ async function main(): Promise<void> {
     const published = found ? await readPublished(found.url, async () => readable) : null;
     // Public and on the map but not in the index (a registration that failed before): list it now, quietly.
     if (found && published && !listed.includes(found.space)) listSpace(webId, root, found.url);
+    // Home has written to this pod: its README section says what (#48). Quietly, and only if it changed.
+    else if (found) void keepReadme(root);
     // Settings that can't be read cost the remembered fold, not the page.
     const [name, doneOnPod, settings] = await Promise.all([
       displayName(webId),
