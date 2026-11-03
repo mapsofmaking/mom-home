@@ -8,6 +8,11 @@ Kit-level decisions (Solid, ACLs, sign-in) are ADRs in the kit repo; this file o
 
 ## 2026-11-03
 
+- **The one planned fold happens once per coordinator** (14.6 S3). It comes when the map has read tile C's
+  first change (C3), never on a map failure. It applies even after an earlier "Show all", and then the toggle
+  alone decides. "Tutorial seen" is written to `settings/mom-home.ttl` in the same write as the fold.
+  Bernard's line (`onb:sayFold`) is said only when the layout really folded, so not on a phone or for a fold
+  already chosen.
 - **Tile C changes one statement, never the whole file** (14.6 S1). The space file has other writers (the
   backoffice, later Bernard), so a save is one N3 Patch on the statement the tile owns, sent with the ETag of
   the read just before it; a file changed meanwhile is refused and nothing is written.

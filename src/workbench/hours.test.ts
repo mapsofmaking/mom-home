@@ -265,3 +265,74 @@ describe("tile C follows the storyboard: C1 before, C2 while the map reads (14.6
     root.remove();
   });
 });
+
+describe("the first fold, at the end of tile C's tutorial (14.6 S3, #38)", () => {
+  const saved = async (h: string): Promise<HoursResult> => ({ status: "saved", was: "Mo 9-12", hours: h, text: "" });
+  const pin = { id: "weld-done", name: "Weld Done", lat: 50.8, lon: 4.3, city: "Marolles", country: "BE", hours: "Mo 9-17", address: "" };
+  const reread = async (): Promise<MapReread> => ({ caughtUp: true, onMap: { id: "weld-done", link: "", pin } });
+  const failing = async (): Promise<MapReread> => { throw new PublishError("unreachable", "down"); };
+
+  function visit(folded: boolean | null, seen: Set<string>, mapRead = reread) {
+    const root = document.createElement("div");
+    document.body.append(root);
+    const fold = { folded };
+    const kept: [string, boolean][] = [];
+    renderPage(root, tree, {
+      mode: "workbench", who: "weld-done", done: new Set(["describe", "keep"]), draft: { name: "Weld Done", city: "Marolles", country: "BE", lat: "50.8", lon: "4.3" },
+      fold, seen, onTutorialSeen: (iri, f) => kept.push([iri, f]),
+      onSignIn: () => {}, onSignOut: () => {}, readOffers: async () => "open", saveHours: vi.fn(saved), mapRead: vi.fn(mapRead),
+    });
+    root.querySelector<HTMLElement>('button[data-tile="change"]')!.click();
+    return { root, fold, kept };
+  }
+  const isFolded = (root: HTMLElement) => root.querySelector(".wb-page")!.classList.contains("is-folded");
+
+  it("the first time the map reads the change, the hexes fold and Bernard names Show all; kept seen, with the fold", async () => {
+    const { root, fold, kept } = visit(false, new Set());
+    expect(isFolded(root)).toBe(false);
+    type(root, "Mo 9-17");
+    await settle(); await settle();
+    expect(isFolded(root)).toBe(true);
+    expect(fold.folded).toBe(true);
+    expect(text(root, "#hours-fold")).toContain(change.lines.sayFold);
+    expect(change.lines.sayFold).toContain("Show all");
+    expect(kept).toEqual([[change.iri, true]]);
+    // The way back works, and it is the coordinator's from now on.
+    root.querySelector<HTMLElement>("#unfold")!.click();
+    expect(isFolded(root)).toBe(false);
+    // Back to the tiles: the line was said once.
+    root.querySelector<HTMLElement>("#hours-back")?.click();
+    root.querySelector<HTMLElement>('button[data-tile="change"]')!.click();
+    expect(root.querySelector("#hours-fold")).toBeNull();
+    root.remove();
+  });
+
+  it("seen before: a second change never folds, whatever the toggle says", async () => {
+    const { root, kept } = visit(false, new Set([change.iri]));
+    type(root, "Mo 9-17");
+    await settle(); await settle();
+    expect(isFolded(root)).toBe(false);
+    expect(root.querySelector("#hours-fold")).toBeNull();
+    expect(kept).toEqual([]);
+    root.remove();
+  });
+
+  it("already folded: kept seen, nothing moves, and Bernard says nothing about a fold", async () => {
+    const { root, kept } = visit(true, new Set());
+    type(root, "Mo 9-17");
+    await settle(); await settle();
+    expect(isFolded(root)).toBe(true);
+    expect(root.querySelector("#hours-fold")).toBeNull();
+    expect(kept).toEqual([[change.iri, true]]);
+    root.remove();
+  });
+
+  it("the map didn't read it: the tutorial isn't over, nothing folds", async () => {
+    const { root, kept } = visit(false, new Set(), failing);
+    type(root, "Mo 9-17");
+    await settle(); await settle();
+    expect(isFolded(root)).toBe(false);
+    expect(kept).toEqual([]);
+    root.remove();
+  });
+});
