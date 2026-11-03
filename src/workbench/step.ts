@@ -24,6 +24,8 @@ export interface StepContext {
   draft: Draft;
   /** Tile A reopened with "Fix something first". */
   editing?: boolean;
+  /** Signed in: the card was drawn from the draft in this tab. Not "done" (that is read from the pod). */
+  carded?: boolean;
   /** Tile A's words; the page passes its one reader (read from the tile when absent). */
   words?: DescribeWords;
   /** Tile B (14.3): what the pod server offers (null: being asked), and the door chosen. */
@@ -96,7 +98,7 @@ const head = (tile: Tile, state: TileState) => `
  */
 function describeStep(tile: Tile, state: TileState, ctx: StepContext): string {
   const w = ctx.words ?? describeWords(tile);
-  if (state !== "done" || ctx.editing) {
+  if ((state !== "done" && !ctx.carded) || ctx.editing) {
     // A phone gets the shorter lead (AC2); home.css shows one of the two by width.
     const words = tile.leadShort
       ? `<span class="lead-full">${esc(tile.lead ?? "")}</span><span class="lead-short">${esc(tile.leadShort)}</span>`

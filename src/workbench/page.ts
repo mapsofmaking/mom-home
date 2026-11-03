@@ -165,6 +165,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   // Back from the sign-in after creating the pod: tile B speaks first (AC6).
   let selected: string | null = opts.podReady ? (tree.tiles.find((t) => t.act === "threshold")?.id ?? null) : null;
   let editing = false;
+  let carded = false; // workbench: the card is shown from the draft; done stays the pod's to say
   /** Tile B (14.3): what the pod server offers (null: not asked yet or being asked), and the door chosen. */
   let offers: OffersState = null;
   let offersAsked = false;
@@ -302,7 +303,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     pod.held = pendingEmail(DEFAULT_IDENTIFIER);
     pod.made = made !== null;
     clearTimeout(podTimer);
-    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, words, offers, door, pod, podReady: podReady?.pod ?? null, prior: opts.priorPod ?? null, makeAnother, publish: opts.publishSpace ? publish : null });
+    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, carded, words, offers, door, pod, podReady: podReady?.pod ?? null, prior: opts.priorPod ?? null, makeAnother, publish: opts.publishSpace ? publish : null });
     step.scrollTop = 0;
     if (tile.act === "threshold" && !offersAsked) askOffers();
     // The suggested address is checked as soon as the form opens (AC2): a bad one shows before the passphrase is reached.
@@ -397,7 +398,11 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     readDescribeForm(form, opts.draft);
     if (workbench) {
       // Done is read from the pod, never carried here (AC4); tile A is not connected to the pod until 14.2.
-      announce(words.ui("uiNotOnPod"));
+      // Done is the pod's to say (AC4), so the card is only shown, never marked done.
+      carded = true;
+      editing = false;
+      draw();
+      (step.querySelector<HTMLElement>('[data-go="keep"]') ?? step.querySelector<HTMLElement>(".wb-step-title"))?.focus();
       return;
     }
     opts.done.add("describe");
@@ -473,6 +478,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
       // Signed out, a card with nothing behind it isn't done either.
       if (!workbench) opts.done.delete("describe");
       editing = false;
+      carded = false;
       draw();
       step.querySelector<HTMLInputElement>("#f-name")?.focus();
       announce(words.ui("uiCleared"));

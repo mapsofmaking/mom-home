@@ -99,6 +99,16 @@ describe("renderPage", () => {
     expect(done.size).toBe(0);
   });
 
+  it("signed in, the button shows the card from the draft, still not done", () => {
+    const root = document.createElement("div");
+    const done = new Set<string>();
+    renderPage(root, tree, options("workbench", done));
+    submit(root);
+    expect(root.querySelector("#f-describe")).toBeNull();
+    expect(root.querySelector("#fix")).not.toBeNull();
+    expect(done.size).toBe(0);
+  });
+
   it("selects a reached tile, never fog, when nothing is open", () => {
     const root = document.createElement("div");
     const everything = new Set(tree.tiles.map((t) => t.id));
