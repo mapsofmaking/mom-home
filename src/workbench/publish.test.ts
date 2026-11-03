@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { OnMap } from "../lib/onmap";
 import { PublishError, type FileResult, type PublicResult } from "../lib/publish";
 import { parseTree } from "../tree/parse";
 import { renderPage } from "./page";
@@ -25,7 +26,9 @@ function open(publishSpace: (d: Draft) => Promise<FileResult>, extra: Record<str
   renderPage(root, tree, {
     mode: "workbench", who: "Weld Done", done: new Set(["describe"]), draft, fold: { folded: false },
     onSignIn: () => {}, onSignOut: () => {}, readOffers: async () => "open", publishSpace,
-    makePublic: async (): Promise<PublicResult> => ({ status: "made-public" }), ...extra,
+    makePublic: async (): Promise<PublicResult> => ({ status: "made-public" }),
+    // The map step, by default never answering: tests of the first two steps see the panel as it is mid-run.
+    putOnMap: () => new Promise<OnMap>(() => {}), ...extra,
   });
   return root;
 }
@@ -79,7 +82,6 @@ describe("tile B, signed in with a pod (14.4)", () => {
     expect(publishSpace).toHaveBeenCalledTimes(1);
     expect(publishSpace).toHaveBeenCalledWith(draft);
     expect(text(root, "#publish")).toContain(keep.ui.uiStepFileWritten.replace("{address}", URL_));
-    expect(text(root, "#publish-status")).toContain(keep.ui.uiPublishNext);
     expect(draft.name).toBe("Weld Done");
   });
 
@@ -152,17 +154,17 @@ describe("tile B, signed in with a pod (14.4)", () => {
 describe("the public step (14.4 S2, #12)", () => {
   const pub = (status: PublicResult["status"] = "made-public") => vi.fn(async (): Promise<PublicResult> => ({ status }));
 
-  it("after the file, opens it to anyone, says so, and ends with the next step named", async () => {
+  it("after the file, opens it to anyone, says so, and goes on to the map", async () => {
     const makePublic = pub();
     const root = open(vi.fn(async () => ok()), { makePublic });
     root.querySelector<HTMLElement>("#publish-go")!.click();
     await settle();
     await settle();
     expect(makePublic).toHaveBeenCalledTimes(1);
-    expect(root.querySelectorAll("li")).toHaveLength(2);
+    expect(root.querySelectorAll("li")).toHaveLength(3);
     expect(text(root, "#publish")).toContain(keep.ui.uiStepPublicDone);
-    expect(text(root, "#publish-status")).toContain(keep.ui.uiPublishNext);
-    expect(root.querySelector("#publish-go")).toBeNull();
+    expect(text(root, "#publish")).toContain(keep.ui.uiStepMapWorking);
+    expect(root.querySelector<HTMLButtonElement>("#publish-go")!.disabled).toBe(true);
   });
 
   it("says when anyone could already read it", async () => {
@@ -240,6 +242,70 @@ describe("a retry resumes from the step that failed (14.4 AC5, review of #23)", 
     root.querySelector<HTMLElement>("#publish-go")?.click();
     await settle();
     expect(publishSpace).not.toHaveBeenCalled();
-    expect(root.textContent).not.toContain(keep.ui.uiPublishNext);
+  });
+});
+
+describe("on the map, and the threshold (14.4 S3, #13; AC4, AC4b)", () => {
+  const onMap = (pin = true): OnMap => ({
+    id: "weld-done",
+    link: "https://mapsofmaking.org/?space=weld-done",
+    pin: pin ? { id: "weld-done", name: "Weld Done", lat: 50.8371, lon: 4.3458, city: "Marolles", country: "Belgium" } : null,
+  });
+  const go = async (root: HTMLElement) => {
+    root.querySelector<HTMLElement>("#publish-go")!.click();
+    for (let i = 0; i < 4; i++) await settle();
+  };
+
+  it("registers the file's address, then shows the threshold: the pin read back, the address to copy, the way on to tile C", async () => {
+    const putOnMap = vi.fn(async () => onMap());
+    const root = open(vi.fn(async () => ok()), { putOnMap });
+    await go(root);
+    expect(putOnMap).toHaveBeenCalledWith(URL_);
+    const body = text(root, "#step");
+    expect(body).toContain(keep.lines.saidDone!.replace("{locality}", "Marolles"));
+    expect(body).toContain(keep.ui.uiOnMapLive);
+    expect(body).toContain("Weld Done · 50.83710, 4.34580 · Marolles");
+    expect(root.querySelector<HTMLElement>("#copy-address")!.dataset.copy).toBe(URL_);
+    expect(body).toContain(keep.lines.sayNext!);
+    expect(root.querySelector<HTMLAnchorElement>('a[href="https://mapsofmaking.org/?space=weld-done"]')!.target).toBe("_blank");
+    const next = root.querySelector<HTMLElement>('.wb-out [data-go="change"]')!;
+    expect(document.activeElement).toBe(next);
+    // Tile B is done in this tab, and its word unlocks.
+    expect(root.querySelector('[data-tile="keep"]')!.className).toContain("done");
+    expect(root.querySelector("#words")!.textContent).toMatch(/pod/i);
+    // The one way on goes to tile C.
+    next.click();
+    expect(root.querySelector('[aria-current="step"]')!.getAttribute("data-tile")).toBe("change");
+  });
+
+  it("a pin the map hasn't drawn yet says so, never a pin drawn here", async () => {
+    const root = open(vi.fn(async () => ok()), { putOnMap: vi.fn(async () => onMap(false)) });
+    await go(root);
+    expect(text(root, "#step")).toContain(keep.ui.uiPinLate);
+    expect(text(root, "#step")).not.toContain(keep.ui.uiOnMapLive);
+  });
+
+  it("the map's own failures have their own lines, and a retry runs only the map step", async () => {
+    let n = 0;
+    const publishSpace = vi.fn(async () => ok());
+    const makePublic = vi.fn(async (): Promise<PublicResult> => ({ status: "made-public" }));
+    const putOnMap = vi.fn(async () => {
+      if (n++ === 0) throw new PublishError("map-refused", "x", 422);
+      return onMap();
+    });
+    const root = open(publishSpace, { makePublic, putOnMap });
+    await go(root);
+    expect(text(root, "#publish-status")).toBe(keep.ui.uiMapRefused);
+    await go(root);
+    expect(publishSpace).toHaveBeenCalledTimes(1);
+    expect(makePublic).toHaveBeenCalledTimes(1);
+    expect(putOnMap).toHaveBeenCalledTimes(2);
+    expect(text(root, "#step")).toContain(keep.ui.uiOnMapLive);
+  });
+
+  it("a map that doesn't answer is the map's silence, not the pod's", async () => {
+    const root = open(vi.fn(async () => ok()), { putOnMap: vi.fn(async () => { throw new PublishError("unreachable", "x"); }) });
+    await go(root);
+    expect(text(root, "#publish-status")).toBe(keep.ui.uiMapDown);
   });
 });
