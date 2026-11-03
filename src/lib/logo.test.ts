@@ -42,6 +42,11 @@ function pod(text: string, logo: { bytes: Uint8Array; type: string } | null = nu
         logoVersion++;
         return new Response(null, { status: 201 });
       }
+      if (method === "DELETE") {
+        if (!logo || headers["If-Match"] !== `"l${logoVersion}"`) return new Response(null, { status: 412 });
+        logo = null;
+        return new Response(null, { status: 205 });
+      }
     }
     if (method === "GET") return new Response(turtle(), { status: 200, headers: { ETag: `"v${version}"` } });
     if (headers["If-Match"] && headers["If-Match"] !== `"v${version}"`) return new Response("", { status: 412 });
@@ -113,6 +118,36 @@ describe("uploading the logo (14.6 S6, #41)", () => {
     await expect(uploadLogo(ROOT, WEBID, blob(PNG), "https://elsewhere.example/old.png", p.fetchImpl)).rejects.toMatchObject({ code: "not-public" });
     expect(p.logos()).toEqual(["https://elsewhere.example/old.png"]);
     expect(p.calls.some((c) => c.method === "PATCH")).toBe(false);
+  });
+
+  it("a step after the create fails: the file it made is taken back (If-Match), so a retry starts clean", async () => {
+    const p = pod(FILE());
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    makePublic.mockRejectedValueOnce(new PublishError("not-public", "anonymous read blocked"));
+    await expect(uploadLogo(ROOT, WEBID, blob(PNG), null, p.fetchImpl)).rejects.toMatchObject({ code: "not-public" });
+    expect(p.calls.find((c) => c.method === "DELETE")!.headers).toMatchObject({ "If-Match": '"l2"' });
+    expect(p.logo()).toBeNull();
+    const r = await uploadLogo(ROOT, WEBID, blob(PNG), null, p.fetchImpl);
+    expect(r.status).toBe("saved");
+    expect(p.logos()).toEqual([LOGO]);
+    warn.mockRestore();
+  });
+
+  it("never takes back a replaced logo, nor one the space may already point at (unconfirmed)", async () => {
+    const replaced = pod(FILE(LOGO), { bytes: PNG, type: "image/png" });
+    makePublic.mockRejectedValueOnce(new PublishError("not-public", "x"));
+    await expect(uploadLogo(ROOT, WEBID, blob(WEBP), LOGO, replaced.fetchImpl)).rejects.toMatchObject({ code: "not-public" });
+    expect(replaced.calls.some((c) => c.method === "DELETE")).toBe(false);
+
+    const p = pod(FILE());
+    const lost = async (url: string, init?: RequestInit) => {
+      // The patch lands, then every read of the space file fails: "unconfirmed".
+      if (url === SPACE_FILE && (init?.method ?? "GET") === "GET" && p.calls.some((c) => c.method === "PATCH")) return new Response("", { status: 500 });
+      return p.fetchImpl(url, init);
+    };
+    await expect(uploadLogo(ROOT, WEBID, blob(PNG), null, lost)).rejects.toMatchObject({ code: "unconfirmed" });
+    expect(p.calls.some((c) => c.method === "DELETE")).toBe(false);
+    expect(p.logo()).not.toBeNull();
   });
 
   it("replacing: the same address, If-Match on the version read, the new type; the file isn't patched again", async () => {

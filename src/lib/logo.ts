@@ -82,8 +82,25 @@ async function storedSize(fetchImpl: Fetch, url: string): Promise<number | null>
   }
 }
 
-/** Writes the bytes: created if absent, replaced only if it is the space's logo already, at the version read. */
-async function writeLogo(fetchImpl: Fetch, url: string, file: Blob, type: LogoType, current: string | null): Promise<void> {
+/**
+ * Takes back a `logo` this upload created a moment ago, when a later step failed: it was provably absent
+ * before (`If-None-Match: *`), so it is home's, and leaving it would refuse every retry as "taken". Only the
+ * version just read goes (If-Match); a failure here is a console line, the first error is the one said.
+ */
+async function undoCreate(fetchImpl: Fetch, url: string): Promise<void> {
+  try {
+    const head = await send(fetchImpl, url, { method: "HEAD" });
+    const etag = head.headers.get("ETag");
+    if (!head.ok || !etag) return;
+    const res = await send(fetchImpl, url, { method: "DELETE", headers: { "If-Match": etag } });
+    if (!res.ok) console.warn(`The logo this upload made could not be taken back (${res.status}).`);
+  } catch (err) {
+    console.warn("The logo this upload made could not be taken back:", err);
+  }
+}
+
+/** Writes the bytes: created if absent, replaced only if it is the space's logo already, at the version read. True when created. */
+async function writeLogo(fetchImpl: Fetch, url: string, file: Blob, type: LogoType, current: string | null): Promise<boolean> {
   const head = await send(fetchImpl, url, { method: "HEAD" });
   let condition: Record<string, string>;
   if (head.status === 404) condition = { "If-None-Match": "*" };
@@ -106,10 +123,15 @@ async function writeLogo(fetchImpl: Fetch, url: string, file: Blob, type: LogoTy
     } catch (err) {
       // A server can keep the bytes it received before failing (CSS does, on a 500): say so.
       const stored = await storedSize(fetchImpl, url);
-      if (stored !== null && stored !== file.size) (err as Error).message += ` Only part of it was stored (${stored} of ${file.size} bytes).`;
+      if (stored !== null && stored !== file.size) {
+        (err as Error).message += ` Only part of it was stored (${stored} of ${file.size} bytes).`;
+        // A half-made new file is taken back; a half-replaced one stays the space's logo, and the next upload replaces it.
+        if (condition!["If-None-Match"]) await undoCreate(fetchImpl, url);
+      }
       throw err;
     }
   }
+  return "If-None-Match" in condition!;
 }
 
 /**
@@ -126,11 +148,18 @@ export async function uploadLogo(
 ): Promise<LogoResult> {
   const type = await checkLogo(file);
   const url = logoUrl(podRoot);
-  await writeLogo(fetchImpl, url, file, type, current);
+  const created = await writeLogo(fetchImpl, url, file, type, current);
   const proof = (ct: string | null) => (ct ?? "").split(";")[0].trim().toLowerCase() === type;
-  const opened = await makePublic(url, webId, { accept: type, anonFetch, isTheResource: (_body, ct) => proof(ct) });
-  const r = await changeStatement(spaceFileUrl(podRoot), LOGO, { n3: iri(url), value: url, isSame: (q) => q.object.termType === "NamedNode" && q.object.value === url }, fetchImpl);
-  return { ...r, url, opened: opened.status };
+  try {
+    const opened = await makePublic(url, webId, { accept: type, anonFetch, isTheResource: (_body, ct) => proof(ct) });
+    const r = await changeStatement(spaceFileUrl(podRoot), LOGO, { n3: iri(url), value: url, isSame: (q) => q.object.termType === "NamedNode" && q.object.value === url }, fetchImpl);
+    return { ...r, url, opened: opened.status };
+  } catch (err) {
+    // Not pointed at, so the file this upload made goes again, and a retry starts clean. Unless the patch may
+    // have landed ("unconfirmed"): then the space may point at it, and it stays.
+    if (created && !(err instanceof PublishError && err.code === "unconfirmed")) await undoCreate(fetchImpl, url);
+    throw err;
+  }
 }
 
 /** A typed address: http(s) only, a web address that can't end the IRI it is written as. Null when it isn't one. */

@@ -789,7 +789,8 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
    * it runs; what was typed is kept whatever happens. Each failure says its one way forward.
    */
   const runHours = async (form: HTMLFormElement) => {
-    if (savingHours || !opts.saveHours) return;
+    // One write to the space file at a time: a logo upload patches it too.
+    if (savingHours || savingLogo || !opts.saveHours) return;
     const tile = tree.tiles.find((t) => t.act === "hours")!;
     const ui = hoursWords(tile);
     const typed = form.querySelector<HTMLInputElement>("#f-hours-value")?.value ?? "";
@@ -945,14 +946,16 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   const readLogoByMap = async (url: string) => {
     if (!opts.mapRead) return;
     const tile = tree.tiles.find((t) => t.act === "hours")!;
+    let read: MapReread | null = null;
     try {
-      const read = await opts.mapRead((pin) => pin.logo === url);
-      logo = { ...logo, map: read.caughtUp ? "done" : "late" };
-      hours = { ...hours, onMap: read.onMap };
+      read = await opts.mapRead((pin) => pin.logo === url);
     } catch (err) {
       console.warn("The map didn't read the logo:", err);
-      logo = { ...logo, map: "failed" };
     }
+    // A newer logo since: this answer is about an older one, and is dropped.
+    if (opts.draft.logo !== url || savingLogo) return;
+    logo = { ...logo, map: read ? (read.caughtUp ? "done" : "late") : "failed" };
+    if (read) hours = { ...hours, onMap: read.onMap };
     if (!step.isConnected || selected !== tile.id || hours.status === "saved" || savingHours || savingLogo) return;
     const had = document.activeElement?.id;
     draw();
