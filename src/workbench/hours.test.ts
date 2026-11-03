@@ -57,7 +57,7 @@ describe("tile C, the first time (14.6 S1, #36)", () => {
     await settle();
     expect(saveHours).toHaveBeenCalledTimes(1);
     expect(text(root, "#hours-was")).toBe(change.ui.uiHoursWas.replace("{was}", "Mo 9-12"));
-    expect(text(root, ".wb-file-line")).toBe('schema:openingHours "Tu-Fr 12:00-20:00" ;');
+    expect(text(root, ".wb-code .chg")).toBe('schema:openingHours "Tu-Fr 12:00-20:00" ;');
     expect(root.querySelector('[data-tile="change"]')!.className).toContain("done");
     root.remove();
   });
