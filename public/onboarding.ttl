@@ -300,7 +300,7 @@
   onb:say "Not drawn yet. A space on two maps carries things across, so nobody relays by hand."@en .
 
 :pod a onb:Word ; onb:label "pod" ; onb:prio 1 ;
-  onb:meaning "Storage that's yours. The map reads your file and keeps a snapshot it refreshes; your file stays the original."@en .
+  onb:meaning "Personal Online Datastore: storage that's yours."@en .
 :endpoint a onb:Word ; onb:label "endpoint" ; onb:prio 2 ;
   onb:meaning "The address where your file lives. Everyone who reads you reads there."@en .
 :handshake a onb:Word ; onb:label "handshake" ; onb:prio 3 ;
