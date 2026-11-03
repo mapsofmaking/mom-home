@@ -50,12 +50,10 @@ export interface HoursState {
   onMap: OnMap | null;
   /** Why the map didn't read it. */
   mapMessage: string;
-  /** The hexes folded as this tutorial ended (S3, #38): Bernard names the way back, once. */
-  folded: boolean;
 }
 
 export const hoursIdle = (current: string | undefined, file: string | null = null, onMap: OnMap | null = null): HoursState => ({
-  status: "idle", typed: current ?? "", message: "", was: null, saved: null, file, map: "idle", onMap, mapMessage: "", folded: false,
+  status: "idle", typed: current ?? "", message: "", was: null, saved: null, file, map: "idle", onMap, mapMessage: "",
 });
 
 const marker = (state: HoursState["map"] | "done") =>
@@ -156,7 +154,6 @@ function renderSaved(tile: Tile, state: HoursState): string {
   const was = state.was ? `<b>${esc(ui("uiHoursLabel"))}</b> ${esc(ui("uiHoursWas", { was: state.was }))}` : esc(ui("uiHoursNew"));
   return `
     ${answered ? bernard(tile.lines.saidDone ?? "") : ""}
-    ${answered && state.folded && tile.lines.sayFold ? `<div id="hours-fold">${bernard(tile.lines.sayFold)}</div>` : ""}
     <div id="hours-map">${renderMapSteps(tile, state)}</div>
     ${answered ? `<p class="wb-aside" id="hours-was">${was}</p>` : ""}
     ${flow(tile, state)}
