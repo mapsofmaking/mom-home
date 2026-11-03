@@ -8,6 +8,14 @@ Kit-level decisions (Solid, ACLs, sign-in) are ADRs in the kit repo; this file o
 
 ## 2026-11-03
 
+- **Tile C changes one statement, never the whole file** (14.6 S1). The space file has other writers (the
+  backoffice, later Bernard), so a save is one N3 Patch on the statement the tile owns, sent with the ETag of
+  the read just before it; a file changed meanwhile is refused and nothing is written.
+- **The map re-reads a changed file through `register-url`** (Nicolas, 14.6). Registering a known address
+  again re-reads it in place. The map's per-space refresh, with its cooldown, and how home may reach it, is
+  decided with the operator-endpoint work in 14.9; home switches then.
+- **14.6 order** (Nicolas): S1 hours, S2 the map's read and the card, S3 the first fold, then S6 logo upload,
+  then S5 a space that moves; pause, then decide on S4 (the tool).
 - **The `/profile/` rule, narrowed** (Nicolas, devil's-advocated). Home never rewrites the WebID profile.
   When the Type Index links are missing, it may **add** them in one insert-only N3 Patch, and nothing else:
   the server appends, nothing can be deleted or rewritten. By the Solid convention those are

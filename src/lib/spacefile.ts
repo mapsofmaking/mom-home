@@ -117,6 +117,9 @@ export function spaceFile(draft: Draft): SpaceFile {
 
   const email = (draft.email ?? "").trim();
   if (email) add("schema:email", literal(email));
+  // Tile C's (14.6): tile A doesn't ask for them, but a file read back from the pod may hold them.
+  const hours = (draft.hours ?? "").trim();
+  if (hours) add("schema:openingHours", literal(hours));
 
   if ((draft.matrix ?? "").trim()) {
     const link = matrixLink(draft.matrix);
@@ -212,6 +215,7 @@ export function draftFromTurtle(turtle: string, base: string): Draft | null {
     set("lon", lon);
   }
   set("email", one(subject, "email"));
+  set("hours", one(subject, "openingHours"));
   for (const point of objects(subject, "contactPoint")) {
     if (one(point, "contactType") !== "Matrix") continue;
     const link = one(point, "url") ?? "";

@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import { FIELD_KEYS, UI_KEYS } from "../workbench/describe";
 import { PUBLISH_UI_KEYS } from "../workbench/publish";
 import { THRESHOLD_UI_KEYS } from "../workbench/threshold";
+import { HOURS_UI_KEYS } from "../workbench/hours";
 
 /** What tile B shows signed out and signed in: every line it uses is in the tree, and nothing else is. */
 const TILE_B_KEYS: readonly string[] = [...THRESHOLD_UI_KEYS, ...PUBLISH_UI_KEYS];
@@ -57,6 +58,12 @@ describe("the tree's words (14.2 AC8)", () => {
   it("has every line tile B shows, and nothing it no longer uses (14.3 AC8)", () => {
     expect(TILE_B_KEYS.filter((k) => !(k in thresholdTile.ui))).toEqual([]);
     expect(Object.keys(thresholdTile.ui).filter((k) => !TILE_B_KEYS.includes(k))).toEqual([]);
+  });
+
+  it("has every line tile C shows, and nothing it no longer uses (14.6)", () => {
+    const changeTile = tree.tiles.find((t) => t.act === "hours")!;
+    expect(HOURS_UI_KEYS.filter((k) => !(k in changeTile.ui))).toEqual([]);
+    expect(Object.keys(changeTile.ui).filter((k) => !(HOURS_UI_KEYS as readonly string[]).includes(k))).toEqual([]);
   });
 
   it("never judges, cheers or nudges", () => {
