@@ -778,14 +778,18 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
       result = await opts.saveHours(typed);
     } catch (err) {
       const code = err instanceof PublishError ? err.code : "refused";
-      const key = ({ expired: "uiHoursExpired", gone: "uiHoursGone", conflict: "uiHoursConflict", unreachable: "uiHoursUnreachable", unreadable: "uiHoursUnreadable" } as const)[
-        code as "expired" | "gone" | "conflict" | "unreachable" | "unreadable"
-      ] ?? "uiHoursRefused";
+      const keys = {
+        expired: "uiHoursExpired", "no-control": "uiHoursNoAccess", gone: "uiHoursGone", conflict: "uiHoursConflict",
+        unreachable: "uiHoursUnreachable", unreadable: "uiHoursUnreadable", unconfirmed: "uiHoursUnconfirmed",
+      } as const;
+      const key = keys[code as keyof typeof keys] ?? "uiHoursRefused";
       hours = { ...hours, status: "failed", message: ui(key) };
     } finally {
       savingHours = false;
     }
     if (!step.isConnected) return;
+    // Something redrew the step meanwhile (a resize): draw it again from the state, so the answer still shows.
+    if (!step.querySelector("#hours")) draw();
     if (!result) {
       paint("status");
       return;

@@ -90,6 +90,8 @@ describe("tile C, the first time (14.6 S1, #36)", () => {
       [new PublishError("unreachable", "x"), change.ui.uiHoursUnreachable],
       [new PublishError("unreadable", "x"), change.ui.uiHoursUnreadable],
       [new PublishError("refused", "x", 500), change.ui.uiHoursRefused],
+      [new PublishError("no-control", "x", 403), change.ui.uiHoursNoAccess],
+      [new PublishError("unconfirmed", "x"), change.ui.uiHoursUnconfirmed],
     ];
     for (const [error, line] of cases) {
       const root = open(vi.fn(async () => { throw error; }));

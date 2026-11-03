@@ -34,15 +34,26 @@ export interface HoursResult {
 
 /** A term as N3 writes it: IRIs in angle brackets, literals with their language or datatype. */
 export function n3Term(t: Term): string {
-  if (t.termType === "NamedNode") return `<${t.value}>`;
-  if (t.termType !== "Literal") throw new Error(`Not a term a patch can name: ${t.termType}`);
+  if (t.termType === "NamedNode") return iri(t.value);
+  if (t.termType !== "Literal") throw new PublishError("unreadable", `The file's hours are a ${t.termType}, not a line of text: left alone.`);
   const text = literal(t.value);
-  if (t.language) return `${text}@${t.language}`;
-  return t.datatype.value === XSD_STRING ? text : `${text}^^<${t.datatype.value}>`;
+  if (t.language) return /^[A-Za-z]+(-[A-Za-z0-9]+)*$/.test(t.language) ? `${text}@${t.language}` : bad("language tag");
+  return t.datatype.value === XSD_STRING ? text : `${text}^^${iri(t.datatype.value)}`;
+}
+
+const bad = (what: string): never => {
+  throw new PublishError("unreadable", `The file holds a ${what} this page can't write back safely: left alone.`);
+};
+
+/** An IRI in angle brackets, refused when it holds a character that could end them (it would rewrite other statements). */
+function iri(value: string): string {
+  return /[<>"{}|^`\\\s]/.test(value) ? bad("web address") : `<${value}>`;
 }
 
 const fail = (res: Response, what: string): never => {
-  if (res.status === 401 || res.status === 403) throw new PublishError("expired", `${what}: ${res.status}`, res.status);
+  if (res.status === 401) throw new PublishError("expired", `${what}: ${res.status}`, res.status);
+  // Signed in and refused: this account may not change the file. Signing in again won't help.
+  if (res.status === 403) throw new PublishError("no-control", `${what}: ${res.status}`, res.status);
   if (res.status === 404) throw new PublishError("gone", `${what}: the file is not there`, 404);
   if (res.status === 409 || res.status === 412) throw new PublishError("conflict", `${what}: the file changed meanwhile (${res.status})`, res.status);
   throw new PublishError("refused", `${what}: ${res.status}`, res.status);
@@ -63,16 +74,19 @@ async function readHours(fileUrl: string, fetchImpl: Fetch): Promise<Read> {
   } catch (err) {
     throw new PublishError("unreadable", `The space file isn't Turtle any more: ${(err as Error).message}`);
   }
-  const spaces = quads.filter((q) => q.predicate.value === RDF_TYPE && q.object.value === MOM_SPACE && q.subject.termType === "NamedNode");
+  // The same space the form was filled from (spacefile.ts draftFromTurtle): the file's own <#space>, else the first.
+  const spaces = quads.filter((q) => q.predicate.value === RDF_TYPE && q.object.value === MOM_SPACE);
   const own = `${fileUrl}#space`;
-  const subject = (spaces.find((q) => q.subject.value === own) ?? spaces[0])?.subject.value;
-  if (!subject) throw new PublishError("unreadable", "The space file names no space.");
+  const found = (spaces.find((q) => q.subject.value === own) ?? spaces[0])?.subject;
+  if (!found) throw new PublishError("unreadable", "The space file names no space.");
+  if (found.termType !== "NamedNode") throw new PublishError("unreadable", "The space in the file has no address of its own: left alone.");
+  const subject = found.value;
   return { subject, hours: quads.filter((q) => q.subject.value === subject && q.predicate.value === HOURS), etag: res.headers.get("ETag") };
 }
 
 /** The patch: the hours read go, the new ones come; nothing else in the file is touched. */
 export function hoursPatch(subject: string, old: readonly Quad[], hours: string): string {
-  const s = `<${subject}>`;
+  const s = iri(subject);
   const deletes = old.map((q) => `${s} <${HOURS}> ${n3Term(q.object)} .`).join(" ");
   return [
     "@prefix solid: <http://www.w3.org/ns/solid/terms#> .",
@@ -89,16 +103,25 @@ export async function saveHours(fileUrl: string, typed: string, fetchImpl: Fetch
   if (!hours) throw new PublishError("incomplete", "No hours to write.");
   const before = await readHours(fileUrl, fetchImpl);
   const was = before.hours[0]?.object.value ?? null;
-  if (before.hours.length === 1 && was === hours) return { status: "same", was, hours };
+  const plain = (q: Quad) => q.object.termType === "Literal" && !q.object.language && q.object.datatype.value === XSD_STRING;
+  if (before.hours.length === 1 && was === hours && plain(before.hours[0])) return { status: "same", was, hours };
+  // Without the read's ETag the write can't be conditional: an insert would land over a change it never saw.
+  if (!before.etag) throw new PublishError("refused", "The pod sent no ETag, so the write can't check the file is unchanged.");
 
-  const headers: Record<string, string> = { "Content-Type": "text/n3" };
-  if (before.etag) headers["If-Match"] = before.etag;
-  const res = await send(fetchImpl, fileUrl, { method: "PATCH", headers, body: hoursPatch(before.subject, before.hours, hours) });
+  const body = hoursPatch(before.subject, before.hours, hours);
+  const res = await send(fetchImpl, fileUrl, { method: "PATCH", headers: { "Content-Type": "text/n3", "If-Match": before.etag }, body });
   if (!res.ok) fail(res, "Writing the hours");
 
-  const after = await readHours(fileUrl, fetchImpl);
-  if (after.hours.length !== 1 || after.hours[0].object.value !== hours) {
-    throw new PublishError("unreadable", "The pod took the hours but the file doesn't say them back.");
+  // The write is in: from here a failure is "not confirmed", never "nothing was written".
+  let after: Read;
+  try {
+    after = await readHours(fileUrl, fetchImpl);
+  } catch (err) {
+    throw new PublishError("unconfirmed", `Written, but reading it back failed: ${(err as Error).message}`);
+  }
+  // Another writer may have changed the hours again since: what matters is that ours went in.
+  if (!after.hours.some((q) => q.object.value === hours)) {
+    throw new PublishError("unconfirmed", "Written, but the file read back doesn't say these hours: it may have changed since.");
   }
   return { status: "saved", was, hours };
 }

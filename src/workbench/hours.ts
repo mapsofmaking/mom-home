@@ -14,7 +14,7 @@ import { tileUi } from "./tilewords";
 export const HOURS_UI_KEYS = [
   "uiHoursLabel", "uiHoursHint", "uiHoursPlaceholder", "uiSave", "uiSaving", "uiHoursSame", "uiHoursEmpty",
   "uiHoursConflict", "uiHoursExpired", "uiHoursGone", "uiHoursUnreachable", "uiHoursRefused", "uiHoursUnreadable",
-  "uiHoursWas", "uiHoursNew", "uiFileLabel", "uiHoursAgain",
+  "uiHoursWas", "uiHoursNew", "uiFileLabel", "uiHoursAgain", "uiHoursNoAccess", "uiHoursUnconfirmed",
 ] as const;
 export type HoursUiKey = (typeof HOURS_UI_KEYS)[number];
 export const hoursWords = (tile: Pick<Tile, "ui"> | undefined) => tileUi<HoursUiKey>(tile, "tile C (hours)");

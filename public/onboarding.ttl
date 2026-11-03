@@ -223,7 +223,9 @@
   onb:uiHoursNew "Your file had no opening hours. It has now."@en ;
   onb:uiFileLabel "Your file · space.ttl · the line that changed"@en ;
   onb:uiHoursAgain "Change them again"@en ;
-  onb:doneWhen """ASK { ?space mom:openingHours ?h ; dct:modified ?m . FILTER(?m > ?created) }""" .
+  onb:uiHoursNoAccess "Your pod says this account can't change the file. Signing in again won't help: check who can edit space.ttl in the backoffice."@en ;
+  onb:uiHoursUnconfirmed "The hours went to your file, but reading it back didn't work. Press Save again: if the file says them, nothing more is written."@en ;
+  onb:doneWhen """ASK { ?space schema:openingHours ?h }  # tile A doesn't ask for hours: present means set here, or by the coordinator's own edit (decided 2026-11-03)""" .
 
 :join a onb:Tile ;
   onb:icon "people" ;

@@ -104,12 +104,68 @@ describe("the hours, changed once in the space's file (14.6 S1, #36)", () => {
 
   it("says what failed: expired (401/403), gone (404), refused, unreachable", async () => {
     const answer = (status: number) => async () => new Response("", { status });
-    for (const [status, code] of [[401, "expired"], [403, "expired"], [404, "gone"], [500, "refused"]] as const) {
+    for (const [status, code] of [[401, "expired"], [403, "no-control"], [404, "gone"], [500, "refused"]] as const) {
       const err = await saveHours(URL_, "Mo 9-12", answer(status)).catch((e) => e);
       expect((err as PublishError).code, String(status)).toBe(code);
     }
     const down = await saveHours(URL_, "Mo 9-12", async () => { throw new TypeError("network"); }).catch((e) => e);
     expect((down as PublishError).code).toBe("unreachable");
+  });
+
+  it("written but not read back: unconfirmed, never 'nothing was written' (review of #42)", async () => {
+    const p = pod(FILE("Mo 9-12"));
+    let n = 0;
+    const flaky = async (url: string, init?: RequestInit) => {
+      if ((init?.method ?? "GET") === "GET" && n++ === 1) throw new TypeError("network");
+      return p.fetchImpl(url, init);
+    };
+    const err = await saveHours(URL_, "Mo 9-17", flaky).catch((e) => e);
+    expect((err as PublishError).code).toBe("unconfirmed");
+    expect(hoursIn(p.text())).toEqual(["Mo 9-17"]);
+  });
+
+  it("another writer adding hours right after ours: ours went in, so it is saved", async () => {
+    const p = pod(FILE("Mo 9-12"));
+    const busy = async (url: string, init?: RequestInit) => {
+      const res = await p.fetchImpl(url, init);
+      if (init?.method === "PATCH") p.edit(FILE("Mo 9-17", ` ;\n  schema:openingHours "Sa 10-12"`));
+      return res;
+    };
+    expect((await saveHours(URL_, "Mo 9-17", busy)).status).toBe("saved");
+  });
+
+  it("a language-tagged value equal to the typed one is still rewritten as plain text", async () => {
+    const p = pod(`@prefix schema: <https://schema.org/> . @prefix mom: <https://mapsofmaking.org/ns/mom#> .
+<#space> a mom:Space ; schema:openingHours "Mo 9-12"@en .`);
+    expect((await saveHours(URL_, "Mo 9-12", p.fetchImpl)).status).toBe("saved");
+  });
+
+  it("hours that aren't text, or a space with no address of its own, are left alone, nothing sent", async () => {
+    for (const file of [
+      `@prefix schema: <https://schema.org/> . @prefix mom: <https://mapsofmaking.org/ns/mom#> .
+<#space> a mom:Space ; schema:openingHours [ schema:dayOfWeek "Mo" ] .`,
+      `@prefix mom: <https://mapsofmaking.org/ns/mom#> . [] a mom:Space .`,
+    ]) {
+      const p = pod(file);
+      const err = await saveHours(URL_, "Mo 9-12", p.fetchImpl).catch((e) => e);
+      expect((err as PublishError).code).toBe("unreadable");
+      expect(p.calls.map((c) => c.method)).toEqual(["GET"]);
+    }
+  });
+
+  it("a subject that could end its angle brackets is refused, never written into a patch", () => {
+    expect(() => hoursPatch("https://x.example/a> <https://evil", [], "Mo")).toThrow(PublishError);
+  });
+
+  it("no ETag from the pod: no unconditional write", async () => {
+    const p = pod(FILE());
+    const noTag = async (url: string, init?: RequestInit) => {
+      const res = await p.fetchImpl(url, init);
+      return (init?.method ?? "GET") === "GET" ? new Response(await res.text(), { status: 200 }) : res;
+    };
+    const err = await saveHours(URL_, "Mo 9-12", noTag).catch((e) => e);
+    expect((err as PublishError).code).toBe("refused");
+    expect(p.calls.map((c) => c.method)).toEqual(["GET"]);
   });
 
   it("refuses empty hours before asking the pod anything", async () => {

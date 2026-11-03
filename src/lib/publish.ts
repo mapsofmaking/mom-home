@@ -40,7 +40,9 @@ export type PublishCode =
   /** The map read the file and didn't take it (422). */
   | "map-refused"
   /** The map's register answered with an error. */
-  | "map-down";
+  | "map-down"
+  /** The write went out, but reading it back failed: it may well be there (tile C, 14.6). */
+  | "unconfirmed";
 
 export class PublishError extends Error {
   readonly code: PublishCode;
