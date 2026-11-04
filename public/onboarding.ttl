@@ -265,7 +265,6 @@
   onb:uiLogoMapRead "The map shows it."@en ;
   onb:uiLogoMapLate "The map took it; the card catches up in a moment."@en ;
   onb:uiLogoMapDidntRead "The map didn't answer. Your file points at the logo; the map picks it up at its next read."@en ;
-  onb:uiLogoFact "Logo"@en ;
   onb:uiHoursNoAccess "Your pod says this account can't change the file. Signing in again won't help: check who can edit space.ttl in the backoffice."@en ;
   onb:uiHoursUnconfirmed "The hours went to your file, but reading it back didn't work. Press Save again: if the file says them, nothing more is written."@en ;
   onb:doneWhen """ASK { ?space schema:openingHours ?h }  # tile A doesn't ask for hours: present means set here, or by the coordinator's own edit (decided 2026-11-03)""" .

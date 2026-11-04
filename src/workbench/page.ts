@@ -80,6 +80,7 @@ import {
 } from "./podform";
 import { showsPodForm, thresholdWords, type Door, type OffersState } from "./threshold";
 import { metWords, renderWords } from "./words";
+import { swapBrokenLogos } from "./popup";
 
 export interface PageOptions {
   /** The session decides (AC1b). */
@@ -437,6 +438,8 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     }
   });
   root.querySelector("#fold")!.addEventListener("click", () => setFolded(true));
+  // A logo the map holds that fails to load shows the map's placeholder (popup.ts).
+  swapBrokenLogos(step);
 
   step.addEventListener("submit", (event) => {
     const form = event.target as HTMLFormElement;

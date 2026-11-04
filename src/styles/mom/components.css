@@ -67,6 +67,8 @@ kbd { font-family: var(--font-mono); border: 1px solid var(--rule); padding: 1px
 .sp-hero { padding: var(--space-14) var(--space-14) var(--space-12); display: flex; flex-direction: column; gap: var(--space-6); background: var(--surface-white); border-bottom: 1px dashed var(--rule); }
 .sp-name-row { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-10); }
 .sp-name { font-family: var(--font-hand); font-size: 28px; font-weight: 700; line-height: 1.05; color: var(--ink); flex: 1; }
+.sp-logo { height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.sp-logo img { height: 44px; width: auto; max-width: 120px; object-fit: contain; display: block; }
 .sp-logo.is-placeholder { width: 44px; height: 44px; border: var(--stroke-rule) solid var(--rule); background: var(--paper-2); }
 .sp-address { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
 .sp-badges-row { display: flex; align-items: center; gap: var(--space-6); flex-wrap: wrap; margin-top: 2px; }

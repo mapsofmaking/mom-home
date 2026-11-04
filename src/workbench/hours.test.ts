@@ -317,7 +317,14 @@ describe("the logo, once the hours are in the file (14.6 S6, #41)", () => {
     expect(says(pinWith(LOGO))).toBe(true);
     expect(says(pinWith(""))).toBe(false);
     expect(root.querySelector("pre.wb-file .chg")!.textContent).toContain("logo");
-    expect(root.querySelector<HTMLImageElement>(".wb-facts-box img.wb-card-logo")!.getAttribute("src")).toBe(LOGO);
+    // The card is the embed's: the logo beside the name, top right; not a fact of its own.
+    const img = root.querySelector<HTMLImageElement>(".wb-popup .sp-name-row .sp-logo img")!;
+    expect(img.getAttribute("src")).toBe(LOGO);
+    expect(root.querySelector(".wb-facts-box img")).toBeNull();
+    // An image that fails to load becomes the map's placeholder.
+    img.dispatchEvent(new Event("error"));
+    expect(root.querySelector(".wb-popup .sp-logo.is-placeholder svg")).not.toBeNull();
+    expect(root.querySelector(".wb-popup .sp-logo img")).toBeNull();
     root.remove();
   });
 
