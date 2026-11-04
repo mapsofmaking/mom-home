@@ -42,8 +42,7 @@ describe("parseTree, on the shipped tree", () => {
     );
     expect(keep.lines.sayTaken).toMatch(/^The pod server said/);
     expect(tree.app.lines.sayNeedsPod).toMatch(/needs a pod/);
-    expect(tree.app.ui.uiWip).toBe("Work in progress.");
-    expect(tree.app.ui.uiWipText).toBeTruthy();
+    expect(tree.app.ui).toEqual({}); // the work-in-progress notice is gone (2026-11-04)
   });
 });
 
