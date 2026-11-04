@@ -45,6 +45,26 @@ async function ask(street: string, city: string, country: string): Promise<Outco
   }
 }
 
+/** What the geocoder found for an address: the answer, and whether the street was missed (the town was found instead). */
+export type Found = { answer: Answer & { lat: number; lon: number }; missed: boolean } | "rate" | "unavailable" | "none";
+
+/**
+ * Asks the geocoder for a street in a town; when the street finds nothing, for the town alone (the proxy takes
+ * one request a second, so the second ask waits). Tile A's pin (`locate`) and tile C's move (14.6 S5) ask this way.
+ */
+export async function findPlace(street: string, city: string, country = ""): Promise<Found> {
+  let answer = await ask(street, city, country);
+  let missed = false;
+  if (typeof answer === "object" && answer.lat === null && street) {
+    await wait(timing.retryGap);
+    answer = await ask("", city, country);
+    missed = typeof answer === "object" && answer.lat !== null;
+  }
+  if (answer === "rate" || answer === "unavailable") return answer;
+  if (answer.lat === null || answer.lon === null) return "none";
+  return { answer: answer as Answer & { lat: number; lon: number }, missed };
+}
+
 /**
  * The place, short enough to read at a glance: Nominatim's first three parts,
  * each cut at its first " - " (Brussels' names come in three languages).
@@ -156,18 +176,13 @@ export async function locate(form: HTMLFormElement, w: DescribeWords, done: () =
 
   const started = Date.now();
   const stop = meter(form, w);
-  let answer = await ask(street, city, country);
-  let missed = false;
-  if (typeof answer === "object" && answer.lat === null && street) {
-    await wait(timing.retryGap); // the proxy takes one request a second
-    answer = await ask("", city, country);
-    missed = typeof answer === "object" && answer.lat !== null;
-  }
+  const found = await findPlace(street, city, country);
   await wait(Math.max(0, timing.minWait - (Date.now() - started)));
   stop();
   if (form.dataset.located !== key) return; // something newer was typed
 
-  if (answer === "rate" || answer === "unavailable" || answer.lat === null || answer.lon === null) {
+  if (typeof found !== "object") {
+    const answer = found;
     const text = w.ui(answer === "rate" ? "uiRate" : answer === "unavailable" ? "uiUnavailable" : "uiNoResult");
     say(form, text, "error");
     if (answer !== "rate") {
@@ -179,6 +194,7 @@ export async function locate(form: HTMLFormElement, w: DescribeWords, done: () =
     return;
   }
 
+  const { answer, missed } = found;
   set(form, "lat", String(answer.lat));
   set(form, "lon", String(answer.lon));
   set(form, "postcode", answer.postcode ?? "");

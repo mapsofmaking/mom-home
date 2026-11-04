@@ -3,6 +3,8 @@ import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { HoursResult } from "../lib/hours";
 import type { LogoResult } from "../lib/logo";
+import type { MoveResult } from "../lib/move";
+import type { Found } from "./where";
 type LogoUpload = (file: File, current: string | null) => Promise<LogoResult>;
 import type { MapReread } from "../lib/onmap";
 import { PublishError } from "../lib/publish";
@@ -367,6 +369,135 @@ describe("the logo, once the hours are in the file (14.6 S6, #41)", () => {
     expect(text(root, "#logo-status")).toBe(change.ui.uiLogoBadAddress);
     // What was typed stays.
     expect(root.querySelector<HTMLInputElement>("#f-logo-url")!.value).toBe("weld.example/logo.png");
+    root.remove();
+  });
+});
+
+describe("tile C, a space that moves (14.6 S5, #40)", () => {
+  const FOUND = { answer: { lat: 50.8301, lon: 4.3801, country_code: "be", postcode: "1050", display_name: "158, Rue Gray - Grijsstraat, Ixelles - Elsene, Brussels" }, missed: false };
+  const moved = (over: Partial<MoveResult> = {}): MoveResult => ({
+    status: "saved",
+    was: { street: "Rue Haute 12", postcode: "1000", city: "Marolles", country: "BE", lat: 50.8, lon: 4.3 },
+    now: { street: "158 Rue Gray", postcode: "1050", city: "Ixelles", country: "BE", lat: 50.8301, lon: 4.3801 },
+    text: `<#space> <https://schema.org/address> [ <https://schema.org/streetAddress> "158 Rue Gray" ] .`,
+    ...over,
+  });
+  const pin = (lat: number, lon: number) => ({ id: "weld-done", name: "Weld Done", lat, lon, city: "Ixelles", country: "BE", hours: "Mo 9-17", address: "", logo: "" });
+
+  function visit(opts: { found?: Found; move?: () => Promise<MoveResult>; hours?: string } = {}) {
+    const root = document.createElement("div");
+    document.body.append(root);
+    const findPlace = vi.fn(async () => opts.found ?? (FOUND as Found));
+    const moveSpace = vi.fn(opts.move ?? (async () => moved()));
+    const mapRead = vi.fn(async () => ({ caughtUp: true, onMap: { id: "weld-done", link: "", pin: pin(50.8301, 4.3801) } }));
+    const draft: Draft = { name: "Weld Done", street: "Rue Haute 12", city: "Marolles", country: "BE", lat: "50.8", lon: "4.3", hours: opts.hours ?? "Mo 9-17" };
+    renderPage(root, tree, {
+      mode: "workbench", who: "weld-done", done: new Set(["describe", "keep"]), draft, fold: { folded: false },
+      onSignIn: () => {}, onSignOut: () => {}, readOffers: async () => "open", saveHours: vi.fn(), mapRead: mapRead as never,
+      moveSpace, findPlace: findPlace as never,
+    });
+    root.querySelector<HTMLElement>('button[data-tile="change"]')!.click();
+    return { root, findPlace, moveSpace, mapRead, draft };
+  }
+  const type = (root: HTMLElement, street: string, city: string) => {
+    root.querySelector<HTMLInputElement>("#f-move-street")!.value = street;
+    root.querySelector<HTMLInputElement>("#f-move-city")!.value = city;
+    root.querySelector<HTMLFormElement>("#f-move")!.requestSubmit();
+  };
+
+  it("shown once the hours are in the file, prefilled with the street and city the file says", () => {
+    const { root } = visit();
+    expect(root.querySelector<HTMLInputElement>("#f-move-street")!.value).toBe("Rue Haute 12");
+    expect(root.querySelector<HTMLInputElement>("#f-move-city")!.value).toBe("Marolles");
+    expect(text(root, "#move-save")).toBe(change.ui.uiMoveSave);
+    root.remove();
+  });
+
+  it("placed first, then the address and the pin written together; the steps tick, the result names the move", async () => {
+    const { root, findPlace, moveSpace, mapRead, draft } = visit();
+    type(root, " 158 Rue Gray ", "Ixelles");
+    await settle(); await settle(); await settle();
+    expect(findPlace).toHaveBeenCalledWith("158 Rue Gray", "Ixelles");
+    expect(moveSpace).toHaveBeenCalledWith({ street: "158 Rue Gray", postcode: "1050", city: "Ixelles", country: "BE", lat: 50.8301, lon: 4.3801 });
+    const steps = text(root, "#move-steps");
+    // The place found is shown, so a wrong match shows.
+    expect(steps).toContain(change.ui.uiMoveFound.replace("{place}", "158, Rue Gray, Ixelles"));
+    expect(steps).toContain(change.ui.uiMoveWritten);
+    expect(steps).toContain(change.ui.uiStepMapRead);
+    expect(text(root, "#move-status")).toBe(change.ui.uiMoveDone.replace("{was}", "Rue Haute 12"));
+    // The map's pin is what's checked, not its address line.
+    const says = (mapRead.mock.calls[0] as unknown[])[0] as (p: ReturnType<typeof pin>) => boolean;
+    expect(says(pin(50.8301, 4.3801))).toBe(true);
+    expect(says(pin(50.8, 4.3))).toBe(false);
+    expect(draft).toMatchObject({ street: "158 Rue Gray", city: "Ixelles", postcode: "1050", lat: "50.8301", lon: "4.3801" });
+    expect(root.querySelector("pre.wb-file .chg")!.textContent).toContain("streetAddress");
+    root.remove();
+  });
+
+  it("an address the geocoder can't place is refused before anything is written, naming it; what was typed stays", async () => {
+    for (const [found, key] of [["none", "uiMoveNoPlace"], ["rate", "uiMoveRate"], ["unavailable", "uiMoveUnavailable"]] as const) {
+      const { root, moveSpace } = visit({ found });
+      type(root, "Nowhere 1", "Atlantis");
+      await settle(); await settle();
+      expect(moveSpace).not.toHaveBeenCalled();
+      expect(text(root, "#move-status")).toBe(change.ui[key]);
+      expect(root.querySelector("#move-status")!.className).toContain("is-error");
+      expect(root.querySelector<HTMLInputElement>("#f-move-street")!.value).toBe("Nowhere 1");
+      expect(root.querySelector<HTMLInputElement>("#f-move-city")!.value).toBe("Atlantis");
+      root.remove();
+    }
+    expect(change.ui.uiMoveNoPlace).toContain("geocoder");
+  });
+
+  it("a place without a country is refused too; no city asks for one", async () => {
+    const { root, moveSpace } = visit({ found: { answer: { ...FOUND.answer, country_code: null }, missed: false } as Found });
+    type(root, "158 Rue Gray", "Ixelles");
+    await settle(); await settle();
+    expect(moveSpace).not.toHaveBeenCalled();
+    expect(text(root, "#move-status")).toBe(change.ui.uiMoveNoPlace);
+    type(root, "158 Rue Gray", "  ");
+    await settle();
+    expect(text(root, "#move-status")).toBe(change.ui.uiMoveEmpty);
+    expect(document.activeElement?.id).toBe("f-move-city");
+    root.remove();
+  });
+
+  it("the street not found: the step says the pin sits in the city's centre", async () => {
+    const { root } = visit({ found: { ...FOUND, missed: true } as Found });
+    type(root, "Nope 9", "Ixelles");
+    await settle(); await settle(); await settle();
+    expect(text(root, "#move-steps")).toContain(change.ui.uiMoveStreetMissed.replace("{city}", "Ixelles"));
+    root.remove();
+  });
+
+  it("the pod refusing says why, with the place found kept on screen", async () => {
+    const { root } = visit({ move: async () => { throw new PublishError("conflict", "changed"); } });
+    type(root, "158 Rue Gray", "Ixelles");
+    await settle(); await settle(); await settle();
+    expect(text(root, "#move-status")).toBe(change.ui.uiMoveConflict);
+    expect(text(root, "#move-steps")).toContain("158, Rue Gray, Ixelles");
+    expect(text(root, "#move-steps")).not.toContain(change.ui.uiMoveWritten);
+    root.remove();
+  });
+
+  it("the same place: said plainly, nothing for the map to read", async () => {
+    const { root, mapRead } = visit({ move: async () => moved({ status: "same" }) });
+    type(root, "Rue Haute 12", "Marolles");
+    await settle(); await settle(); await settle();
+    expect(text(root, "#move-status")).toBe(change.ui.uiMoveSame);
+    expect(mapRead).not.toHaveBeenCalled();
+    root.remove();
+  });
+
+  it("the first time, the hours only: no address panel", () => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    renderPage(root, tree, {
+      mode: "workbench", who: "weld-done", done: new Set(["describe", "keep"]), draft: { name: "W", city: "Marolles" }, fold: { folded: false },
+      onSignIn: () => {}, onSignOut: () => {}, readOffers: async () => "open", saveHours: vi.fn(), moveSpace: vi.fn(),
+    });
+    root.querySelector<HTMLElement>('button[data-tile="change"]')!.click();
+    expect(root.querySelector("#move")).toBeNull();
     root.remove();
   });
 });

@@ -22,6 +22,7 @@ import { miniMapSlot } from "./minimap";
 import { highlightTurtle, highlightTurtleLine } from "./turtle";
 import type { OnMap } from "../lib/onmap";
 import { renderLogoPanel, type LogoState } from "./logo";
+import { renderMovePanel, type MoveState } from "./move";
 import { livePopup } from "./popup";
 
 export const HOURS_UI_KEYS = [
@@ -52,15 +53,15 @@ export interface HoursState {
   onMap: OnMap | null;
   /** Why the map didn't read it. */
   mapMessage: string;
-  /** The line the file marks: the hours, or the logo once it changed (S6, #41). */
-  mark: "openingHours" | "logo";
+  /** The lines the file marks: the hours, the logo once it changed (S6, #41), the address and pin once moved (S5, #40). */
+  mark: "openingHours" | "logo" | "address";
 }
 
 export const hoursIdle = (current: string | undefined, file: string | null = null, onMap: OnMap | null = null): HoursState => ({
   status: "idle", typed: current ?? "", message: "", was: null, saved: null, file, map: "idle", onMap, mapMessage: "", mark: "openingHours",
 });
 
-const marker = (state: HoursState["map"] | "done") =>
+export const marker = (state: HoursState["map"] | "done") =>
   state === "done"
     ? `<span class="sp-unlock-marker tint" aria-hidden="true">✓</span>`
     : state === "working"
@@ -107,11 +108,17 @@ export function renderMapSteps(tile: Tile, state: HoursState): string {
       : `<p class="wb-aside" id="hours-map-status" role="status">${state.map === "done" || state.map === "late" ? esc(ui("uiReloadHint")) : ""}</p>`}`;
 }
 
+const MARKS: Record<HoursState["mark"], RegExp> = {
+  openingHours: /openingHours/,
+  logo: /schema:logo\b|schema\.org\/logo>/,
+  address: /streetAddress|postalCode|addressLocality|addressCountry|latitude|longitude/,
+};
+
 /** The file as the pod holds it, every line, the hours marked (storyboard: the design system's terminal). */
 function renderFile(tile: Tile, state: HoursState): string {
   const ui = hoursWords(tile);
   const body = state.file
-    ? highlightTurtle(state.file, state.mark === "logo" ? /schema:logo\b|schema\.org\/logo>/ : /openingHours/)
+    ? highlightTurtle(state.file, MARKS[state.mark])
     : `<span class="line chg">${highlightTurtleLine(`  schema:openingHours ${JSON.stringify(state.saved ?? state.typed)} ;`)}</span>`;
   // The design system's source terminal, as the map's card shows a space file (Turtle · endpoint response).
   return `
@@ -164,15 +171,15 @@ function renderSaved(tile: Tile, state: HoursState): string {
 }
 
 /**
- * The step's body, signed in with the space on the pod. `logo`: the hours are in the file, so the logo
- * panel shows below them (S6, #41); absent the first time, which is the hours only.
+ * The step's body, signed in with the space on the pod. `logo`, `move`: the hours are in the file, so the logo
+ * panel (S6, #41) and the address (S5, #40) show below them; absent the first time, which is the hours only.
  */
-export function renderHours(tile: Tile, state: HoursState, logo: LogoState | null = null): string {
+export function renderHours(tile: Tile, state: HoursState, logo: LogoState | null = null, move: MoveState | null = null): string {
   return `
     <div class="wb-step-head">
       <h2 class="wb-step-title" tabindex="-1">${esc(tile.title)}</h2>
     </div>
     ${state.status === "saved"
       ? renderSaved(tile, state)
-      : `${bernard(tile.lines.say)}<div id="hours">${renderHoursPanel(tile, state)}</div>${logo ? `<div id="logo">${renderLogoPanel(tile, logo)}</div>` : ""}${flow(tile, state)}`}`;
+      : `${bernard(tile.lines.say)}<div id="hours">${renderHoursPanel(tile, state)}</div>${logo ? `<div id="logo">${renderLogoPanel(tile, logo)}</div>` : ""}${move ? `<div id="move">${renderMovePanel(tile, move)}</div>` : ""}${flow(tile, state)}`}`;
 }

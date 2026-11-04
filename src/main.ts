@@ -35,6 +35,7 @@ import { hasForwarded, readForwarded } from "./lib/forwarded";
 import { clearPodMade, peekPodMade, takePodMade, type PodMade } from "./lib/handoff";
 import { putOnMap, readPublished, type OnMap, rereadOnMap } from "./lib/onmap";
 import { saveHours } from "./lib/hours";
+import { moveSpace } from "./lib/move";
 import { makeSpacePublic, PublishError, readSpaceAt, readSpaceFile, spaceFileUrl, spaceIsPublic, writeSpaceFile } from "./lib/publish";
 import { registerSpace, spacesInPublicIndex } from "./lib/typeindex";
 import type { Draft } from "./workbench/previews";
@@ -221,6 +222,7 @@ function renderWorkbenchView(
     // Tile C's logo (S6, #41): uploaded next to the space file, or an address already online.
     uploadLogo: pod ? (file, current) => uploadLogo(pod.root, pod.webId, file, current) : undefined,
     useLogoAddress: pod ? (typed) => saveLogoAddress(pod.root, typed) : undefined,
+    moveSpace: pod ? (next) => moveSpace(spaceFileUrl(pod.root), next) : undefined,
     // The file as the pod held it at sign-in: tile C shows it before the first change (C1).
     spaceText: pod?.spaceText ?? null,
     // Already on the map at sign-in: tile B shows the threshold, read from the pod and the map.
