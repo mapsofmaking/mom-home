@@ -101,6 +101,27 @@ describe("contact handles: one or many (14.6 S4, #39)", () => {
   });
 });
 
+describe("the contract with the map (test/fixtures/handles.ttl, pinned)", () => {
+  it("reads every handle the map's reader gives, as the same values", async () => {
+    const text = readFileSync(join(__dirname, "../../test/fixtures/handles.ttl"), "utf8");
+    const c = await read(pod(text));
+    expect(c.others).toEqual([]);
+    // What the map's card gets for each (tests/test_space_turtle.py): a room for Matrix, the link for the rest.
+    const asMap = c.handles.map((h) => [h.type, h.type === "telegram" ? `https://t.me/${h.value.slice(1)}` : h.value]);
+    expect(asMap.sort()).toEqual([
+      ["discord", "https://discord.gg/atelier"], ["discord", "https://discord.gg/repaircafe"],
+      ["email", "atelier@atelierducanal.example"], ["email", "contact@atelierducanal.example"],
+      ["link", "https://forum.atelierducanal.example/"], ["matrix", "#atelier:matrix.org"],
+      ["mattermost", "https://chat.example.org/atelier"], ["phone", "+32 2 123 45 67"],
+      ["signal", "https://signal.group/#atelier"], ["telegram", "https://t.me/atelierducanal"],
+    ]);
+  });
+  it("the kinds' contactType strings are the ones the map reads", () => {
+    expect(DEF.contactTypes.filter((t) => t.contactType).map((t) => t.contactType!.toLowerCase())).toEqual(["matrix", "signal", "telegram", "discord", "mattermost", "link"]);
+    expect(DEF.contactTypes.filter((t) => t.property).map((t) => t.property)).toEqual([S + "email", S + "telephone"]);
+  });
+});
+
 describe("checking a handle", () => {
   it("each kind: fine, a mend that loses nothing, or a problem", () => {
     expect(checkHandle(T("email"), "mailto:a@b.example")).toEqual({ type: "fix", why: "prefix", fixed: "a@b.example" });
