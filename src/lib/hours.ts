@@ -52,7 +52,7 @@ export function iri(value: string): string {
   return /[<>"{}|^`\\\s]/.test(value) ? bad("web address") : `<${value}>`;
 }
 
-const fail = (res: Response, what: string): never => {
+export const fail = (res: Response, what: string): never => {
   if (res.status === 401) throw new PublishError("expired", `${what}: ${res.status}`, res.status);
   // Signed in and refused: this account may not change the file. Signing in again won't help.
   if (res.status === 403) throw new PublishError("no-control", `${what}: ${res.status}`, res.status);
@@ -61,15 +61,26 @@ const fail = (res: Response, what: string): never => {
   throw new PublishError("refused", `${what}: ${res.status}`, res.status);
 };
 
-interface Read {
+/** The space file as read: its space, every statement, the read's ETag and text. */
+export interface SpaceRead {
   subject: string;
-  /** The statements of `predicate` on the space, as read. */
-  found: Quad[];
+  quads: Quad[];
   etag: string | null;
   text: string;
 }
 
+interface Read extends SpaceRead {
+  /** The statements of `predicate` on the space, as read. */
+  found: Quad[];
+}
+
 async function readStatement(fileUrl: string, predicate: string, fetchImpl: Fetch): Promise<Read> {
+  const read = await readSpaceFile(fileUrl, fetchImpl);
+  return { ...read, found: read.quads.filter((q) => q.subject.value === read.subject && q.predicate.value === predicate) };
+}
+
+/** Reads the space file: fresh, with its ETag. Throws a PublishError (expired, no-control, gone, refused, unreadable). */
+export async function readSpaceFile(fileUrl: string, fetchImpl: Fetch): Promise<SpaceRead> {
   const res = await send(fetchImpl, fileUrl, { headers: { Accept: "text/turtle" } });
   if (!res.ok) fail(res, "Reading the space file");
   let quads: Quad[];
@@ -85,8 +96,7 @@ async function readStatement(fileUrl: string, predicate: string, fetchImpl: Fetc
   const found = (spaces.find((q) => q.subject.value === own) ?? spaces[0])?.subject;
   if (!found) throw new PublishError("unreadable", "The space file names no space.");
   if (found.termType !== "NamedNode") throw new PublishError("unreadable", "The space in the file has no address of its own: left alone.");
-  const subject = found.value;
-  return { subject, found: quads.filter((q) => q.subject.value === subject && q.predicate.value === predicate), etag: res.headers.get("ETag"), text };
+  return { subject: found.value, quads, etag: res.headers.get("ETag"), text };
 }
 
 /** The patch: the statements read go, the new one comes; nothing else in the file is touched. `object` is N3. */

@@ -39,8 +39,8 @@ export const FOOTPRINT: readonly FootprintMark[] = [
     id: "space-file",
     kind: "own",
     where: "space.ttl",
-    what: "your space's file: what the map shows about it (home changes its hours and logo lines)",
-    writtenBy: ["lib/publish.ts:writeSpaceFile", "lib/hours.ts:changeStatement"],
+    what: "your space's file: what the map shows about it (home changes its hours and logo lines, and its address with the pin when it moves)",
+    writtenBy: ["lib/publish.ts:writeSpaceFile", "lib/hours.ts:changeStatement", "lib/move.ts:moveSpace"],
   },
   {
     id: "space-acl",

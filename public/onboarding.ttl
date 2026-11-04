@@ -265,6 +265,32 @@
   onb:uiLogoMapRead "The map shows it."@en ;
   onb:uiLogoMapLate "The map took it; the card catches up in a moment."@en ;
   onb:uiLogoMapDidntRead "The map didn't answer. Your file points at the logo; the map picks it up at its next read."@en ;
+  # A space that moves (14.6 S5, #40): shown once the hours are in the file. Placed by the geocoder first, then
+  # the address and the pin are written together, or neither.
+  onb:uiMoveLabel "Where the space is"@en ;
+  onb:uiMoveHint "Moved? Type the new address. It's placed on the map first, then written with the pin, together."@en ;
+  onb:uiMoveStreet "Street address"@en ;
+  onb:uiMoveCity "City"@en ;
+  onb:uiMoveSave "Move the pin"@en ;
+  onb:uiMoveEmpty "Type at least the city. Nothing was written."@en ;
+  onb:uiMoveFinding "Looking for the new address"@en ;
+  onb:uiMoveFound "Found the new address: {place}"@en ;
+  onb:uiMoveStreetMissed "No match for the street, so the pin sits in the centre of {city}."@en ;
+  onb:uiMoveNoPlace "The geocoder (OpenStreetMap) can't place that address. Nothing was written: check the street and the city."@en ;
+  onb:uiMoveRate "Too many requests to the geocoder. Nothing was written: press again in a moment."@en ;
+  onb:uiMoveUnavailable "The geocoder (OpenStreetMap) isn't answering. Nothing was written: try again in a moment."@en ;
+  onb:uiMoveWriting "Writing it to your pod"@en ;
+  onb:uiMoveWritten "Written to your pod"@en ;
+  onb:uiMoveDone "Street address was {was}. The pin moved with it."@en ;
+  onb:uiMoveSame "That's where your file already says the space is. Nothing was written."@en ;
+  onb:uiMoveExpired "Your session ended. Sign in again, then press Move the pin once more."@en ;
+  onb:uiMoveNoAccess "Your pod says this account can't change the file. Signing in again won't help: check who can edit space.ttl in the backoffice."@en ;
+  onb:uiMoveConflict "Your file changed since this page read it. Press again: it reads the file afresh."@en ;
+  onb:uiMoveGone "Your space's file isn't on your pod any more. Nothing was written."@en ;
+  onb:uiMoveUnreachable "The pod isn't answering. Nothing was written: try again in a moment."@en ;
+  onb:uiMoveRefused "Your pod said no. Try again; if it keeps saying no, the people who run the pod server can see why."@en ;
+  onb:uiMoveUnreadable "Your file doesn't hold one address and one pin this page can change. Nothing was written: edit it in the backoffice."@en ;
+  onb:uiMoveUnconfirmed "The move went to your file, but reading it back didn't work. Press again: if the file says it, nothing more is written."@en ;
   onb:uiHoursNoAccess "Your pod says this account can't change the file. Signing in again won't help: check who can edit space.ttl in the backoffice."@en ;
   onb:uiHoursUnconfirmed "The hours went to your file, but reading it back didn't work. Press Save again: if the file says them, nothing more is written."@en ;
   onb:doneWhen """ASK { ?space schema:openingHours ?h }  # tile A doesn't ask for hours: present means set here, or by the coordinator's own edit (decided 2026-11-03)""" .

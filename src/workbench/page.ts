@@ -81,6 +81,9 @@ import {
 import { showsPodForm, thresholdWords, type Door, type OffersState } from "./threshold";
 import { metWords, renderWords } from "./words";
 import { swapBrokenLogos } from "./popup";
+import { moveIdle, moveWords, renderMovePanel, type MoveState } from "./move";
+import { findPlace as geocode, shortPlace } from "./where";
+import type { MoveResult, Place } from "../lib/move";
 
 export interface PageOptions {
   /** The session decides (AC1b). */
@@ -129,6 +132,10 @@ export interface PageOptions {
   uploadLogo?: (file: File, current: string | null) => Promise<LogoResult>;
   /** Tile C's logo given as an address already online (S6): only schema:logo changes. */
   useLogoAddress?: (typed: string) => Promise<LogoResult>;
+  /** Tile C's address (S5, #40): the address and the pin, written together in the space file. */
+  moveSpace?: (next: Place) => Promise<MoveResult>;
+  /** The geocoder (where.ts `findPlace`, tile A's route); tests pass their own. */
+  findPlace?: typeof geocode;
   /** The space file's text as the pod held it at sign-in: tile C shows it (14.6, live sources only). */
   spaceText?: string | null;
 }
@@ -253,6 +260,9 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   /** Tile C's logo (S6); one upload at a time, and tiles wait for it. */
   let logo: LogoState = logoIdle();
   let savingLogo = false;
+  /** Tile C's address (S5); one move at a time, and tiles wait for it. */
+  let move: MoveState = moveIdle(opts.draft.street, opts.draft.city);
+  let moving = false;
   const workbench = opts.mode === "workbench";
   // Everything that outlives the markup (root and media-query listeners,
   // observers) is undone by destroy(), so a redraw never stacks a second set.
@@ -370,7 +380,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     clearTimeout(podTimer);
     // Published in this tab: tile C's card is the one the map gave back then.
     if (!hours.onMap && publish.onMap) hours = { ...hours, onMap: publish.onMap };
-    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, carded, words, offers, door, pod, podReady: podReady?.pod ?? null, prior: opts.priorPod ?? null, makeAnother, publish: opts.publishSpace ? publish : null, hours: opts.saveHours ? hours : null, logo: opts.uploadLogo && opts.draft.hours?.trim() ? logo : null });
+    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, carded, words, offers, door, pod, podReady: podReady?.pod ?? null, prior: opts.priorPod ?? null, makeAnother, publish: opts.publishSpace ? publish : null, hours: opts.saveHours ? hours : null, logo: opts.uploadLogo && opts.draft.hours?.trim() ? logo : null, move: opts.moveSpace && opts.draft.hours?.trim() ? move : null });
     step.scrollTop = 0;
     if (tile.act === "threshold" && !offersAsked) askOffers();
     // The suggested address is checked as soon as the form opens (AC2): a bad one shows before the passphrase is reached.
@@ -402,7 +412,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
 
   const select = (id: string) => {
     // A create is in flight: a redraw now would drop its answer (the form is replaced). Tiles wait for it.
-    if (creating || publishing || savingHours || savingLogo) return;
+    if (creating || publishing || savingHours || savingLogo || moving) return;
     podReady = null;
     selected = id;
     editing = false;
@@ -464,6 +474,12 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     if (form.id === "f-hours") {
       event.preventDefault();
       void runHours(form);
+      return;
+    }
+    if (form.id === "f-move") {
+      event.preventDefault();
+      const field = (name: string) => form.querySelector<HTMLInputElement>(`[name="${name}"]`)?.value ?? "";
+      void runMove(field("street"), field("city"));
       return;
     }
     if (form.id === "f-logo") {
@@ -793,7 +809,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
    */
   const runHours = async (form: HTMLFormElement) => {
     // One write to the space file at a time: a logo upload patches it too.
-    if (savingHours || savingLogo || !opts.saveHours) return;
+    if (savingHours || savingLogo || moving || !opts.saveHours) return;
     const tile = tree.tiles.find((t) => t.act === "hours")!;
     const ui = hoursWords(tile);
     const typed = form.querySelector<HTMLInputElement>("#f-hours-value")?.value ?? "";
@@ -893,7 +909,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
    * for the map to read, so the browser's copy of the image is refreshed instead.
    */
   const runLogo = async (what: { file: File } | { typed: string }) => {
-    if (savingLogo || savingHours || !opts.uploadLogo || !opts.useLogoAddress) return;
+    if (savingLogo || savingHours || moving || !opts.uploadLogo || !opts.useLogoAddress) return;
     const { uploadLogo, useLogoAddress } = opts;
     const tile = tree.tiles.find((t) => t.act === "hours")!;
     const ui = logoWords(tile);
@@ -959,10 +975,124 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     if (opts.draft.logo !== url || savingLogo) return;
     logo = { ...logo, map: read ? (read.caughtUp ? "done" : "late") : "failed" };
     if (read) hours = { ...hours, onMap: read.onMap };
-    if (!step.isConnected || selected !== tile.id || hours.status === "saved" || savingHours || savingLogo) return;
+    if (!step.isConnected || selected !== tile.id || hours.status === "saved" || savingHours || savingLogo || moving) return;
     const had = document.activeElement?.id;
     draw();
     step.querySelector<HTMLElement>(had ? `#${had}` : "#logo-status")?.focus();
+  };
+
+  /**
+   * Tile C's address (14.6 S5, #40): the new address placed by the geocoder first (tile A's route), then the address
+   * and the pin written together (lib/move.ts), then the map reads it. The panel is redrawn in place while it runs;
+   * an address the geocoder can't place is refused before anything is written, and what was typed stays.
+   */
+  let moves = 0;
+  const runMove = async (typedStreet: string, typedCity: string) => {
+    if (moving || savingHours || savingLogo || !opts.moveSpace) return;
+    const { moveSpace } = opts;
+    const tile = tree.tiles.find((t) => t.act === "hours")!;
+    const ui = moveWords(tile);
+    const paint = (focus?: "status" | "city") => {
+      const box = step.querySelector<HTMLElement>("#move");
+      if (!box) return;
+      box.innerHTML = renderMovePanel(tile, move);
+      if (focus) box.querySelector<HTMLElement>(focus === "status" ? "#move-status" : "#f-move-city")?.focus();
+    };
+    const street = typedStreet.trim();
+    const city = typedCity.trim();
+    if (!city) {
+      move = { ...moveIdle(typedStreet, typedCity), status: "failed", message: ui("uiMoveEmpty") };
+      paint("city");
+      return;
+    }
+    moving = true;
+    const asked = ++moves;
+    move = { ...moveIdle(typedStreet, typedCity), status: "finding" };
+    paint();
+    let result: MoveResult | null = null;
+    try {
+      const found = await (opts.findPlace ?? geocode)(street, city);
+      const country = typeof found === "object" ? (found.answer.country_code ?? "").toUpperCase() : "";
+      if (typeof found !== "object" || !/^[A-Z]{2}$/.test(country)) {
+        const key = found === "rate" ? "uiMoveRate" : found === "unavailable" ? "uiMoveUnavailable" : "uiMoveNoPlace";
+        move = { ...move, status: "failed", message: ui(key) };
+      } else {
+        const { answer, missed } = found;
+        move = { ...move, status: "writing", place: shortPlace(answer.display_name) || city, missed };
+        paint();
+        result = await moveSpace({ street, postcode: answer.postcode ?? "", city, country, lat: answer.lat, lon: answer.lon });
+      }
+    } catch (err) {
+      const code = err instanceof PublishError ? err.code : "refused";
+      const keys = {
+        incomplete: "uiMoveNoPlace", expired: "uiMoveExpired", "no-control": "uiMoveNoAccess", conflict: "uiMoveConflict", gone: "uiMoveGone",
+        unreachable: "uiMoveUnreachable", unreadable: "uiMoveUnreadable", unconfirmed: "uiMoveUnconfirmed",
+      } as const;
+      move = { ...move, status: "failed", message: ui(keys[code as keyof typeof keys] ?? "uiMoveRefused") };
+      console.warn("The space was not moved:", err);
+    } finally {
+      moving = false;
+    }
+    if (!step.isConnected) return;
+    if (!step.querySelector("#move")) draw();
+    if (!result) {
+      paint("status");
+      return;
+    }
+    if (result.status === "same") {
+      move = { ...move, status: "idle", place: "", missed: false, message: ui("uiMoveSame") };
+      hours = { ...hours, file: result.text };
+      paint("status");
+      return;
+    }
+    const { now, was } = result;
+    Object.assign(opts.draft, {
+      street: now.street || undefined, postcode: now.postcode || undefined, city: now.city, country: now.country,
+      lat: String(now.lat), lon: String(now.lon),
+    });
+    move = {
+      ...move, status: "done", map: opts.mapRead ? "working" : "idle",
+      message: ui("uiMoveDone", { was: was.street || [was.city, was.country].filter(Boolean).join(", ") }),
+    };
+    hours = { ...hours, file: result.text, mark: "address" };
+    if (selected === tile.id && hours.status !== "saved") {
+      draw();
+      step.querySelector<HTMLElement>("#move-status")?.focus();
+    }
+    void readMoveByMap(asked, now);
+  };
+
+  const fieldOf = (name: string) => step.querySelector<HTMLInputElement>(`#f-move [name="${name}"]`)?.value ?? "";
+
+  /** The map reads the moved file (S5), as it reads new hours; its card is read back until its pin is the new one. */
+  const readMoveByMap = async (asked: number, now: Place) => {
+    if (!opts.mapRead) return;
+    const tile = tree.tiles.find((t) => t.act === "hours")!;
+    let read: MapReread | null = null;
+    try {
+      // The map's pin, not its address line: the map formats the address its own way. ~1 m.
+      read = await opts.mapRead((pin) => Math.abs(pin.lat - now.lat) < 1e-5 && Math.abs(pin.lon - now.lon) < 1e-5);
+    } catch (err) {
+      console.warn("The map didn't read the move:", err);
+    }
+    // A newer move since: this answer is about an older one, and is dropped.
+    if (asked !== moves || moving) return;
+    move = { ...move, map: read ? (read.caughtUp ? "done" : "late") : "failed" };
+    if (read) hours = { ...hours, onMap: read.onMap };
+    if (!step.isConnected || selected !== tile.id || hours.status === "saved" || savingHours || savingLogo || moving) return;
+    // A second address being typed meanwhile is kept: only the steps tick, the card catches up at the next draw.
+    if (document.activeElement?.closest("#f-move")) {
+      move = { ...move, street: fieldOf("street"), city: fieldOf("city") };
+      const steps = step.querySelector("#move-steps");
+      const fresh = document.createElement("div");
+      fresh.innerHTML = renderMovePanel(tile, move);
+      const next = fresh.querySelector("#move-steps");
+      if (steps && next) steps.replaceWith(next);
+      return;
+    }
+    const had = document.activeElement?.id;
+    draw();
+    step.querySelector<HTMLElement>(had ? `#${had}` : "#move-status")?.focus();
   };
 
   /** To the pod's own page (Solid-OIDC). If it doesn't start, the pod still exists: say so, and the button signs in again. */
