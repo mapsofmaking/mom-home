@@ -161,7 +161,7 @@ export async function moveSpace(fileUrl: string, next: Place, fetchImpl: Fetch =
     throw new PublishError("unconfirmed", `Written, but reading it back failed: ${(err as Error).message}`);
   }
   // Another writer may have changed it again since: what matters is that ours went in.
-  if (after.was.street !== now.street || after.was.lat !== now.lat || after.was.lon !== now.lon) {
+  if (!samePlace(after.was, now)) {
     throw new PublishError("unconfirmed", "Written, but the file read back doesn't say it: it may have changed since.");
   }
   return { status: "saved", was: nodes.was, now, text };

@@ -1062,6 +1062,8 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     void readMoveByMap(asked, now);
   };
 
+  const fieldOf = (name: string) => step.querySelector<HTMLInputElement>(`#f-move [name="${name}"]`)?.value ?? "";
+
   /** The map reads the moved file (S5), as it reads new hours; its card is read back until its pin is the new one. */
   const readMoveByMap = async (asked: number, now: Place) => {
     if (!opts.mapRead) return;
@@ -1078,6 +1080,16 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     move = { ...move, map: read ? (read.caughtUp ? "done" : "late") : "failed" };
     if (read) hours = { ...hours, onMap: read.onMap };
     if (!step.isConnected || selected !== tile.id || hours.status === "saved" || savingHours || savingLogo || moving) return;
+    // A second address being typed meanwhile is kept: only the steps tick, the card catches up at the next draw.
+    if (document.activeElement?.closest("#f-move")) {
+      move = { ...move, street: fieldOf("street"), city: fieldOf("city") };
+      const steps = step.querySelector("#move-steps");
+      const fresh = document.createElement("div");
+      fresh.innerHTML = renderMovePanel(tile, move);
+      const next = fresh.querySelector("#move-steps");
+      if (steps && next) steps.replaceWith(next);
+      return;
+    }
     const had = document.activeElement?.id;
     draw();
     step.querySelector<HTMLElement>(had ? `#${had}` : "#move-status")?.focus();

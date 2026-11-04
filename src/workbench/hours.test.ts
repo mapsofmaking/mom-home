@@ -501,3 +501,35 @@ describe("tile C, a space that moves (14.6 S5, #40)", () => {
     root.remove();
   });
 });
+
+describe("tile C, a move's late map answer (S5 review)", () => {
+  it("doesn't wipe a second address being typed: only the steps tick", async () => {
+    let answer!: (v: unknown) => void;
+    const root = document.createElement("div");
+    document.body.append(root);
+    const found = { answer: { lat: 50.83, lon: 4.38, country_code: "be", postcode: "1050", display_name: "Ixelles" }, missed: false };
+    const moved: MoveResult = {
+      status: "saved", was: { street: "A 1", postcode: "", city: "Marolles", country: "BE", lat: 50.8, lon: 4.3 },
+      now: { street: "B 2", postcode: "1050", city: "Ixelles", country: "BE", lat: 50.83, lon: 4.38 }, text: "<#space> <https://schema.org/name> \"W\" .",
+    };
+    renderPage(root, tree, {
+      mode: "workbench", who: "weld-done", done: new Set(["describe", "keep"]), draft: { name: "W", city: "Marolles", hours: "Mo 9-17" }, fold: { folded: false },
+      onSignIn: () => {}, onSignOut: () => {}, readOffers: async () => "open", saveHours: vi.fn(),
+      mapRead: (() => new Promise((r) => (answer = r))) as never, moveSpace: async () => moved, findPlace: (async () => found) as never,
+    });
+    root.querySelector<HTMLElement>('button[data-tile="change"]')!.click();
+    root.querySelector<HTMLInputElement>("#f-move-street")!.value = "B 2";
+    root.querySelector<HTMLInputElement>("#f-move-city")!.value = "Ixelles";
+    root.querySelector<HTMLFormElement>("#f-move")!.requestSubmit();
+    await settle(); await settle(); await settle();
+    const street = root.querySelector<HTMLInputElement>("#f-move-street")!;
+    street.focus();
+    street.value = "C 3, typing";
+    answer({ caughtUp: true, onMap: { id: "w", link: "", pin: { id: "w", name: "W", lat: 50.83, lon: 4.38, city: "", country: "", hours: "", address: "", logo: "" } } });
+    await settle(); await settle();
+    expect(root.querySelector<HTMLInputElement>("#f-move-street")).toBe(street);
+    expect(street.value).toBe("C 3, typing");
+    expect(text(root, "#move-steps")).toContain(change.ui.uiStepMapRead);
+    root.remove();
+  });
+});
