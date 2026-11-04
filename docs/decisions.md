@@ -6,6 +6,14 @@ itself is tracked in issues and on the `mapsofmaking` org project; older story f
 
 Kit-level decisions (Solid, ACLs, sign-in) are ADRs in the kit repo; this file only records home's own.
 
+## 2026-11-04
+
+- **The "Work in progress" notice is gone** (Nicolas). A coordinator can now create an account, put their space on
+  the map and change it from home (tiles A to C), and the pod server lets an account be deleted
+  (solid-css-overlay). The self-host door of tile B doesn't block anyone, and the next tiles arrive as they're
+  built, so nothing on screen needs the warning. The 2026-11-02 note that pods made here are test pods, wiped
+  before launch, was the notice's main message: whether that wipe still happens is open.
+
 ## 2026-11-03
 
 - **No planned first fold, and no line teaching it** (Nicolas, after the live pass of 14.6 S3, #38; supersedes
