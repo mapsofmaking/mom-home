@@ -1,9 +1,12 @@
-# Checks every push. On main, also publishes the image the server runs:
+# Checks every pull request, and every push to main. On main, also publishes the image the server runs:
 # ghcr.io/mapsofmaking/mom-home:sha-<short commit> and :main (solid-kit ADR 011).
 name: CI
 
+# Branches are checked through their pull request only: a push to a branch with a PR used to start
+# two identical runs (the branch and the PR's merge commit), in different concurrency groups.
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
