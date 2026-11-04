@@ -72,9 +72,9 @@ export interface FieldWords {
 }
 
 /** What a profile field is, for the code that reads, checks and writes it (14.6 S4). */
-export const KINDS = ["text", "email", "url", "matrix", "image", "place"] as const;
+export const KINDS = ["text", "email", "url", "contacts", "image", "place"] as const;
 export type Kind = (typeof KINDS)[number];
-/** Kinds that are one statement on the space; the others (a Matrix room, the address with its pin) are structured, and the code knows how. */
+/** Kinds that are one statement on the space; the others (the contact handles, the address with its pin) are structured, and the code knows how. */
 export const SIMPLE_KINDS: readonly Kind[] = ["text", "email", "url", "image"];
 
 /**
@@ -97,6 +97,27 @@ export interface ProfileField {
   file: string;
 }
 
+/** How a contact handle is checked and turned into what the file holds: the code's. Which handles exist is the tree's. */
+export const SHAPES = ["email", "phone", "matrix", "url", "at"] as const;
+export type Shape = (typeof SHAPES)[number];
+
+/**
+ * A kind of contact handle (Matrix, Telegram, phone, ...): data, like the fields. Either a statement of its own on
+ * the space (`property`: schema:email, schema:telephone), or a `schema:contactPoint` with this `contactType` and a
+ * `schema:url`. `linkPrefix` turns an `@name` into its link (Telegram: https://t.me/).
+ */
+export interface ContactType {
+  key: string;
+  label: string;
+  placeholder: string | null;
+  hint: string | null;
+  prio: number;
+  shape: Shape;
+  property: string | null;
+  contactType: string | null;
+  linkPrefix: string | null;
+}
+
 /** A group of profile fields: what the Finder groups its results by. */
 export interface Section {
   id: string;
@@ -117,7 +138,7 @@ export interface Tree {
   tiles: Tile[];
   words: Word[];
   /** The profile's fields and their sections, in order (14.6 S4). */
-  profile: { sections: Section[]; fields: ProfileField[] };
+  profile: { sections: Section[]; fields: ProfileField[]; contactTypes: ContactType[] };
 }
 
 /** The tree can't be used. `message` is for the coordinator's error screen's detail. */
@@ -191,6 +212,7 @@ export function parseTree(turtle: string): Tree {
   const words: Word[] = [];
   const sections: Section[] = [];
   const fields: ProfileField[] = [];
+  const contactTypes: ContactType[] = [];
   let app: Tree["app"] = { lines: {}, ui: {} };
 
   for (const [iri, props] of subjects) {
@@ -266,6 +288,19 @@ export function parseTree(turtle: string): Tree {
         required: get("required") === "true",
         file: get("file") ?? "space.ttl",
       });
+    } else if (types.includes(ONB + "ContactType")) {
+      const shape = need("shape", "Contact type");
+      if (!(SHAPES as readonly string[]).includes(shape)) throw new TreeError(`Contact type "${id}": onb:shape "${shape}" is not one of ${SHAPES.join(", ")}.`);
+      const property = props.get(ONB + "property")?.[0]?.value ?? null;
+      const contactType = get("contactType");
+      // One place in the file, never two and never none: the code reads and writes it there.
+      if (!property === !contactType) throw new TreeError(`Contact type "${id}" needs exactly one of onb:property and onb:contactType.`);
+      const linkPrefix = get("linkPrefix");
+      if (shape === "at" && !linkPrefix) throw new TreeError(`Contact type "${id}" is an @name with no onb:linkPrefix.`);
+      contactTypes.push({
+        key: need("key", "Contact type"), label: need("label", "Contact type"), placeholder: get("placeholder"), hint: get("hint"),
+        prio: num("prio", "Contact type"), shape: shape as Shape, property, contactType, linkPrefix,
+      });
     } else if (types.includes(ONB + "App")) {
       app = { lines: lines(props), ui: lines(props, /^ui[A-Z]/) };
     }
@@ -329,9 +364,17 @@ export function parseTree(turtle: string): Tree {
     keys.add(f.key);
   }
 
+  const typeKeys = new Set<string>();
+  for (const c of contactTypes) {
+    if (typeKeys.has(c.key)) throw new TreeError(`Two contact types are called "${c.key}".`);
+    typeKeys.add(c.key);
+  }
+  if (fields.some((f) => f.kind === "contacts") && !contactTypes.length) throw new TreeError("A contacts field needs at least one onb:ContactType.");
+
   tiles.sort((a, b) => a.prio - b.prio);
   words.sort((a, b) => a.prio - b.prio);
   sections.sort((a, b) => a.prio - b.prio);
   fields.sort((a, b) => a.prio - b.prio);
-  return { app, tiles, words, profile: { sections, fields } };
+  contactTypes.sort((a, b) => a.prio - b.prio);
+  return { app, tiles, words, profile: { sections, fields, contactTypes } };
 }

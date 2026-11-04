@@ -9,7 +9,7 @@ import { PublishError } from "./publish";
 import { check, checkPlace, readProfile, saveProfile } from "./profile";
 import { readSpaceFile } from "./hours";
 
-const FIELDS = parseTree(readFileSync(join(__dirname, "../../public/onboarding.ttl"), "utf8")).profile.fields;
+const DEF = parseTree(readFileSync(join(__dirname, "../../public/onboarding.ttl"), "utf8")).profile;
 const S = "https://schema.org/";
 
 const FILE = (extra = "") => `@prefix schema: <https://schema.org/> .
@@ -24,7 +24,7 @@ const FILE = (extra = "") => `@prefix schema: <https://schema.org/> .
   schema:geo [ a schema:GeoCoordinates ; schema:latitude 50.8381 ; schema:longitude 4.3487 ]${extra} .
 `;
 
-const fileOf = async (p: ReturnType<typeof pod>) => readProfile(await readSpaceFile(URL_, p.fetchImpl), FIELDS);
+const fileOf = async (p: ReturnType<typeof pod>) => readProfile(await readSpaceFile(URL_, p.fetchImpl), DEF);
 const objects = (text: string, p: string) => {
   const quads = new Parser({ baseIRI: URL_ }).parse(text);
   return quads.filter((q) => q.predicate.value === S + p).map((q) => ({ value: q.object.value, type: q.object.termType as Term["termType"] }));
@@ -37,13 +37,13 @@ describe("the profile, read from the file (14.6 S4, #39)", () => {
     expect(v("name")?.text).toBe("Weld Done");
     expect(v("hours")?.text).toBe("Mo 9-17");
     expect(v("website")).toMatchObject({ text: "https://welddone.example/", literal: false });
-    expect(v("matrix")?.text).toBe("#welddone:matrix.org");
+    expect(p.contacts?.handles.map((h) => [h.type, h.value])).toEqual([["email", "hello@welddone.example"], ["matrix", "#welddone:matrix.org"]]);
     expect(v("logo")?.text).toBe("");
     expect(p.place).toMatchObject({ street: "Rue Haute 12", city: "Brussels", country: "BE", lat: 50.8381 });
   });
   it("predicates no field covers are listed, never touched", async () => {
-    const p = await fileOf(pod(FILE(` ;\n  schema:telephone "+32 2 000 00 00"`)));
-    expect(p.others).toEqual([S + "telephone"]);
+    const p = await fileOf(pod(FILE(` ;\n  schema:faxNumber "+32 2 000 00 00"`)));
+    expect(p.others).toEqual([S + "faxNumber"]);
   });
   it("a file without exactly one address says so, and its other fields still read", async () => {
     const p = await fileOf(pod(FILE(` ;\n  schema:address [ schema:addressLocality "Ghent" ]`)));
@@ -72,11 +72,6 @@ describe("checking a value: mend what loses nothing, flag what needs a guess", (
     expect(check("url", "not a web address")).toEqual({ type: "problem", why: "address" });
     expect(check("image", "javascript:alert(1)")).toEqual({ type: "problem", why: "address" });
   });
-  it("Matrix room: a room is fine; name:server gets its #; a bare word is a problem", () => {
-    expect(check("matrix", "#welddone:matrix.org")).toBeNull();
-    expect(check("matrix", "welddone:matrix.org")).toEqual({ type: "fix", why: "room", fixed: "#welddone:matrix.org" });
-    expect(check("matrix", "welddone")).toEqual({ type: "problem", why: "room" });
-  });
   it("the address: lower-case country mends; no town, a bad country, a pin off the globe are problems", () => {
     const ok: Place = { street: "x", postcode: "", city: "Brussels", country: "BE", lat: 50, lon: 4 };
     expect(checkPlace(ok)).toBeNull();
@@ -89,8 +84,8 @@ describe("checking a value: mend what loses nothing, flag what needs a guess", (
 
 describe("saving the profile: one conditional patch (14.6 S4)", () => {
   it("several fields in one write, the rest of the file untouched", async () => {
-    const p = pod(FILE(` ;\n  schema:telephone "+32 2 000 00 00"`));
-    const r = await saveProfile(URL_, FIELDS, { name: "Weld Done 2", hours: "Tu-Sa 10-18", website: "https://welddone.example/new" }, undefined, p.fetchImpl);
+    const p = pod(FILE(` ;\n  schema:faxNumber "+32 2 000 00 00"`));
+    const r = await saveProfile(URL_, DEF, { values: { name: "Weld Done 2", hours: "Tu-Sa 10-18", website: "https://welddone.example/new" } }, p.fetchImpl);
     expect(r.status).toBe("saved");
     expect(r.changes.map((c) => c.key)).toEqual(["name", "website", "hours"]); // the tree's order
     expect(p.calls.filter((c) => c.method === "PATCH")).toHaveLength(1);
@@ -106,7 +101,7 @@ describe("saving the profile: one conditional patch (14.6 S4)", () => {
   it("the address and a field together: the pin moves with it, in the same patch", async () => {
     const p = pod(FILE());
     const place: Place = { street: "158 Rue Gray", postcode: "1050", city: "Ixelles", country: "BE", lat: 50.83, lon: 4.38 };
-    const r = await saveProfile(URL_, FIELDS, { hours: "Mo 8-9" }, place, p.fetchImpl);
+    const r = await saveProfile(URL_, DEF, { values: { hours: "Mo 8-9" }, place }, p.fetchImpl);
     expect(r.changes.map((c) => c.key)).toEqual(["address", "hours"]);
     expect(p.calls.filter((c) => c.method === "PATCH")).toHaveLength(1);
     expect(objects(p.text(), "streetAddress")[0].value).toBe("158 Rue Gray");
@@ -116,38 +111,25 @@ describe("saving the profile: one conditional patch (14.6 S4)", () => {
 
   it("an optional field emptied is removed; a required one can't be", async () => {
     const p = pod(FILE());
-    await saveProfile(URL_, FIELDS, { email: "" }, undefined, p.fetchImpl);
-    expect(objects(p.text(), "email")).toEqual([]);
+    await saveProfile(URL_, DEF, { values: { website: "" } }, p.fetchImpl);
+    expect(objects(p.text(), "url").map((o) => o.value)).not.toContain("https://welddone.example/");
     expect(p.text()).toContain("Weld Done");
-    const err = await saveProfile(URL_, FIELDS, { name: " " }, undefined, p.fetchImpl).catch((e) => e);
+    const err = await saveProfile(URL_, DEF, { values: { name: " " } }, p.fetchImpl).catch((e) => e);
     expect((err as PublishError).code).toBe("incomplete");
   });
 
-  it("a Matrix room changed, added, and taken away", async () => {
-    const p = pod(FILE());
-    await saveProfile(URL_, FIELDS, { matrix: "#other:matrix.org" }, undefined, p.fetchImpl);
-    expect(objects(p.text(), "url").map((o) => o.value)).toContain("https://matrix.to/#/%23other:matrix.org");
-    expect(objects(p.text(), "url").map((o) => o.value)).not.toContain("https://matrix.to/#/%23welddone:matrix.org");
-    await saveProfile(URL_, FIELDS, { matrix: "" }, undefined, p.fetchImpl);
-    expect(objects(p.text(), "contactPoint")).toEqual([]);
-    // Added to a file with none: a named node, so the patch needs no blank node.
-    const bare = pod(FILE().replace(/schema:contactPoint \[[^\]]*\] ;\n/, ""));
-    await saveProfile(URL_, FIELDS, { matrix: "#new:matrix.org" }, undefined, bare.fetchImpl);
-    expect(objects(bare.text(), "contactPoint")[0].type).toBe("NamedNode");
-    expect((await fileOf(bare)).values.get("matrix")?.text).toBe("#new:matrix.org");
-  });
 
   it("a web address held as text is mended by saving it", async () => {
     const p = pod(FILE().replace("<https://welddone.example/>", '"https://welddone.example/"'));
     expect(objects(p.text(), "url")[0].type).toBe("Literal");
-    const r = await saveProfile(URL_, FIELDS, { website: "https://welddone.example/" }, undefined, p.fetchImpl);
+    const r = await saveProfile(URL_, DEF, { values: { website: "https://welddone.example/" } }, p.fetchImpl);
     expect(r.status).toBe("saved");
     expect(objects(p.text(), "url")[0].type).toBe("NamedNode");
   });
 
   it("nothing differs: nothing written", async () => {
     const p = pod(FILE());
-    const r = await saveProfile(URL_, FIELDS, { name: "Weld Done", hours: "Mo 9-17", matrix: "#welddone:matrix.org" }, undefined, p.fetchImpl);
+    const r = await saveProfile(URL_, DEF, { values: { name: "Weld Done", hours: "Mo 9-17" }, handles: [{ type: "email", value: "hello@welddone.example" }, { type: "matrix", value: "#welddone:matrix.org" }] }, p.fetchImpl);
     expect(r.status).toBe("same");
     expect(p.calls.map((c) => c.method)).toEqual(["GET"]);
   });
@@ -158,7 +140,7 @@ describe("saving the profile: one conditional patch (14.6 S4)", () => {
       if (init?.method === "PATCH") p.edit(FILE(` ;\n  schema:telephone "1"`));
       return p.fetchImpl(url, init);
     };
-    const err = await saveProfile(URL_, FIELDS, { name: "X" }, undefined, sneaky).catch((e) => e);
+    const err = await saveProfile(URL_, DEF, { values: { name: "X" } }, sneaky).catch((e) => e);
     expect((err as PublishError).code).toBe("conflict");
     expect(objects(p.text(), "name")[0].value).toBe("Weld Done");
   });
@@ -166,14 +148,14 @@ describe("saving the profile: one conditional patch (14.6 S4)", () => {
   it("typed text can't break out of its literal", async () => {
     const p = pod(FILE());
     const nasty = 'X" } ; solid:deletes { <x> <y> <z> } .\n';
-    await saveProfile(URL_, FIELDS, { description: nasty }, undefined, p.fetchImpl);
+    await saveProfile(URL_, DEF, { values: { description: nasty } }, p.fetchImpl);
     expect(objects(p.text(), "description")[0].value).toBe(nasty.trim());
     expect(objects(p.text(), "name")[0].value).toBe("Weld Done");
   });
 
   it("a web address this file won't carry is refused, nothing written", async () => {
     const p = pod(FILE());
-    const err = await saveProfile(URL_, FIELDS, { website: "ftp://a.example/b" }, undefined, p.fetchImpl).catch((e) => e);
+    const err = await saveProfile(URL_, DEF, { values: { website: "ftp://a.example/b" } }, p.fetchImpl).catch((e) => e);
     expect((err as PublishError).code).toBe("incomplete");
     expect(p.calls.filter((c) => c.method === "PATCH")).toEqual([]);
   });
@@ -185,7 +167,7 @@ describe("saving the profile: one conditional patch (14.6 S4)", () => {
       if ((init?.method ?? "GET") === "GET" && ++gets === 2) return new Response("", { status: 500 });
       return p.fetchImpl(url, init);
     };
-    const err = await saveProfile(URL_, FIELDS, { name: "Y" }, undefined, flaky).catch((e) => e);
+    const err = await saveProfile(URL_, DEF, { values: { name: "Y" } }, flaky).catch((e) => e);
     expect((err as PublishError).code).toBe("unconfirmed");
   });
 });

@@ -37,7 +37,7 @@ export interface HoursResult {
 /** A term as N3 writes it: IRIs in angle brackets, literals with their language or datatype. */
 export function n3Term(t: Term): string {
   if (t.termType === "NamedNode") return iri(t.value);
-  if (t.termType !== "Literal") throw new PublishError("unreadable", `The file's hours are a ${t.termType}, not a line of text: left alone.`);
+  if (t.termType !== "Literal") throw new PublishError("unreadable", `A value in the file is a ${t.termType}, not a line of text or a web address: left alone.`);
   const text = literal(t.value);
   if (t.language) return /^[A-Za-z]+(-[A-Za-z0-9]+)*$/.test(t.language) ? `${text}@${t.language}` : bad("language tag");
   return t.datatype.value === XSD_STRING ? text : `${text}^^${iri(t.datatype.value)}`;
