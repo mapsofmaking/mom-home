@@ -11,6 +11,7 @@ import type { Tile } from "../tree/parse";
 import { bernard, esc } from "./html";
 import { tileUi } from "./tilewords";
 import { miniMapSlot } from "./minimap";
+import { livePopup } from "./popup";
 
 export const PUBLISH_UI_KEYS = [
   "uiPublishGo", "uiStepFile", "uiStepFileWorking", "uiStepFileWritten", "uiStepFileThere", "uiStepFileKept",
@@ -110,10 +111,7 @@ export function renderThreshold(tile: Tile, state: PublishState, locality: strin
     ? `<p class="wf-label">${esc(ui("uiOnMapLive"))}</p>
        <div class="wb-frame wb-frame-live">
          ${miniMapSlot(on.pin.lat, on.pin.lon)}
-         <div class="wb-popup">
-           <div class="sp-hero"><span class="sp-name hand">${esc(on.pin.name)}</span>
-             <span class="sp-address">${esc([on.pin.city, on.pin.country].filter(Boolean).join(", "))}</span></div>
-         </div>
+         ${livePopup(on.pin)}
        </div>
        <p class="wb-pin ok"><span class="wb-pin-line">${esc(on.pin.name)} · ${esc(on.pin.lat.toFixed(5))}, ${esc(on.pin.lon.toFixed(5))}${
          on.pin.city ? ` · ${esc(on.pin.city)}` : ""

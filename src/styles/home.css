@@ -224,7 +224,6 @@
 .wb-logo { display: flex; flex-direction: column; gap: var(--space-8); margin-top: var(--space-20); padding-top: var(--space-14); border-top: var(--stroke-rule) dashed var(--rule); }
 .wb-logo .wb-field-label { margin: 0; font-weight: 600; font-size: 13px; }
 .wb-logo-address { margin-top: var(--space-4); }
-.wb-card-logo { display: block; max-width: 96px; max-height: 48px; object-fit: contain; }
 .wb-hours-actions { display: flex; align-items: center; gap: var(--space-14); flex-wrap: wrap; }
 #hours-was b { color: var(--ink); font-weight: 600; }
 @container (min-width: 520px) {

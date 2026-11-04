@@ -3,7 +3,7 @@
  * piece of the tool (S4 grows the other fields around it). Upload a logo, or give one already online.
  *
  * What it does is lib/logo.ts's; this file draws the panel and says the outcome. The card shows the
- * logo as the map holds it, always as an `<img>`, never inline.
+ * logo as the map holds it, in its popup (popup.ts), always as an `<img>`, never inline.
  *
  * Its words are the tree's (`onb:uiLogo*` on `:change`).
  */
@@ -16,7 +16,7 @@ export const LOGO_UI_KEYS = [
   "uiLogoLabel", "uiLogoUpload", "uiLogoHint", "uiLogoOr", "uiLogoPlaceholder", "uiLogoUseAddress", "uiLogoSaving",
   "uiLogoSaved", "uiLogoReplaced", "uiLogoSame", "uiLogoTooLarge", "uiLogoNotImage", "uiLogoBadAddress", "uiLogoTaken",
   "uiLogoNotPublic", "uiLogoExpired", "uiLogoNoAccess", "uiLogoConflict", "uiLogoUnreachable", "uiLogoRefused",
-  "uiLogoUnconfirmed", "uiLogoMapReading", "uiLogoMapRead", "uiLogoMapLate", "uiLogoMapDidntRead", "uiLogoFact",
+  "uiLogoUnconfirmed", "uiLogoMapReading", "uiLogoMapRead", "uiLogoMapLate", "uiLogoMapDidntRead",
 ] as const;
 export type LogoUiKey = (typeof LOGO_UI_KEYS)[number];
 export const logoWords = (tile: Pick<Tile, "ui"> | undefined) => tileUi<LogoUiKey>(tile, "tile C (logo)");
@@ -69,14 +69,4 @@ export function renderLogoPanel(tile: Tile, state: LogoState): string {
       </form>
       ${statusLine(tile, state)}
     </section>`;
-}
-
-/**
- * The card's logo fact, as the map holds it: an `<img>` only. After a replacement the page refreshes the
- * browser's copy first (page.ts), so the address stays the one kept, with nothing added to it.
- */
-export function logoFact(tile: Tile, logo: string): string {
-  if (!/^https?:\/\//i.test(logo)) return "";
-  const ui = logoWords(tile);
-  return `<dt>${esc(ui("uiLogoFact"))}</dt><dd><img class="wb-card-logo" src="${esc(logo)}" alt="" loading="lazy" referrerpolicy="no-referrer" /></dd>`;
 }

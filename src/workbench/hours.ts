@@ -21,7 +21,8 @@ import { tileUi } from "./tilewords";
 import { miniMapSlot } from "./minimap";
 import { highlightTurtle, highlightTurtleLine } from "./turtle";
 import type { OnMap } from "../lib/onmap";
-import { logoFact, renderLogoPanel, type LogoState } from "./logo";
+import { renderLogoPanel, type LogoState } from "./logo";
+import { livePopup } from "./popup";
 
 export const HOURS_UI_KEYS = [
   "uiHoursLabel", "uiHoursHint", "uiHoursPlaceholder", "uiSave", "uiHoursFirst", "uiSaving", "uiHoursSame", "uiHoursEmpty",
@@ -123,7 +124,7 @@ function renderFile(tile: Tile, state: HoursState): string {
     </div>`;
 }
 
-/** The card as the map holds it: its pin and popup, then what its profile shows. Old hours until the map caught up. */
+/** The card as the map holds it: its pin and popup (the embed's, logo top right), then what its profile shows. Old hours until the map caught up. */
 function renderCard(tile: Tile, state: HoursState): string {
   const ui = hoursWords(tile);
   const pin = state.onMap?.pin;
@@ -135,15 +136,13 @@ function renderCard(tile: Tile, state: HoursState): string {
       <p class="wf-label">${esc(ui("uiCardLabel"))}</p>
       <div class="wb-frame">
         ${miniMapSlot(pin.lat, pin.lon)}
-        <div class="wb-popup"><div class="sp-hero"><span class="sp-name hand">${esc(pin.name)}</span>
-          <span class="sp-address">${esc([pin.city, pin.country].filter(Boolean).join(", "))}</span></div></div>
+        ${livePopup(pin)}
       </div>
       <div class="wb-facts-box">
         <span class="wb-aside">${esc(ui("uiCardFacts"))}</span>
         <dl class="pv-facts">
           <dt>${esc(ui("uiAddressFact"))}</dt><dd>${esc(pin.address || "—")}</dd>
           <dt class="hit">${esc(ui("uiHoursFact"))}</dt><dd class="hit${fresh ? " fresh" : ""}">${esc(pin.hours || "—")}</dd>
-          ${logoFact(tile, pin.logo)}
         </dl>
       </div>
     </div>`;
