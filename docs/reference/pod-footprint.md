@@ -13,7 +13,7 @@ the README section is the declaration. Removing it all is
 
 | id | Kind | Where | What |
 |---|---|---|---|
-| `space-file` | own | `space.ttl` | the space's file; tile A writes it, tile C changes one statement, or the address and the pin together when the space moves |
+| `space-file` | own | `space.ttl` | the space's file; tile A writes it, tile C changes the statements you edit in its tool (any field of the profile), with the address and the pin together when the space moves |
 | `space-acl` | own | the rules of `space.ttl` | anyone may read that one file |
 | `logo-file` | own | `logo` and its rules | the logo, readable by anyone; one address whatever its type |
 | `settings-file` | own | `settings/mom-home.ttl` | the fold, the tutorials seen |
