@@ -138,6 +138,8 @@
 .wb-tool-find { display: flex; flex-direction: column; gap: var(--space-6); }
 .wb-tool-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: var(--space-24); align-items: start; }
 /* The right side reads as the change travels: the file, then the card the map draws from it; Save under both. */
+/* The Finder sits over the fields it finds: as wide as the form, not the step. */
+.wb-tool-left { display: flex; flex-direction: column; gap: var(--space-14); min-width: 0; }
 .wb-tool-right { position: sticky; top: var(--space-14); display: flex; flex-direction: column; gap: var(--space-10); min-width: 0; }
 .wb-tool-flow { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-8); align-items: start; }
 /* Tiles folded, the step has the width: the source file goes before the card, to cross-check it. Unfolded, it hides. */
