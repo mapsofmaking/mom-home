@@ -386,7 +386,7 @@
 :pod a onb:Word ; onb:label "pod" ; onb:prio 1 ;
   onb:meaning "Personal Online Datastore: storage that's yours."@en .
 :endpoint a onb:Word ; onb:label "endpoint" ; onb:prio 2 ;
-  onb:meaning "The address where your file lives. Everyone who reads you reads there."@en .
+  onb:meaning "Where your space's file can be read online. Readers come back to it for every update."@en .
 :handshake a onb:Word ; onb:label "handshake" ; onb:prio 3 ;
   onb:meaning "A membership both sides state. Either side can end it at once."@en .
 :agent a onb:Word ; onb:label "agent" ; onb:prio 4 ;
