@@ -133,7 +133,7 @@ export interface Word {
 }
 
 export interface Tree {
-  /** The app's own: Bernard's lines, and `onb:ui*` words (the work-in-progress notice). */
+  /** The app's own: Bernard's lines, and `onb:ui*` words (none today). */
   app: { lines: Lines; ui: Lines };
   tiles: Tile[];
   words: Word[];
