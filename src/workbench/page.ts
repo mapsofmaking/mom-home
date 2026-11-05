@@ -83,6 +83,9 @@ import { metWords, renderWords } from "./words";
 import { swapBrokenLogos } from "./popup";
 import { moveIdle, moveWords, renderMovePanel, type MoveState } from "./move";
 import { findPlace as geocode, shortPlace } from "./where";
+import type { Tile } from "../tree/parse";
+import { mountTool, type ToolHandle } from "./tool";
+import type { Edit, Profile, SaveResult } from "../lib/profile";
 import type { MoveResult, Place } from "../lib/move";
 
 export interface PageOptions {
@@ -134,6 +137,11 @@ export interface PageOptions {
   useLogoAddress?: (typed: string) => Promise<LogoResult>;
   /** Tile C's address (S5, #40): the address and the pin, written together in the space file. */
   moveSpace?: (next: Place) => Promise<MoveResult>;
+  /**
+   * Tile C's tool (S4, #39), on a later visit (the hours are already in the file when the page opens): the profile
+   * read from the space file, and saved to it in one patch. Absent: signed out, and the first visit's steps stay.
+   */
+  profileTool?: { load: () => Promise<{ profile: Profile }>; save: (edit: Edit) => Promise<SaveResult> };
   /** The geocoder (where.ts `findPlace`, tile A's route); tests pass their own. */
   findPlace?: typeof geocode;
   /** The space file's text as the pod held it at sign-in: tile C shows it (14.6, live sources only). */
@@ -264,6 +272,13 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   let move: MoveState = moveIdle(opts.draft.street, opts.draft.city);
   let moving = false;
   const workbench = opts.mode === "workbench";
+  /**
+   * The tool (S4) replaces the first visit's hours, logo and address panels when the hours are already in the file
+   * as the page opens. Its box outlives redraws (typing is kept), and is put back where the step draws it.
+   */
+  const toolOpen = !!opts.profileTool && !!opts.draft.hours?.trim();
+  let toolBox: HTMLElement | null = null;
+  let tool: ToolHandle | null = null;
   // Everything that outlives the markup (root and media-query listeners,
   // observers) is undone by destroy(), so a redraw never stacks a second set.
   const life = new AbortController();
@@ -380,8 +395,9 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     clearTimeout(podTimer);
     // Published in this tab: tile C's card is the one the map gave back then.
     if (!hours.onMap && publish.onMap) hours = { ...hours, onMap: publish.onMap };
-    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, carded, words, offers, door, pod, podReady: podReady?.pod ?? null, prior: opts.priorPod ?? null, makeAnother, publish: opts.publishSpace ? publish : null, hours: opts.saveHours ? hours : null, logo: opts.uploadLogo && opts.draft.hours?.trim() ? logo : null, move: opts.moveSpace && opts.draft.hours?.trim() ? move : null });
+    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, carded, words, offers, door, pod, podReady: podReady?.pod ?? null, prior: opts.priorPod ?? null, makeAnother, publish: opts.publishSpace ? publish : null, hours: opts.saveHours ? hours : null, tool: toolOpen, logo: opts.uploadLogo && opts.draft.hours?.trim() ? logo : null, move: opts.moveSpace && opts.draft.hours?.trim() ? move : null });
     step.scrollTop = 0;
+    if (tile.act === "hours" && toolOpen) placeTool(tile);
     if (tile.act === "threshold" && !offersAsked) askOffers();
     // The suggested address is checked as soon as the form opens (AC2): a bad one shows before the passphrase is reached.
     const podForm = step.querySelector<HTMLFormElement>("#f-pod");
@@ -392,6 +408,41 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     if (file && chg) file.scrollTop += chg.getBoundingClientRect().top - file.getBoundingClientRect().top - file.clientHeight / 3;
     // A card with a pin gets its small map, loaded on demand (S6, #16).
     void mountMiniMaps(step);
+  };
+
+  /** The tool's box goes where the step left its mount point; the tool is mounted the first time tile C is drawn. */
+  const placeTool = (tile: Tile) => {
+    const mount = step.querySelector<HTMLElement>("#tool-mount");
+    if (!mount || !opts.profileTool) return;
+    if (!toolBox) {
+      toolBox = document.createElement("div");
+      toolBox.className = "wb-tool-box";
+      const { load, save } = opts.profileTool;
+      tool = mountTool(toolBox, {
+        def: tree.profile,
+        sections: tree.profile.sections,
+        tile,
+        working: words.ui("uiPinWorking"),
+        load,
+        save,
+        find: opts.findPlace,
+        mapRead: opts.mapRead,
+        onSaved: (result) => keepDraft(result.profile),
+      });
+    }
+    mount.replaceWith(toolBox);
+  };
+
+  /** The draft follows what the file now says, so the other tiles' previews don't show an older space. */
+  const keepDraft = (profile: Profile) => {
+    const text = (key: string) => profile.values.get(key)?.text || undefined;
+    Object.assign(opts.draft, { name: text("name"), description: text("description"), website: text("website"), logo: text("logo"), hours: text("hours") });
+    if (profile.place) {
+      const p = profile.place;
+      Object.assign(opts.draft, {
+        street: p.street || undefined, postcode: p.postcode || undefined, city: p.city, country: p.country, lat: String(p.lat), lon: String(p.lon),
+      });
+    }
   };
 
   /** Asks the pod server once the first time tile B opens (and again on "Try again"); the answer redraws it. */
@@ -1186,6 +1237,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
 
   return {
     destroy() {
+      tool?.destroy();
       life.abort();
       clearTimeout(podTimer);
       dropAllMaps();

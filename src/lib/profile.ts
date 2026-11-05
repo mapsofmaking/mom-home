@@ -221,6 +221,11 @@ export function profilePatch(read: SpaceRead, def: ProfileDef, profile: Profile,
   return ["@prefix solid: <http://www.w3.org/ns/solid/terms#> .", "_:profile a solid:InsertDeletePatch ;", `  ${parts.join(" ;\n  ")} .`, ""].join("\n");
 }
 
+/** The profile as the pod holds it now (the tool's first read). Throws a PublishError like any read of the file. */
+export async function loadProfile(fileUrl: string, def: ProfileDef, fetchImpl: Fetch = (u, i) => authFetch(u, i)): Promise<{ profile: Profile }> {
+  return { profile: readProfile(await readSpaceFile(fileUrl, fetchImpl), def) };
+}
+
 export interface SaveResult {
   /** saved: written and read back. same: the file already says all of it; nothing was written. */
   status: "saved" | "same";
