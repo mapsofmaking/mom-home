@@ -290,7 +290,7 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
       : total
         ? `<div class="fd-meta"><span>${esc(ui("uiProfileFindCount", { n: String(total) }))}</span></div>` +
           groups
-            .map((g) => `<p class="fd-head">${esc(sections.find((x) => x.id === g.section)?.label ?? g.section)}<span class="n">${g.rows.length}</span></p>` +
+            .map((g) => `<p class="fd-head">${esc(sections.find((x) => x.id === g.section)?.label ?? g.section)}</p>` +
               g.rows.map((r) => `<button type="button" class="fd-row${flat.indexOf(r) === s.pick ? " on" : ""}" data-goto="${esc(r.key)}"><b>${mark(r.label, s.query)}</b><span>${r.value ? mark(r.value, s.query) : `<em>${esc(ui("uiProfileEmpty"))}</em>`}</span></button>`).join(""))
             .join("")
         : `<p class="wb-aside">${esc(ui("uiProfileFindNone"))}</p>`;
@@ -384,11 +384,12 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
     if (s.status === "loading") return `<p class="wb-aside">${esc(ui("uiProfileLoading"))}</p>`;
     if (s.status === "failed") return `<p class="wb-aside problem">${esc(ui("uiProfileLoadFailed"))}</p>`;
     const others = s.profile?.others ?? [];
-    return `${finderHtml()}
-      <div class="wb-tool-grid">
+    return `<div class="wb-tool-grid">
+        <div class="wb-tool-left">${finderHtml()}
         <form class="wb-form wb-tool-form" id="tool-form" novalidate onsubmit="return false">${sections.map(sectionHtml).join("")}
           ${others.length ? `<section class="wb-tool-section"><h3 class="wb-tool-heading">${esc(ui("uiProfileOthers"))}</h3><p class="wb-aside">${esc(ui("uiProfileOthersHint"))}</p><ul class="wb-aside">${others.map((o) => `<li>${esc(o.split(/[/#]/).pop() ?? o)}</li>`).join("")}</ul></section>` : ""}
         </form>
+        </div>
         <div class="wb-tool-right">
           <div class="wb-tool-flow">${fileHtml()}${s.text ? `<span class="wb-tool-arrow" aria-hidden="true">→</span>` : ""}
             <aside class="wb-tool-side" id="tool-side" aria-label="${esc(ui("uiProfileCard"))}">${sideHtml()}<div id="tool-live">${liveHtml()}</div></aside></div>
