@@ -12,7 +12,7 @@
 .wb-mark .app { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
 .wb-who { display: flex; gap: var(--space-12); align-items: center; font-size: 13px; color: var(--ink-soft); }
 .wb-who b { color: var(--ink); }
-.wb-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-24); min-height: 0; }
+.wb-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: var(--space-24); min-height: 0; }
 @media (max-width: 900px) { .wb-page { padding: var(--space-14) var(--space-16); } .wb-grid { grid-template-columns: minmax(0, 1fr); } }
 .wb-panel { background: var(--drawer-bg); border: var(--stroke-rule) solid var(--rule); box-shadow: var(--shadow); display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .wb-panel-head { display: flex; align-items: baseline; gap: var(--space-10); padding: var(--space-16) var(--space-20) var(--space-14); border-bottom: 1px dashed var(--rule); }
@@ -136,18 +136,22 @@
 /* Tool (tile C on a later visit): the Finder over the fields, the form by section, and the card as it would read, fixed beside it. */
 .wb-tool { display: flex; flex-direction: column; gap: var(--space-14); }
 .wb-tool-find { display: flex; flex-direction: column; gap: var(--space-6); }
-.wb-tool-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 320px); gap: var(--space-20); align-items: start; }
-/* Tiles folded, the step has the width: the source file goes beside the card, to cross-check it. Unfolded, it hides. */
-.wb-page.is-folded .wb-tool-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 320px) minmax(0, 400px); }
-.wb-tool-file { display: none; }
-.wb-page.is-folded .wb-tool-file { display: flex; position: sticky; top: var(--space-14); }
-.wb-tool-file pre.wb-file { max-height: 70vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 10.5px; }
+.wb-tool-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: var(--space-24); align-items: start; }
+/* The right side reads as the change travels: the file, then the card the map draws from it; Save under both. */
+.wb-tool-right { position: sticky; top: var(--space-14); display: flex; flex-direction: column; gap: var(--space-10); min-width: 0; }
+.wb-tool-flow { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-8); align-items: start; }
+/* Tiles folded, the step has the width: the source file goes before the card, to cross-check it. Unfolded, it hides. */
+.wb-tool-file, .wb-tool-arrow { display: none; }
+.wb-page.is-folded .wb-tool-flow { grid-template-columns: minmax(0, 1fr) 16px minmax(0, 1fr); }
+.wb-page.is-folded .wb-tool-file { display: flex; flex-direction: column; gap: var(--space-8); min-width: 0; }
+.wb-page.is-folded .wb-tool-arrow { display: block; align-self: center; font: 600 18px/1 var(--font-mono); color: var(--muted); text-align: center; }
+.wb-tool-file pre.wb-file { max-height: 60vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 10.5px; }
 .wb-tool-form { gap: var(--space-20); }
 .wb-tool-section { display: flex; flex-direction: column; gap: var(--space-10); }
 .wb-tool-heading { margin: 0; font: 600 10px/1.2 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); padding-bottom: var(--space-4); border-bottom: var(--stroke-rule) dashed var(--rule); }
 .wb-tool-field { display: flex; flex-direction: column; gap: var(--space-6); }
 .wb-tool-field input[type="text"], .wb-tool-field input[type="email"], .wb-tool-field input[type="url"] { width: 100%; box-sizing: border-box; }
-.wb-tool-side { position: sticky; top: var(--space-14); display: flex; flex-direction: column; gap: var(--space-10); }
+.wb-tool-side { display: flex; flex-direction: column; gap: var(--space-10); min-width: 0; }
 .wb-handle { display: flex; align-items: center; gap: var(--space-8); }
 .wb-handle input { flex: 1; min-width: 0; }
 .wb-issue { padding-left: var(--space-8); border-left: 3px solid var(--rule); }
@@ -155,5 +159,5 @@
 .wb-issue.fix { border-left-color: var(--accent-2); }
 .sp-channel.on { opacity: 1; }
 .ct-picto { display: block; fill: currentColor; }
-@media (max-width: 1200px) { .wb-page.is-folded .wb-tool-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 320px); } .wb-page.is-folded .wb-tool-file { display: none; } }
-@media (max-width: 900px) { .wb-tool-grid, .wb-page.is-folded .wb-tool-grid { grid-template-columns: minmax(0, 1fr); } .wb-tool-side { position: static; } }
+@media (max-width: 1200px) { .wb-page.is-folded .wb-tool-flow { grid-template-columns: minmax(0, 1fr); } .wb-page.is-folded .wb-tool-file, .wb-page.is-folded .wb-tool-arrow { display: none; } }
+@media (max-width: 900px) { .wb-tool-grid { grid-template-columns: minmax(0, 1fr); } .wb-tool-right { position: static; } }

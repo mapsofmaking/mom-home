@@ -457,30 +457,30 @@
 
 :basics a onb:Section ; onb:label "Basics"@en ; onb:prio 1 .
 :place a onb:Section ; onb:label "Place"@en ; onb:prio 2 .
-:contact a onb:Section ; onb:label "Contact"@en ; onb:prio 3 .
-:look a onb:Section ; onb:label "Look"@en ; onb:prio 4 .
-:times a onb:Section ; onb:label "Hours"@en ; onb:prio 5 .
+:online a onb:Section ; onb:label "Online"@en ; onb:prio 3 .
+:times a onb:Section ; onb:label "Hours"@en ; onb:prio 4 .
+:contact a onb:Section ; onb:label "Contact"@en ; onb:prio 5 .
 
 :f-name a onb:ProfileField ; onb:key "name" ; onb:kind "text" ; onb:property schema:name ;
   onb:section :basics ; onb:prio 1 ; onb:required "true" ;
   onb:label "Space name"@en ; onb:hint "The name your community knows."@en .
 :f-description a onb:ProfileField ; onb:key "description" ; onb:kind "text" ; onb:property schema:description ;
-  onb:section :basics ; onb:prio 2 ;
+  onb:section :basics ; onb:prio 3 ;
   onb:label "Description"@en ; onb:hint "One or two sentences. What kind of space is this?"@en .
 :f-address a onb:ProfileField ; onb:key "address" ; onb:kind "place" ;
-  onb:section :place ; onb:prio 3 ; onb:required "true" ;
+  onb:section :place ; onb:prio 4 ; onb:required "true" ;
   onb:label "Where the space is"@en ; onb:hint "Street and town. The pin moves with the address."@en .
 :f-contacts a onb:ProfileField ; onb:key "contacts" ; onb:kind "contacts" ;
-  onb:section :contact ; onb:prio 4 ;
+  onb:section :contact ; onb:prio 7 ;
   onb:label "Contact"@en ; onb:hint "How people reach the space: one handle or many. Not personal accounts."@en .
 :f-website a onb:ProfileField ; onb:key "website" ; onb:kind "url" ; onb:property schema:url ;
-  onb:section :contact ; onb:prio 6 ;
+  onb:section :online ; onb:prio 5 ;
   onb:label "Website"@en ; onb:placeholder "example.org"@en ; onb:hint "The space's main web page."@en .
 :f-logo a onb:ProfileField ; onb:key "logo" ; onb:kind "image" ; onb:property schema:logo ;
-  onb:section :look ; onb:prio 7 ;
+  onb:section :basics ; onb:prio 2 ;
   onb:label "Logo"@en ; onb:placeholder "example.org/logo.png"@en ; onb:hint "Transparent PNG works best."@en .
 :f-hours a onb:ProfileField ; onb:key "hours" ; onb:kind "text" ; onb:property schema:openingHours ;
-  onb:section :times ; onb:prio 8 ;
+  onb:section :times ; onb:prio 6 ;
   onb:label "Opening hours"@en ; onb:placeholder "Tu-Sa 10:00-18:00"@en ;
   onb:hint "Change anything. Winter hours, a holiday, a new evening."@en .
 

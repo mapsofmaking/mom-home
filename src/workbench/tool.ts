@@ -1,5 +1,5 @@
 /**
- * Tile C's tool (Story 14.6 S4, #39): every field the tree lists for the space's file, drawn from the tree's
+ * Tile C's tool (Story 14.6 S4, #39): every field the tree lists for the space's file, in the card's order, drawn from the tree's
  * registry (`onb:ProfileField`), a Finder over them, the card as it would read, and one Save that writes
  * every change in one patch (lib/profile.ts) and has the map read it.
  *
@@ -330,7 +330,7 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
   const fileHtml = (): string =>
     !s.text
       ? ""
-      : `<div class="wb-tool-file wb-flow-file">
+      : `<div class="wb-tool-file">
           <p class="wf-label">${esc(map("uiFileLabel"))}</p>
           <div class="sp-terminal-wrap">
             <div class="sp-terminal-head"><span>Turtle · space.ttl</span><span>${esc(map("uiFileFrom"))}</span></div>
@@ -377,7 +377,6 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
         <p class="wf-label">${esc(map("uiCardLabel"))} <span class="status-label" id="tool-chip">${chipHtml()}</span></p>
         <div class="wb-frame" id="tool-frame">${p ? miniMapSlot(p.lat, p.lon) : ""}${popupHtml()}</div>
         <div class="wb-facts-box" id="tool-facts">${factsHtml()}</div>
-        <div id="tool-live">${liveHtml()}</div>
       </div>`;
   };
 
@@ -390,8 +389,10 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
         <form class="wb-form wb-tool-form" id="tool-form" novalidate onsubmit="return false">${sections.map(sectionHtml).join("")}
           ${others.length ? `<section class="wb-tool-section"><h3 class="wb-tool-heading">${esc(ui("uiProfileOthers"))}</h3><p class="wb-aside">${esc(ui("uiProfileOthersHint"))}</p><ul class="wb-aside">${others.map((o) => `<li>${esc(o.split(/[/#]/).pop() ?? o)}</li>`).join("")}</ul></section>` : ""}
         </form>
-        <aside class="wb-tool-side" id="tool-side" aria-label="${esc(ui("uiProfileCard"))}">${sideHtml()}</aside>
-        ${fileHtml()}
+        <div class="wb-tool-right">
+          <div class="wb-tool-flow">${fileHtml()}${s.text ? `<span class="wb-tool-arrow" aria-hidden="true">→</span>` : ""}
+            <aside class="wb-tool-side" id="tool-side" aria-label="${esc(ui("uiProfileCard"))}">${sideHtml()}<div id="tool-live">${liveHtml()}</div></aside></div>
+        </div>
       </div>`;
   };
 
