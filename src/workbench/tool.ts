@@ -17,6 +17,11 @@ import { PublishError } from "../lib/publish";
 import type { Place } from "../lib/move";
 import { esc } from "./html";
 import { contactPicto } from "./contacticons";
+import { livePopup } from "./popup";
+import { miniMapSlot, mountMiniMaps } from "./minimap";
+import { highlightTurtle } from "./turtle";
+import { logoWords } from "./logo";
+import { LOGO_TYPES, type LogoResult } from "../lib/logo";
 import { tileUi } from "./tilewords";
 import { hoursWords, marker } from "./hours";
 import { moveWords } from "./move";
@@ -75,12 +80,16 @@ export interface ToolDeps {
   tile: Pick<Tile, "ui">;
   working: string;
   /** The file as the pod holds it now. */
-  load: () => Promise<{ profile: Profile; etag: string | null }>;
+  load: () => Promise<{ profile: Profile; etag: string | null; text?: string }>;
+  /** The logo: a file uploaded next to the space file (lib/logo.ts), its own write, as before. `current`: schema:logo now. */
+  uploadLogo?: (file: File, current: string | null) => Promise<LogoResult>;
   save: (edit: Edit) => Promise<SaveResult>;
   find?: typeof findPlace;
   mapRead?: (says: string | ((pin: Pin) => boolean)) => Promise<MapReread>;
   /** The file was written: the page keeps its own copy (the draft) in step. */
   onSaved?: (result: SaveResult) => void;
+  /** A logo was uploaded: its address, for the page's draft. */
+  onLogo?: (url: string) => void;
 }
 
 type Status = "loading" | "failed" | "ready" | "finding" | "writing" | "done";
@@ -88,6 +97,9 @@ type Status = "loading" | "failed" | "ready" | "finding" | "writing" | "done";
 interface State {
   /** The file's ETag when this screen read it: a save is refused if the file has moved on. */
   etag: string | null;
+  /** The file's text as last read, for the source beside the card; and what the last save changed in it. */
+  text: string;
+  changed: RegExp | null;
   /** What the file said then: only what differs from it is sent. */
   base: { values: Record<string, string>; handles: string; };
   /** Fixes the person tapped on a value that reads the same either way (a web address held as text): saved only for those. */
@@ -119,6 +131,7 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
   const ui = profileWords(deps.tile);
   const move = moveWords(deps.tile);
   const map = hoursWords(deps.tile);
+  const logoUi = logoWords(deps.tile);
   const fields = [...deps.def.fields].sort((a, b) => a.prio - b.prio);
   const sections = [...deps.sections].sort((a, b) => a.prio - b.prio);
   const types = [...deps.def.contactTypes].sort((a, b) => a.prio - b.prio);
@@ -126,7 +139,7 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
   let saving = false;
   let stopMeter = () => {};
   const s: State = {
-    etag: null, base: { values: {}, handles: "[]" }, mended: new Set(), mendedHandles: false,
+    etag: null, text: "", changed: null, base: { values: {}, handles: "[]" }, mended: new Set(), mendedHandles: false,
     status: "loading", profile: null, values: {}, street: "", city: "", handles: [], query: "", pick: 0,
     found: "", missed: false, message: "", map: "idle",
   };
@@ -141,6 +154,18 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
     s.base = { values: { ...s.values }, handles: handlesKey(s.handles) };
     s.mended = new Set();
     s.mendedHandles = false;
+  };
+  /** The file read again after a write of its own (the logo): what the person typed elsewhere is kept. */
+  const rebase = (profile: Profile, etag: string | null, text: string | undefined, except: string) => {
+    const keep = fields.filter((f) => simple(f) && f.key !== except && s.values[f.key] !== s.base.values[f.key]).map((f) => [f.key, s.values[f.key]] as const);
+    const handles = handlesKey(s.handles) !== s.base.handles ? s.handles : null;
+    const place = placeChanged() ? { street: s.street, city: s.city } : null;
+    fromFile(profile);
+    s.etag = etag;
+    if (text !== undefined) s.text = text;
+    for (const [k, v] of keep) s.values[k] = v;
+    if (handles) s.handles = handles;
+    if (place) Object.assign(s, place);
   };
   const handlesKey = (list: readonly Handle[]) => JSON.stringify(list.filter((h) => h.value.trim()).map((h) => [h.type, h.value.trim()]));
 
@@ -242,7 +267,11 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
     const value = s.values[f.key] ?? "";
     const type = f.kind === "email" ? "email" : f.kind === "url" || f.kind === "image" ? "url" : "text";
     const several = many(f) ? `<p class="wb-aside">${esc(ui("uiProfileMany"))}</p>` : "";
-    const control = `<input id="${id}" name="${esc(f.key)}" type="${type}" value="${esc(value)}" placeholder="${esc(f.placeholder ?? "")}"${f.hint ? ` aria-describedby="${id}-hint"` : ""}${busy}${many(f) ? " readonly" : ""} />`;
+    const upload = f.kind === "image" && deps.uploadLogo
+      ? `<div class="wb-form-actions"><button type="button" class="btn" data-upload="${esc(f.key)}"${busy}>${esc(logoUi("uiLogoUpload"))}</button>
+          <input type="file" data-upload-file="${esc(f.key)}" accept="${LOGO_TYPES.join(",")}" hidden /><span class="hint">${esc(logoUi("uiLogoHint"))}</span></div>`
+      : "";
+    const control = upload + `<input id="${id}" name="${esc(f.key)}" type="${type}" value="${esc(value)}" placeholder="${esc(f.placeholder ?? "")}"${f.hint ? ` aria-describedby="${id}-hint"` : ""}${busy}${many(f) ? " readonly" : ""} />`;
     return `<div class="wb-tool-field" data-field="${esc(f.key)}">${label}${hint}${control}${several}${issueHtml(f.key, issueOf(f), value, `data-fix="${esc(f.key)}"`)}</div>`;
   };
 
@@ -275,23 +304,39 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
       <div id="tool-found" aria-live="polite">${foundHtml()}</div></div>`;
   };
 
-  const cardHtml = (): string => {
-    const name = s.values.name?.trim();
-    const place = [s.city.trim()].filter(Boolean).join("");
-    const handles = s.handles.filter((h) => h.value.trim());
-    const desc = s.values.description?.trim();
-    const site = s.values.website?.trim();
-    const hours = s.values.hours?.trim();
-    const dash = `<em class="pv-empty">—</em>`;
-    return `<div class="wb-popup">
-      <div class="sp-hero"><span class="sp-name hand">${esc(name || "—")}</span><span class="sp-address">${esc(place)}</span></div>
-      <dl class="pv-facts">
-        <dt>Description</dt><dd>${desc ? esc(desc) : dash}</dd>
-        <dt>Website</dt><dd>${site ? esc(site) : dash}</dd>
-        <dt>Hours</dt><dd>${hours ? esc(hours) : dash}</dd>
-        <dt>Contact</dt><dd>${handles.length ? `<span class="sp-channels">${handles.map((h) => `<span class="sp-channel on" title="${esc(h.value)}">${contactPicto(h.type)}</span>`).join("")}</span>` : dash}</dd>
-      </dl></div>`;
+  /** The pin as the map would draw it from what is typed: the popup over the small map. */
+  const popupHtml = (): string => {
+    const p = s.profile?.place;
+    const city = s.city.trim();
+    return livePopup({
+      id: "", name: s.values.name?.trim() || "—", lat: p?.lat ?? 0, lon: p?.lon ?? 0, city, country: p?.country ?? "", hours: "",
+      address: [city, p?.country].filter(Boolean).join(", "), logo: s.values.logo?.trim() ?? "",
+    });
   };
+
+  /** What the map's profile shows under the popup, in its order (web/app.js Quick facts). */
+  const factsHtml = (): string => {
+    const handles = s.handles.filter((h) => h.value.trim());
+    const dash = `<em class="pv-empty">—</em>`;
+    const row = (k: string, v: string | undefined) => `<dt>${esc(k)}</dt><dd>${v ? esc(v) : dash}</dd>`;
+    return `<span class="wb-aside">${esc(map("uiCardFacts"))}</span>
+      <dl class="pv-facts">
+        ${row("Description", s.values.description?.trim())}${row("Website", s.values.website?.trim())}${row("Hours", s.values.hours?.trim())}${row("Next event", "")}
+        <dt>Contact</dt><dd>${handles.length ? `<span class="sp-channels">${handles.map((h) => `<span class="sp-channel on" title="${esc(h.value)}">${contactPicto(h.type)}</span>`).join("")}</span>` : dash}</dd>
+      </dl>`;
+  };
+
+  /** The file as the pod holds it, the last save's lines marked: the source to cross-check the card against. */
+  const fileHtml = (): string =>
+    !s.text
+      ? ""
+      : `<div class="wb-tool-file wb-flow-file">
+          <p class="wf-label">${esc(map("uiFileLabel"))}</p>
+          <div class="sp-terminal-wrap">
+            <div class="sp-terminal-head"><span>Turtle · space.ttl</span><span>${esc(map("uiFileFrom"))}</span></div>
+            <pre class="turtle sp-terminal-body wb-file" tabindex="0" aria-label="${esc(map("uiFileLabel"))}">${highlightTurtle(s.text, s.changed ?? undefined)}</pre>
+          </div>
+        </div>`;
 
   const stepsHtml = (): string => {
     if (s.status === "ready" && !s.message) return "";
@@ -312,18 +357,28 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
     return `${list.length ? `<ol class="wb-steps" id="tool-steps">${list.join("")}</ol>` : ""}${s.message ? `<p class="wb-aside" id="tool-message" tabindex="-1">${esc(s.message)}</p>` : ""}`;
   };
 
-  const sideHtml = (): string => {
+  /** The chip, the summary, Save and the steps: what follows each keystroke. */
+  const liveHtml = (): string => {
     const list = pending();
     const busy = s.status === "finding" || s.status === "writing" || blocked();
     const labels = list.map((c) => fields.find((f) => f.key === c.key)?.label ?? c.key);
     const summary = !list.length
       ? ui("uiProfileNothing")
       : `${list.length === 1 ? ui("uiProfileChangeOne") : ui("uiProfileChangeMany", { n: String(list.length) })}: ${labels.join(", ")}.${list.some((c) => fields.find((f) => f.key === c.key)?.kind === "place") ? ` ${ui("uiProfilePinMoves")}` : ""}`;
-    return `<p class="wf-label">${esc(ui("uiProfileCard"))} <span class="status-label">${esc(list.length ? ui("uiProfileNotSaved") : ui("uiProfileSaved"))}</span></p>
-      ${cardHtml()}
-      <p class="wb-aside" id="tool-summary">${esc(summary)}</p>
+    return `<p class="wb-aside" id="tool-summary">${esc(summary)}</p>
       <div class="wb-form-actions"><button type="button" class="btn btn-primary" id="tool-save"${list.length && !busy ? "" : " disabled"}>${esc(ui("uiProfileSave"))}</button></div>
       <div id="tool-progress">${stepsHtml()}</div>`;
+  };
+  const chipHtml = () => esc(pending().length ? ui("uiProfileNotSaved") : ui("uiProfileSaved"));
+
+  const sideHtml = (): string => {
+    const p = s.profile?.place;
+    return `<div class="wb-flow-card wb-tool-card">
+        <p class="wf-label">${esc(map("uiCardLabel"))} <span class="status-label" id="tool-chip">${chipHtml()}</span></p>
+        <div class="wb-frame" id="tool-frame">${p ? miniMapSlot(p.lat, p.lon) : ""}${popupHtml()}</div>
+        <div class="wb-facts-box" id="tool-facts">${factsHtml()}</div>
+        <div id="tool-live">${liveHtml()}</div>
+      </div>`;
   };
 
   const bodyHtml = (): string => {
@@ -336,6 +391,7 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
           ${others.length ? `<section class="wb-tool-section"><h3 class="wb-tool-heading">${esc(ui("uiProfileOthers"))}</h3><p class="wb-aside">${esc(ui("uiProfileOthersHint"))}</p><ul class="wb-aside">${others.map((o) => `<li>${esc(o.split(/[/#]/).pop() ?? o)}</li>`).join("")}</ul></section>` : ""}
         </form>
         <aside class="wb-tool-side" id="tool-side" aria-label="${esc(ui("uiProfileCard"))}">${sideHtml()}</aside>
+        ${fileHtml()}
       </div>`;
   };
 
@@ -349,11 +405,20 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
       el?.focus();
       if (el && keep.at !== null && keep.at !== undefined && el.setSelectionRange && el.type !== "search" && el.type !== "email" && el.type !== "url") el.setSelectionRange(keep.at, keep.at);
     }
+    void mountMiniMaps(box);
   };
   /** Typing: only the card, the summary and Save follow, so the field being typed in is never replaced. */
   const paintSide = () => {
-    const side = box.querySelector<HTMLElement>("#tool-side");
-    if (side) side.innerHTML = sideHtml();
+    // The small map stays: only what is drawn over and under it follows.
+    const set = (id: string, html: string) => {
+      const el = box.querySelector<HTMLElement>(`#${id}`);
+      if (el) el.innerHTML = html;
+    };
+    box.querySelector("#tool-frame > .wb-popup")?.insertAdjacentHTML("afterend", popupHtml());
+    box.querySelector("#tool-frame > .wb-popup")?.remove();
+    set("tool-facts", factsHtml());
+    set("tool-live", liveHtml());
+    set("tool-chip", chipHtml());
   };
   const paintIssue = (key: string, html: string) => {
     box.querySelector(`[data-issue="${CSS.escape(key)}"]`)?.remove();
@@ -386,6 +451,60 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
     } as const;
     if (code === "unconfirmed") return ui("uiProfileUnconfirmed");
     return move(keys[code as keyof typeof keys] ?? "uiMoveRefused");
+  };
+
+  /** The lines a save changed, for the source: each field's predicate; the address with its pin; the handles. */
+  const marks = (keys: readonly string[]): RegExp | null => {
+    const parts: string[] = [];
+    for (const k of keys) {
+      const f = fields.find((x) => x.key === k);
+      if (!f) continue;
+      if (f.kind === "place") parts.push("streetAddress", "postalCode", "addressLocality", "addressCountry", "latitude", "longitude");
+      else if (f.kind === "contacts") parts.push("contactPoint", "contactType", "email", "telephone");
+      else if (f.property) parts.push(f.property.split(/[/#]/).pop()!);
+    }
+    return parts.length ? new RegExp(`\\b(${[...new Set(parts)].join("|")})\\b`) : null;
+  };
+
+  /** A logo file, uploaded next to the space file and pointed at (its own write, lib/logo.ts); then the file is read again. */
+  const upload = async (key: string, file: File) => {
+    if (saving || !deps.uploadLogo) return;
+    saving = true;
+    s.message = "";
+    s.found = "";
+    s.map = "idle";
+    s.status = "writing";
+    paint();
+    try {
+      const current = s.profile?.values.get(key)?.text || null;
+      const result = await deps.uploadLogo(file, current);
+      deps.onLogo?.(result.url);
+      const fresh = await deps.load();
+      rebase(fresh.profile, fresh.etag, fresh.text, key);
+      s.changed = marks([key]);
+      s.status = "done";
+      s.message = logoUi(result.status === "saved" ? "uiLogoSaved" : "uiLogoReplaced");
+      s.map = deps.mapRead ? "working" : "idle";
+      paint();
+      box.querySelector<HTMLElement>("#tool-message")?.focus();
+      if (s.map === "working") void readByMap();
+    } catch (err) {
+      s.status = "ready";
+      const code = err instanceof PublishError ? err.code : "refused";
+      const keys = {
+        "too-large": "uiLogoTooLarge", "not-image": "uiLogoNotImage", taken: "uiLogoTaken", "not-public": "uiLogoNotPublic",
+        expired: "uiLogoExpired", "no-control": "uiLogoNoAccess", conflict: "uiLogoConflict", unreachable: "uiLogoUnreachable",
+        unconfirmed: "uiLogoUnconfirmed",
+      } as const;
+      s.message = logoUi(keys[code as keyof typeof keys] ?? "uiLogoRefused");
+      console.warn("The logo was not saved:", err);
+      if (!life.signal.aborted) {
+        paint();
+        box.querySelector<HTMLElement>("#tool-message")?.focus();
+      }
+    } finally {
+      saving = false;
+    }
   };
 
   const save = async () => {
@@ -432,6 +551,8 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
       s.status = "done";
       fromFile(result.profile);
       s.etag = result.etag;
+      s.text = result.text;
+      s.changed = marks(result.changes.map((c) => c.key));
       s.message = result.status === "same" ? ui("uiProfileSame") : ui("uiProfileDone");
       s.map = result.status === "same" || !deps.mapRead ? "idle" : "working";
       deps.onSaved?.(result);
@@ -449,6 +570,7 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
           const fresh = await deps.load();
           fromFile(fresh.profile);
           s.etag = fresh.etag;
+          s.text = fresh.text ?? s.text;
           s.message = ui("uiProfileChangedSince");
         } catch (again) {
           console.warn("The profile was not read again:", again);
@@ -522,6 +644,12 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
 
   box.addEventListener("change", (e) => {
     const el = e.target as HTMLSelectElement;
+    const up = el.getAttribute?.("data-upload-file");
+    if (up) {
+      const file = (el as unknown as HTMLInputElement).files?.[0];
+      if (file) void upload(up, file);
+      return;
+    }
     const ht = el.getAttribute?.("data-handle-type");
     if (ht !== null && ht !== undefined) {
       s.handles[Number(ht)].type = el.value;
@@ -541,6 +669,7 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
     const t = (e.target as HTMLElement).closest<HTMLElement>("button");
     if (!t) return;
     if (t.id === "tool-save") void save();
+    else if (t.dataset.upload) box.querySelector<HTMLInputElement>(`[data-upload-file="${CSS.escape(t.dataset.upload)}"]`)?.click();
     else if (t.dataset.goto) go(t.dataset.goto);
     else if (t.hasAttribute("data-find-clear")) {
       s.query = "";
@@ -605,10 +734,11 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
   // ---- start ----
   paint();
   void deps.load().then(
-    ({ profile, etag }) => {
+    ({ profile, etag, text }) => {
       if (life.signal.aborted) return;
       fromFile(profile);
       s.etag = etag;
+      s.text = text ?? "";
       s.status = "ready";
       paint();
     },

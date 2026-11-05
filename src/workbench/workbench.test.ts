@@ -434,7 +434,7 @@ describe("folded row (AC7)", () => {
     expect(r.textContent).toContain("+ 3 to discover");
     expect(r.querySelector(".hx-now")!.textContent).toContain("Update it once");
     const toggle = r.querySelector("#unfold")!;
-    expect(toggle.textContent).toBe("Show all");
+    expect(toggle.textContent).toBe("Unfold tiles");
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
   });
 

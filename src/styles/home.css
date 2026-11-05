@@ -129,6 +129,8 @@
    .wb-page is riso red: restate the design system's ring here. Hexes keep
    their stroke-only focus (workbench.css). */
 .wb-page :focus-visible:not(.hx) { outline: var(--stroke-focus) solid var(--accent-2); outline-offset: 2px; }
+/* The Finder's bar draws the ring (design system .fd-bar:focus-within): one ring, not two. */
+.wb-page .fd-bar input:focus-visible { outline: none; }
 
 /* ---- Folded (AC7): one page state with a toggle (page.ts). The row sits
    above the step; the full view is hidden with its words. ---- */
