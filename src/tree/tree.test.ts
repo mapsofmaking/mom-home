@@ -107,10 +107,10 @@ describe("parseTree refuses a tree that would draw a lie", () => {
   });
   it("the shipped profile: every field has its section and kind, the hours and the address among them", () => {
     const keys = tree.profile.fields.map((f) => f.key);
-    expect(keys).toEqual(["name", "description", "address", "contacts", "website", "logo", "hours"]);
+    expect(keys).toEqual(["name", "logo", "description", "address", "website", "hours", "contacts"]); // the card's order
     expect(tree.profile.contactTypes.map((c) => c.key)).toEqual(["email", "phone", "matrix", "signal", "telegram", "discord", "mattermost", "link"]);
     expect(tree.profile.contactTypes.find((c) => c.key === "telegram")).toMatchObject({ shape: "at", contactType: "Telegram", linkPrefix: "https://t.me/" });
-    expect(tree.profile.sections.map((x) => x.id)).toEqual(["basics", "place", "contact", "look", "times"]);
+    expect(tree.profile.sections.map((x) => x.id)).toEqual(["basics", "place", "online", "times", "contact"]);
     expect(tree.profile.fields.find((f) => f.key === "address")).toMatchObject({ kind: "place", property: null, required: true });
     expect(tree.profile.fields.find((f) => f.key === "hours")).toMatchObject({ kind: "text", property: "https://schema.org/openingHours" });
   });
