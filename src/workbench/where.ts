@@ -119,18 +119,24 @@ function say(form: HTMLFormElement, text: string, tone: "" | "ok" | "error" | "w
   el.className = `wb-pin${tone ? ` ${tone}` : ""}`;
 }
 
-/** Bernard's labour made visible: a bar that cycles while the geocoder works. Reduced motion: the words alone. */
-function meter(form: HTMLFormElement, w: DescribeWords): () => void {
+/**
+ * Bernard's labour made visible: a bar that cycles while the geocoder works. Reduced motion: the words alone.
+ * `write` shows a line (the form's pin line on tile A, the tool's address line); returns the stop.
+ */
+export function meterInto(write: (text: string, tone: "working") => void, working: string): () => void {
   const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const working = w.ui("uiPinWorking");
-  say(form, working, "working");
+  write(working, "working");
   if (reduce || !timing.tick) return () => {};
   let n = 0;
   const id = setInterval(() => {
     n = (n + 1) % 12;
-    say(form, `${working} ${"▰".repeat(n)}${"▱".repeat(11 - n)}`, "working");
+    write(`${working} ${"▰".repeat(n)}${"▱".repeat(11 - n)}`, "working");
   }, timing.tick);
   return () => clearInterval(id);
+}
+
+function meter(form: HTMLFormElement, w: DescribeWords): () => void {
+  return meterInto((text, tone) => say(form, text, tone), w.ui("uiPinWorking"));
 }
 
 /** True when the form has everything the card needs from where: a country and a pin. */
