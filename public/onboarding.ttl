@@ -1,6 +1,7 @@
 @prefix onb: <https://mapsofmaking.org/ns/onboarding#> .
 @prefix : <https://mapsofmaking.org/onboarding/space-coordinator#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <https://schema.org/> .
 
 # The home app's tile tree (home.mapsofmaking.org, Epic 14). Single source of every
 # line Bernard speaks in the app, and of tile A's own words (14.2 AC8): another
@@ -289,6 +290,54 @@
   onb:uiMoveUnconfirmed "The move went to your file, but reading it back didn't work. Press again: if the file says it, nothing more is written."@en ;
   onb:uiHoursNoAccess "Your pod says this account can't change the file. Signing in again won't help: check who can edit space.ttl in the backoffice."@en ;
   onb:uiHoursUnconfirmed "The hours went to your file, but reading it back didn't work. Press Save again: if the file says them, nothing more is written."@en ;
+  onb:uiProfileTitle "Your space's file"@en ;
+  onb:uiProfileLead "Everything the map shows about your space, from your file. Change what you want; it is written in one go."@en ;
+  onb:uiProfileLoading "Reading your file."@en ;
+  onb:uiProfileLoadFailed "Your file couldn't be read, so nothing can be changed from here. Reload to try again."@en ;
+  onb:uiProfileFind "Find a field"@en ;
+  onb:uiProfileFindPlaceholder "Find a field or something it says"@en ;
+  onb:uiProfileFindCount "{n} found"@en ;
+  onb:uiProfileFindNone "Nothing in your file matches that."@en ;
+  onb:uiProfileEmpty "empty"@en ;
+  onb:uiProfileCard "Your card"@en ;
+  onb:uiProfileNotSaved "Not saved yet"@en ;
+  onb:uiProfileSaved "As saved"@en ;
+  onb:uiProfileSave "Save"@en ;
+  onb:uiProfileNothing "Nothing changed yet."@en ;
+  onb:uiProfileChangeOne "1 change"@en ;
+  onb:uiProfileChangeMany "{n} changes"@en ;
+  onb:uiProfilePinMoves "The pin moves with it."@en ;
+  onb:uiProfileStreet "Street address"@en ;
+  onb:uiProfileCity "City"@en ;
+  onb:uiProfileAddHandle "Add a contact"@en ;
+  onb:uiProfileRemoveHandle "Remove"@en ;
+  onb:uiProfileHandleKind "Kind of contact"@en ;
+  onb:uiProfileHandleValue "Contact"@en ;
+  onb:uiProfileFix "Fix it"@en ;
+  onb:uiProfileFixing "{was} becomes {fixed}"@en ;
+  onb:uiProfileNeedsFix "Needs a fix"@en ;
+  onb:uiProfileWhySpaces "Spaces at the start or end."@en ;
+  onb:uiProfileWhyCase "The case isn't the usual one."@en ;
+  onb:uiProfileWhyAsText "Held as plain text where an address belongs."@en ;
+  onb:uiProfileWhyScheme "The address has no https:// in front."@en ;
+  onb:uiProfileWhyPrefix "A prefix the file doesn't need."@en ;
+  onb:uiProfileWhyRoom "Not a Matrix room this page can link to."@en ;
+  onb:uiProfileWhyHandle "Not a handle: letters, digits and underscores, five or more."@en ;
+  onb:uiProfileWhyEmpty "This is empty."@en ;
+  onb:uiProfileWhyEmail "Not an email address."@en ;
+  onb:uiProfileWhyPhone "A phone number needs its country code, like +32 2 123 45 67."@en ;
+  onb:uiProfileWhyAddress "Not a web address this file can carry."@en ;
+  onb:uiProfileWhyCity "A city is needed to place the pin."@en ;
+  onb:uiProfileWhyCountry "A country is needed."@en ;
+  onb:uiProfileWhyPin "The pin isn't a place on Earth."@en ;
+  onb:uiProfileAddressProblem "The file doesn't hold one address and one pin this page can change. Edit it in the backoffice."@en ;
+  onb:uiProfileOthers "Other things in your file"@en ;
+  onb:uiProfileOthersHint "Another writer put these there. This page shows them and leaves them alone."@en ;
+  onb:uiProfileUnconfirmed "The change went to your file, but reading it back didn't work. Press Save again: if the file says it, nothing more is written."@en ;
+  onb:uiProfileSame "Your file already says all of this. Nothing was written."@en ;
+  onb:uiProfileDone "Written, and read back from your pod."@en ;
+  onb:uiProfileMany "Your file holds more than one value here. This page leaves them as they are: change them in the backoffice."@en ;
+  onb:uiProfileChangedSince "Your file changed since this page read it, so it was read again. What you typed was not written: nothing of what is there was overwritten."@en ;
   onb:doneWhen """ASK { ?space schema:openingHours ?h }  # tile A doesn't ask for hours: present means set here, or by the coordinator's own edit (decided 2026-11-03)""" .
 
 :join a onb:Tile ;
@@ -385,7 +434,7 @@
 :pod a onb:Word ; onb:label "pod" ; onb:prio 1 ;
   onb:meaning "Personal Online Datastore: storage that's yours."@en .
 :endpoint a onb:Word ; onb:label "endpoint" ; onb:prio 2 ;
-  onb:meaning "The address where your file lives. Everyone who reads you reads there."@en .
+  onb:meaning "Where your space's file can be read online. Readers come back to it for every update."@en .
 :handshake a onb:Word ; onb:label "handshake" ; onb:prio 3 ;
   onb:meaning "A membership both sides state. Either side can end it at once."@en .
 :agent a onb:Word ; onb:label "agent" ; onb:prio 4 ;
@@ -396,3 +445,58 @@
   onb:meaning "A name on the web. Each space you see has one. So does yours."@en .
 :account a onb:Word ; onb:label "account" ; onb:prio 7 ;
   onb:meaning "How you sign in. Separate from your space's identity, so it can change hands."@en .
+
+# ---- The profile (14.6 S4): what tile C's tool lists, checks and writes. A field is data: a tile or a
+# network adds one by adding a node here. onb:kind says how the code reads and writes it (text, email, url,
+# matrix, image, place); onb:property is the predicate on the space for a simple kind (text, email, url,
+# image), and absent for matrix and place, which the code writes its own way. onb:file: where it lives.
+# The contact handles: onb:shape says how the code checks one and writes its link (email, phone, matrix,
+# url, at); onb:property puts it as a statement of its own on the space, onb:contactType as a
+# schema:contactPoint with that type and a schema:url. The map's card shows each with its picto.
+# Sections are what the Finder groups by; the names are a first guess, adjusted as the profile grows.
+
+:basics a onb:Section ; onb:label "Basics"@en ; onb:prio 1 .
+:place a onb:Section ; onb:label "Place"@en ; onb:prio 2 .
+:contact a onb:Section ; onb:label "Contact"@en ; onb:prio 3 .
+:look a onb:Section ; onb:label "Look"@en ; onb:prio 4 .
+:times a onb:Section ; onb:label "Hours"@en ; onb:prio 5 .
+
+:f-name a onb:ProfileField ; onb:key "name" ; onb:kind "text" ; onb:property schema:name ;
+  onb:section :basics ; onb:prio 1 ; onb:required "true" ;
+  onb:label "Space name"@en ; onb:hint "The name your community knows."@en .
+:f-description a onb:ProfileField ; onb:key "description" ; onb:kind "text" ; onb:property schema:description ;
+  onb:section :basics ; onb:prio 2 ;
+  onb:label "Description"@en ; onb:hint "One or two sentences. What kind of space is this?"@en .
+:f-address a onb:ProfileField ; onb:key "address" ; onb:kind "place" ;
+  onb:section :place ; onb:prio 3 ; onb:required "true" ;
+  onb:label "Where the space is"@en ; onb:hint "Street and town. The pin moves with the address."@en .
+:f-contacts a onb:ProfileField ; onb:key "contacts" ; onb:kind "contacts" ;
+  onb:section :contact ; onb:prio 4 ;
+  onb:label "Contact"@en ; onb:hint "How people reach the space: one handle or many. Not personal accounts."@en .
+:f-website a onb:ProfileField ; onb:key "website" ; onb:kind "url" ; onb:property schema:url ;
+  onb:section :contact ; onb:prio 6 ;
+  onb:label "Website"@en ; onb:placeholder "example.org"@en ; onb:hint "The space's main web page."@en .
+:f-logo a onb:ProfileField ; onb:key "logo" ; onb:kind "image" ; onb:property schema:logo ;
+  onb:section :look ; onb:prio 7 ;
+  onb:label "Logo"@en ; onb:placeholder "example.org/logo.png"@en ; onb:hint "Transparent PNG works best."@en .
+:f-hours a onb:ProfileField ; onb:key "hours" ; onb:kind "text" ; onb:property schema:openingHours ;
+  onb:section :times ; onb:prio 8 ;
+  onb:label "Opening hours"@en ; onb:placeholder "Tu-Sa 10:00-18:00"@en ;
+  onb:hint "Change anything. Winter hours, a holiday, a new evening."@en .
+
+:ct-email a onb:ContactType ; onb:key "email" ; onb:shape "email" ; onb:property schema:email ; onb:prio 1 ;
+  onb:label "Email"@en ; onb:placeholder "hello@example.org"@en ; onb:hint "Somewhere the space can be reached, not a personal inbox."@en .
+:ct-phone a onb:ContactType ; onb:key "phone" ; onb:shape "phone" ; onb:property schema:telephone ; onb:prio 2 ;
+  onb:label "Phone"@en ; onb:placeholder "+32 2 123 45 67"@en ; onb:hint "With the country code."@en .
+:ct-matrix a onb:ContactType ; onb:key "matrix" ; onb:shape "matrix" ; onb:contactType "Matrix" ; onb:prio 3 ;
+  onb:label "Matrix"@en ; onb:placeholder "#yourspace:matrix.org"@en ; onb:hint "A room or a space, not a personal account."@en .
+:ct-signal a onb:ContactType ; onb:key "signal" ; onb:shape "url" ; onb:contactType "Signal" ; onb:prio 4 ;
+  onb:label "Signal"@en ; onb:placeholder "https://signal.group/#..."@en ; onb:hint "A group link."@en .
+:ct-telegram a onb:ContactType ; onb:key "telegram" ; onb:shape "at" ; onb:contactType "Telegram" ; onb:linkPrefix "https://t.me/" ; onb:prio 5 ;
+  onb:label "Telegram"@en ; onb:placeholder "@yourspace"@en ; onb:hint "A channel or a group."@en .
+:ct-discord a onb:ContactType ; onb:key "discord" ; onb:shape "url" ; onb:contactType "Discord" ; onb:prio 6 ;
+  onb:label "Discord"@en ; onb:placeholder "https://discord.gg/..."@en ; onb:hint "An invite link that doesn't expire."@en .
+:ct-mattermost a onb:ContactType ; onb:key "mattermost" ; onb:shape "url" ; onb:contactType "Mattermost" ; onb:prio 7 ;
+  onb:label "Mattermost"@en ; onb:placeholder "https://chat.example.org/yourspace"@en ; onb:hint "The team's or channel's address."@en .
+:ct-link a onb:ContactType ; onb:key "link" ; onb:shape "url" ; onb:contactType "Link" ; onb:prio 8 ;
+  onb:label "Link"@en ; onb:placeholder "https://..."@en ; onb:hint "Any other place: a forum, a newsletter, a form."@en .

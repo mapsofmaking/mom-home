@@ -36,6 +36,7 @@ import { clearPodMade, peekPodMade, takePodMade, type PodMade } from "./lib/hand
 import { putOnMap, readPublished, type OnMap, rereadOnMap } from "./lib/onmap";
 import { saveHours } from "./lib/hours";
 import { moveSpace } from "./lib/move";
+import { loadProfile, saveProfile } from "./lib/profile";
 import { makeSpacePublic, PublishError, readSpaceAt, readSpaceFile, spaceFileUrl, spaceIsPublic, writeSpaceFile } from "./lib/publish";
 import { registerSpace, spacesInPublicIndex } from "./lib/typeindex";
 import type { Draft } from "./workbench/previews";
@@ -203,6 +204,8 @@ function renderWorkbenchView(
     uploadLogo: pod ? (file, current) => uploadLogo(pod.root, pod.webId, file, current) : undefined,
     useLogoAddress: pod ? (typed) => saveLogoAddress(pod.root, typed) : undefined,
     moveSpace: pod ? (next) => moveSpace(spaceFileUrl(pod.root), next) : undefined,
+    // Tile C on a later visit (S4, #39): the whole profile, read from the space file and saved to it in one patch.
+    profileTool: pod ? { load: () => loadProfile(spaceFileUrl(pod.root), tree!.profile), save: (edit) => saveProfile(spaceFileUrl(pod.root), tree!.profile, edit) } : undefined,
     // The file as the pod held it at sign-in: tile C shows it before the first change (C1).
     spaceText: pod?.spaceText ?? null,
     // Already on the map at sign-in: tile B shows the threshold, read from the pod and the map.

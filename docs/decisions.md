@@ -64,8 +64,8 @@ Kit-level decisions (Solid, ACLs, sign-in) are ADRs in the kit repo; this file o
 ## 2026-11-02 (14.3)
 
 - **A tab that made a pod offers "Sign in to your pod"** before any form that would make a second account
-  (option (a)); email recovery stays the safety net. Accounts can't be deleted on CSS 7.2.
-- **Live tests run on `pod.mapsofmaking.org` with throwaway accounts.** The instance is wiped before launch.
+  (option (a)); email recovery stays the safety net. Accounts can't be deleted from home on CSS 7.2; the admin TUI does it.
+- **Live tests run on `pod.mapsofmaking.org` with throwaway accounts.** No wipe before launch is needed (2026-11-05): an admin TUI lists, selects and deletes accounts.
 - **Never probe the account endpoint with POST**: it creates a real, undeletable account.
 
 ## 2026-10-31

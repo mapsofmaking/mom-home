@@ -533,3 +533,53 @@ describe("tile C, a move's late map answer (S5 review)", () => {
     root.remove();
   });
 });
+
+describe("tile C, a later visit: the tool (14.6 S4, #39)", () => {
+  const profile = { values: new Map(), place: null, placeProblem: null, contacts: null, others: [] };
+  const opts = (draft: Draft, tool: boolean) => ({
+    mode: "workbench" as const, who: "weld-done", done: new Set(["describe", "keep"]), draft, fold: { folded: false },
+    onSignIn: () => {}, onSignOut: () => {}, readOffers: async () => "open" as const, saveHours: vi.fn(),
+    ...(tool ? { profileTool: { load: async () => ({ profile, etag: null }), save: vi.fn() } } : {}),
+  } as never);
+  const draw = (draft: Draft, tool: boolean) => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    renderPage(root, tree, opts(draft, tool));
+    root.querySelector<HTMLElement>('button[data-tile="change"]')!.click();
+    return root;
+  };
+
+  it("replaces the first visit's panels when the hours are already in the file", async () => {
+    const root = draw({ name: "Weld Done", hours: "Mo 9-12" }, true);
+    await settle();
+    expect(root.querySelector("#tool-form")).not.toBeNull();
+    expect(root.querySelector("#f-hours-value")).toBeNull();
+    expect(root.querySelector("#f-move")).toBeNull();
+    root.remove();
+  });
+
+  it("the first visit (no hours yet) keeps the hours step, tool or not", () => {
+    const root = draw({ name: "Weld Done" }, true);
+    expect(root.querySelector("#f-hours-value")).not.toBeNull();
+    expect(root.querySelector("#tool-form")).toBeNull();
+    root.remove();
+  });
+
+  it("without the tool (signed out) the hours step stays", () => {
+    const root = draw({ name: "Weld Done", hours: "Mo 9-12" }, false);
+    expect(root.querySelector("#f-hours-value")).not.toBeNull();
+    root.remove();
+  });
+
+  it("what was typed survives going to another tile and back", async () => {
+    const root = draw({ name: "Weld Done", hours: "Mo 9-12" }, true);
+    await settle();
+    const find = root.querySelector<HTMLInputElement>("#tool-find")!;
+    find.value = "hours";
+    find.dispatchEvent(new Event("input", { bubbles: true }));
+    root.querySelector<HTMLElement>('button[data-tile="describe"]')!.click();
+    root.querySelector<HTMLElement>('button[data-tile="change"]')!.click();
+    expect(root.querySelector<HTMLInputElement>("#tool-find")!.value).toBe("hours");
+    root.remove();
+  });
+});

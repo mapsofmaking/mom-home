@@ -13,6 +13,7 @@ import { THRESHOLD_UI_KEYS } from "../workbench/threshold";
 import { HOURS_UI_KEYS } from "../workbench/hours";
 import { LOGO_UI_KEYS } from "../workbench/logo";
 import { MOVE_UI_KEYS } from "../workbench/move";
+import { PROFILE_UI_KEYS } from "../workbench/tool";
 
 /** What tile B shows signed out and signed in: every line it uses is in the tree, and nothing else is. */
 const TILE_B_KEYS: readonly string[] = [...THRESHOLD_UI_KEYS, ...PUBLISH_UI_KEYS];
@@ -64,7 +65,7 @@ describe("the tree's words (14.2 AC8)", () => {
 
   it("has every line tile C shows, and nothing it no longer uses (14.6)", () => {
     const changeTile = tree.tiles.find((t) => t.act === "hours")!;
-    const keys: readonly string[] = [...HOURS_UI_KEYS, ...LOGO_UI_KEYS, ...MOVE_UI_KEYS];
+    const keys: readonly string[] = [...HOURS_UI_KEYS, ...LOGO_UI_KEYS, ...MOVE_UI_KEYS, ...PROFILE_UI_KEYS];
     expect(keys.filter((k) => !(k in changeTile.ui))).toEqual([]);
     expect(Object.keys(changeTile.ui).filter((k) => !keys.includes(k))).toEqual([]);
   });

@@ -24,6 +24,7 @@ const WRITE_SITES: Record<string, number> = {
   "lib/move.ts": 1, // space-file: moveSpace, the address and the pin in one patch
   "lib/logo.ts": 2, // logo-file, and taking back one it made when a later step fails (its rules through publish.ts makePublic, schema:logo through hours.ts)
   "lib/onmap.ts": 1, // map-registration
+  "lib/profile.ts": 1, // space-file: saveProfile, every changed field of the profile in one patch
   "lib/publish.ts": 3, // space-file, space-acl
   "lib/register.ts": 4, // account
   "lib/typeindex.ts": 8, // indexes, profile-links, public/private-index-entry

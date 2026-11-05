@@ -71,6 +71,60 @@ export interface FieldWords {
   example: string | null;
 }
 
+/** What a profile field is, for the code that reads, checks and writes it (14.6 S4). */
+export const KINDS = ["text", "email", "url", "contacts", "image", "place"] as const;
+export type Kind = (typeof KINDS)[number];
+/** Kinds that are one statement on the space; the others (the contact handles, the address with its pin) are structured, and the code knows how. */
+export const SIMPLE_KINDS: readonly Kind[] = ["text", "email", "url", "image"];
+
+/**
+ * One field of the profile (tile C's tool, 14.6 S4): data, not code. The tool draws, checks and writes
+ * whatever is listed; a network or a tile adds a field by adding a node here. `property` is the schema.org
+ * (or mom:) predicate on the space for a simple kind, and nothing for the structured ones.
+ */
+export interface ProfileField {
+  key: string;
+  kind: Kind;
+  section: string;
+  prio: number;
+  property: string | null;
+  label: string;
+  hint: string | null;
+  placeholder: string | null;
+  /** A card can't be drawn without it: it can't be emptied. */
+  required: boolean;
+  /** The file this field lives in, from the pod root: `space.ttl` for now. */
+  file: string;
+}
+
+/** How a contact handle is checked and turned into what the file holds: the code's. Which handles exist is the tree's. */
+export const SHAPES = ["email", "phone", "matrix", "url", "at"] as const;
+export type Shape = (typeof SHAPES)[number];
+
+/**
+ * A kind of contact handle (Matrix, Telegram, phone, ...): data, like the fields. Either a statement of its own on
+ * the space (`property`: schema:email, schema:telephone), or a `schema:contactPoint` with this `contactType` and a
+ * `schema:url`. `linkPrefix` turns an `@name` into its link (Telegram: https://t.me/).
+ */
+export interface ContactType {
+  key: string;
+  label: string;
+  placeholder: string | null;
+  hint: string | null;
+  prio: number;
+  shape: Shape;
+  property: string | null;
+  contactType: string | null;
+  linkPrefix: string | null;
+}
+
+/** A group of profile fields: what the Finder groups its results by. */
+export interface Section {
+  id: string;
+  label: string;
+  prio: number;
+}
+
 export interface Word {
   id: string;
   label: string;
@@ -83,6 +137,8 @@ export interface Tree {
   app: { lines: Lines; ui: Lines };
   tiles: Tile[];
   words: Word[];
+  /** The profile's fields and their sections, in order (14.6 S4). */
+  profile: { sections: Section[]; fields: ProfileField[]; contactTypes: ContactType[] };
 }
 
 /** The tree can't be used. `message` is for the coordinator's error screen's detail. */
@@ -154,6 +210,9 @@ export function parseTree(turtle: string): Tree {
 
   const tiles: Tile[] = [];
   const words: Word[] = [];
+  const sections: Section[] = [];
+  const fields: ProfileField[] = [];
+  const contactTypes: ContactType[] = [];
   let app: Tree["app"] = { lines: {}, ui: {} };
 
   for (const [iri, props] of subjects) {
@@ -206,6 +265,41 @@ export function parseTree(turtle: string): Tree {
         label: need("label", "Word"),
         meaning: need("meaning", "Word"),
         prio: num("prio", "Word"),
+      });
+    } else if (types.includes(ONB + "Section")) {
+      sections.push({ id, label: need("label", "Section"), prio: num("prio", "Section") });
+    } else if (types.includes(ONB + "ProfileField")) {
+      const kind = need("kind", "Field");
+      if (!(KINDS as readonly string[]).includes(kind)) throw new TreeError(`Field "${id}": onb:kind "${kind}" is not one of ${KINDS.join(", ")}.`);
+      const property = props.get(ONB + "property")?.[0]?.value ?? null;
+      const simple = SIMPLE_KINDS.includes(kind as Kind);
+      // A property on a structured kind would be dead data (the code writes those its own way); a simple kind without one has nowhere to go.
+      if (simple && !property) throw new TreeError(`Field "${id}" (${kind}) has no onb:property.`);
+      if (!simple && property) throw new TreeError(`Field "${id}" (${kind}) names a property, but the code writes a ${kind} its own way.`);
+      fields.push({
+        key: need("key", "Field"),
+        kind: kind as Kind,
+        section: iris("section")[0] ?? "",
+        prio: num("prio", "Field"),
+        property,
+        label: need("label", "Field"),
+        hint: get("hint"),
+        placeholder: get("placeholder"),
+        required: get("required") === "true",
+        file: get("file") ?? "space.ttl",
+      });
+    } else if (types.includes(ONB + "ContactType")) {
+      const shape = need("shape", "Contact type");
+      if (!(SHAPES as readonly string[]).includes(shape)) throw new TreeError(`Contact type "${id}": onb:shape "${shape}" is not one of ${SHAPES.join(", ")}.`);
+      const property = props.get(ONB + "property")?.[0]?.value ?? null;
+      const contactType = get("contactType");
+      // One place in the file, never two and never none: the code reads and writes it there.
+      if (!property === !contactType) throw new TreeError(`Contact type "${id}" needs exactly one of onb:property and onb:contactType.`);
+      const linkPrefix = get("linkPrefix");
+      if (shape === "at" && !linkPrefix) throw new TreeError(`Contact type "${id}" is an @name with no onb:linkPrefix.`);
+      contactTypes.push({
+        key: need("key", "Contact type"), label: need("label", "Contact type"), placeholder: get("placeholder"), hint: get("hint"),
+        prio: num("prio", "Contact type"), shape: shape as Shape, property, contactType, linkPrefix,
       });
     } else if (types.includes(ONB + "App")) {
       app = { lines: lines(props), ui: lines(props, /^ui[A-Z]/) };
@@ -262,7 +356,25 @@ export function parseTree(turtle: string): Tree {
     throw new TreeError(`Tile "${t.id}" can never open (needs ${stuck.join(", ") || "a cycle"}).`);
   }
 
+  const sectionIds = new Set(sections.map((x) => x.id));
+  const keys = new Set<string>();
+  for (const f of fields) {
+    if (!sectionIds.has(f.section)) throw new TreeError(`Field "${f.key}" is in "${f.section || "no section"}", which is not an onb:Section.`);
+    if (keys.has(f.key)) throw new TreeError(`Two profile fields are called "${f.key}".`);
+    keys.add(f.key);
+  }
+
+  const typeKeys = new Set<string>();
+  for (const c of contactTypes) {
+    if (typeKeys.has(c.key)) throw new TreeError(`Two contact types are called "${c.key}".`);
+    typeKeys.add(c.key);
+  }
+  if (fields.some((f) => f.kind === "contacts") && !contactTypes.length) throw new TreeError("A contacts field needs at least one onb:ContactType.");
+
   tiles.sort((a, b) => a.prio - b.prio);
   words.sort((a, b) => a.prio - b.prio);
-  return { app, tiles, words };
+  sections.sort((a, b) => a.prio - b.prio);
+  fields.sort((a, b) => a.prio - b.prio);
+  contactTypes.sort((a, b) => a.prio - b.prio);
+  return { app, tiles, words, profile: { sections, fields, contactTypes } };
 }

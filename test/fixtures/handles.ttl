@@ -1,0 +1,23 @@
+@prefix schema: <https://schema.org/> .
+@prefix mom: <https://mapsofmaking.org/ns/mom#> .
+
+# The contact handles a space file may give (mom-home #39), as home writes them: the contract between
+# home's writer (onb:ContactType in its tree) and the map's reader (spaceapi_extract/turtle.py _contact).
+# Pinned in mom-home (test/fixtures/handles.ttl): change it here first, then re-pin it there.
+# Email and phone are statements of their own; the rest are contact points, blank or named; two of one kind.
+
+<#space> a mom:Space, schema:Place ;
+  schema:name "Atelier du Canal" ;
+  schema:address [ a schema:PostalAddress ; schema:addressLocality "Anderlecht" ; schema:addressCountry "BE" ] ;
+  schema:geo [ a schema:GeoCoordinates ; schema:latitude 50.8391 ; schema:longitude 4.3297 ] ;
+  schema:email "contact@atelierducanal.example", "atelier@atelierducanal.example" ;
+  schema:telephone "+32 2 123 45 67" ;
+  schema:contactPoint [ a schema:ContactPoint ; schema:contactType "Matrix" ; schema:url <https://matrix.to/#/%23atelier:matrix.org> ] ,
+    <#contact-signal-1>, <#contact-telegram-1>, <#contact-discord-1>, <#contact-discord-2>, <#contact-mattermost-1>, <#contact-link-1> .
+
+<#contact-signal-1> a schema:ContactPoint ; schema:contactType "Signal" ; schema:url <https://signal.group/#atelier> .
+<#contact-telegram-1> a schema:ContactPoint ; schema:contactType "Telegram" ; schema:url <https://t.me/atelierducanal> .
+<#contact-discord-1> a schema:ContactPoint ; schema:contactType "Discord" ; schema:url <https://discord.gg/atelier> .
+<#contact-discord-2> a schema:ContactPoint ; schema:contactType "Discord" ; schema:url <https://discord.gg/repaircafe> .
+<#contact-mattermost-1> a schema:ContactPoint ; schema:contactType "Mattermost" ; schema:url <https://chat.example.org/atelier> .
+<#contact-link-1> a schema:ContactPoint ; schema:contactType "Link" ; schema:url <https://forum.atelierducanal.example/> .

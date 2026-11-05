@@ -60,7 +60,7 @@ export function decimal(n: number): string {
   return n.toFixed(7).replace(/0+$/, "").replace(/\.$/, ".0");
 }
 
-interface Nodes {
+export interface Nodes {
   address: Term;
   geo: Term;
   /** The statements on each node the move changes, as read. */
@@ -71,7 +71,7 @@ interface Nodes {
 const one = (quads: Quad[], p: string) => quads.find((q) => q.predicate.value === p)?.object.value ?? "";
 
 /** The space's one address node and one geo node, and what they say. Refused when either is missing or doubled. */
-function nodesOf(read: SpaceRead): Nodes {
+export function nodesOf(read: SpaceRead): Nodes {
   const on = (s: Term, p: string) => read.quads.filter((q) => q.subject.equals(s) && q.predicate.value === p);
   const linked = (p: string, what: string): Term => {
     const objects = read.quads.filter((q) => q.subject.value === read.subject && q.predicate.value === p).map((q) => q.object);
@@ -97,34 +97,49 @@ function nodesOf(read: SpaceRead): Nodes {
   return { address, geo, old, was };
 }
 
-/** The move as one N3 Patch: the values read go, the new ones come, on the same two nodes. */
-export function movePatch(subject: string, old: Nodes["old"], next: Place): string {
+/** The parts of a move: what must match (the two nodes and the values read), what goes, what comes. Variables `?a`, `?g`. */
+export interface Parts {
+  where: string[];
+  deletes: string[];
+  inserts: string[];
+}
+
+export function moveParts(subject: string, old: Nodes["old"], next: Place): Parts {
   const s = iri(subject);
   const line = (node: string, q: Quad) => `${node} ${iri(q.predicate.value)} ${n3Term(q.object)} .`;
   const was = [...old.address.map((q) => line("?a", q)), ...old.geo.map((q) => line("?g", q))];
-  const now = [
-    ...(next.street ? [`?a ${iri(STREET)} ${literal(next.street)} .`] : []),
-    ...(next.postcode ? [`?a ${iri(POSTCODE)} ${literal(next.postcode)} .`] : []),
-    `?a ${iri(TOWN)} ${literal(next.city)} .`,
-    `?a ${iri(COUNTRY)} ${literal(next.country)} .`,
-    `?g ${iri(LAT)} ${decimal(next.lat)} .`,
-    `?g ${iri(LON)} ${decimal(next.lon)} .`,
-  ];
+  return {
+    where: [`${s} ${iri(ADDRESS)} ?a .`, `${s} ${iri(GEO)} ?g .`, ...was],
+    deletes: was,
+    inserts: [
+      ...(next.street ? [`?a ${iri(STREET)} ${literal(next.street)} .`] : []),
+      ...(next.postcode ? [`?a ${iri(POSTCODE)} ${literal(next.postcode)} .`] : []),
+      `?a ${iri(TOWN)} ${literal(next.city)} .`,
+      `?a ${iri(COUNTRY)} ${literal(next.country)} .`,
+      `?g ${iri(LAT)} ${decimal(next.lat)} .`,
+      `?g ${iri(LON)} ${decimal(next.lon)} .`,
+    ],
+  };
+}
+
+/** The move as one N3 Patch: the values read go, the new ones come, on the same two nodes. */
+export function movePatch(subject: string, old: Nodes["old"], next: Place): string {
+  const { where, deletes, inserts } = moveParts(subject, old, next);
   return [
     "@prefix solid: <http://www.w3.org/ns/solid/terms#> .",
     "_:move a solid:InsertDeletePatch ;",
-    `  solid:where { ${s} ${iri(ADDRESS)} ?a . ${s} ${iri(GEO)} ?g . ${was.join(" ")} } ;`,
-    ...(was.length ? [`  solid:deletes { ${was.join(" ")} } ;`] : []),
-    `  solid:inserts { ${now.join(" ")} } .`,
+    `  solid:where { ${where.join(" ")} } ;`,
+    ...(deletes.length ? [`  solid:deletes { ${deletes.join(" ")} } ;`] : []),
+    `  solid:inserts { ${inserts.join(" ")} } .`,
     "",
   ].join("\n");
 }
 
-const samePlace = (a: Place, b: Place) =>
+export const samePlace = (a: Place, b: Place) =>
   a.street === b.street && a.postcode === b.postcode && a.city === b.city && a.country === b.country && a.lat === b.lat && a.lon === b.lon;
 
 /** The new place, checked: a town, a two-letter country, coordinates on the globe. */
-function checked(next: Place): Place {
+export function checked(next: Place): Place {
   const place = {
     street: next.street.trim(), postcode: next.postcode.trim(), city: next.city.trim(), country: next.country.trim().toUpperCase(),
     lat: Number(decimal(next.lat)), lon: Number(decimal(next.lon)),

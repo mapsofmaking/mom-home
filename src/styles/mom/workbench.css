@@ -132,3 +132,22 @@
 .fd-row b { font-size: 13px; font-weight: 600; }
 .fd-row span { font-size: 12.5px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fd-row mark { background: color-mix(in oklab, var(--accent-2) 22%, transparent); color: var(--ink); padding: 0 1px; }
+
+/* Tool (tile C on a later visit): the Finder over the fields, the form by section, and the card as it would read, fixed beside it. */
+.wb-tool { display: flex; flex-direction: column; gap: var(--space-14); }
+.wb-tool-find { display: flex; flex-direction: column; gap: var(--space-6); }
+.wb-tool-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 340px); gap: var(--space-20); align-items: start; }
+.wb-tool-form { gap: var(--space-20); }
+.wb-tool-section { display: flex; flex-direction: column; gap: var(--space-10); }
+.wb-tool-heading { margin: 0; font: 600 10px/1.2 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); padding-bottom: var(--space-4); border-bottom: var(--stroke-rule) dashed var(--rule); }
+.wb-tool-field { display: flex; flex-direction: column; gap: var(--space-6); }
+.wb-tool-field input[type="text"], .wb-tool-field input[type="email"], .wb-tool-field input[type="url"] { width: 100%; box-sizing: border-box; }
+.wb-tool-side { position: sticky; top: var(--space-14); display: flex; flex-direction: column; gap: var(--space-10); }
+.wb-handle { display: flex; align-items: center; gap: var(--space-8); }
+.wb-handle input { flex: 1; min-width: 0; }
+.wb-issue { padding-left: var(--space-8); border-left: 3px solid var(--rule); }
+.wb-issue.problem { border-left-color: var(--accent); color: var(--accent); }
+.wb-issue.fix { border-left-color: var(--accent-2); }
+.sp-channel.on { opacity: 1; }
+.ct-picto { display: block; fill: currentColor; }
+@media (max-width: 900px) { .wb-tool-grid { grid-template-columns: minmax(0, 1fr); } .wb-tool-side { position: static; } }

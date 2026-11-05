@@ -45,6 +45,8 @@ export interface StepContext {
   publish?: PublishState | null;
   /** Signed in with the space on the pod: tile C changes the hours (Story 14.6). Absent: signed out, the preview. */
   hours?: HoursState | null;
+  /** Tile C on a later visit (S4, #39): the tool, mounted by the page into `#tool-mount`, instead of the first visit's panels. */
+  tool?: boolean;
   /** Tile C's logo (S6, #41): once the hours are in the file. Absent: no logo panel. */
   logo?: LogoState | null;
   /** Tile C's address (S5, #40): once the hours are in the file. Absent: no address panel. */
@@ -133,6 +135,7 @@ function describeStep(tile: Tile, state: TileState, ctx: StepContext): string {
 function openStep(tile: Tile, state: TileState, ctx: StepContext): string {
   if (tile.act === "describe") return describeStep(tile, state, ctx);
   // Signed in with the space on the pod: tile C is real (14.6 S1).
+  if (tile.act === "hours" && ctx.tool && ctx.hours) return `<div id="tool-mount"></div>`;
   if (tile.act === "hours" && ctx.hours) return renderHours(tile, ctx.hours, ctx.logo ?? null, ctx.move ?? null);
   // Done, tile B keeps showing what it showed (below): 14.4 writes the file and gives it its own "done" view.
   // Signed in with a pod: there is nothing to choose any more, only to put on the map (14.4).

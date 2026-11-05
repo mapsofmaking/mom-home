@@ -87,6 +87,34 @@ describe("parseTree refuses a tree that would draw a lie", () => {
     refuses(tile("a", `; onb:field [ onb:key "n" ; onb:label "A" ] , [ onb:key "n" ; onb:label "B" ]`), /two fields called "n"/);
   });
 
+  it("refuses a profile field the code couldn't read or write (14.6 S4)", () => {
+    const sec = `:s a onb:Section ; onb:label "S" ; onb:prio 1 .\n`;
+    const field = (extra: string) => tile("a") + sec + `:f a onb:ProfileField ; onb:key "k" ; onb:label "K" ; onb:prio 1 ; onb:section :s ${extra} .`;
+    expect(() => parseTree(HEAD + field(`; onb:kind "text" ; onb:property <https://schema.org/name>`))).not.toThrow();
+    refuses(field(`; onb:kind "colour" ; onb:property <https://schema.org/name>`), /"f": onb:kind "colour" is not one of/);
+    refuses(field(`; onb:kind "text"`), /"f" \(text\) has no onb:property/);
+    refuses(field(`; onb:kind "place" ; onb:property <https://schema.org/address>`), /names a property, but the code writes a place its own way/);
+    refuses(tile("a") + `:f a onb:ProfileField ; onb:key "k" ; onb:label "K" ; onb:prio 1 ; onb:kind "place" ; onb:section :ghost .`, /not an onb:Section/);
+    refuses(field(`; onb:kind "text" ; onb:property <https://schema.org/name>`) + `\n:g a onb:ProfileField ; onb:key "k" ; onb:label "K2" ; onb:prio 2 ; onb:kind "place" ; onb:section :s .`, /Two profile fields are called "k"/);
+  });
+  it("refuses a contact type the code couldn't place in the file", () => {
+    const ct = (extra: string) => tile("a") + `:c a onb:ContactType ; onb:key "c" ; onb:label "C" ; onb:prio 1 ${extra} .`;
+    expect(() => parseTree(HEAD + ct(`; onb:shape "url" ; onb:contactType "C"`))).not.toThrow();
+    refuses(ct(`; onb:shape "fax" ; onb:contactType "C"`), /onb:shape "fax" is not one of/);
+    refuses(ct(`; onb:shape "url"`), /exactly one of onb:property and onb:contactType/);
+    refuses(ct(`; onb:shape "url" ; onb:contactType "C" ; onb:property <https://schema.org/email>`), /exactly one of/);
+    refuses(ct(`; onb:shape "at" ; onb:contactType "C"`), /@name with no onb:linkPrefix/);
+  });
+  it("the shipped profile: every field has its section and kind, the hours and the address among them", () => {
+    const keys = tree.profile.fields.map((f) => f.key);
+    expect(keys).toEqual(["name", "description", "address", "contacts", "website", "logo", "hours"]);
+    expect(tree.profile.contactTypes.map((c) => c.key)).toEqual(["email", "phone", "matrix", "signal", "telegram", "discord", "mattermost", "link"]);
+    expect(tree.profile.contactTypes.find((c) => c.key === "telegram")).toMatchObject({ shape: "at", contactType: "Telegram", linkPrefix: "https://t.me/" });
+    expect(tree.profile.sections.map((x) => x.id)).toEqual(["basics", "place", "contact", "look", "times"]);
+    expect(tree.profile.fields.find((f) => f.key === "address")).toMatchObject({ kind: "place", property: null, required: true });
+    expect(tree.profile.fields.find((f) => f.key === "hours")).toMatchObject({ kind: "text", property: "https://schema.org/openingHours" });
+  });
+
   it("refuses a dependency cycle, and a tree with no way in", () => {
     refuses(tile("a", "; onb:requiresAll :b", 0, 0) + tile("b", "; onb:requiresAll :a", 1, 0), /No tile can open/);
     refuses(tile("a", "", 0, 0) + tile("b", "; onb:requiresAll :c", 1, 0) + tile("c", "; onb:requiresAll :b", 2, 0), /"b" can never open/);
