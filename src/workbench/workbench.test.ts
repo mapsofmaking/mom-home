@@ -543,7 +543,7 @@ describe("on a phone (14.2 S5)", async () => {
     // Ten reached, six shown: seven left of thirteen.
     expect(strip.querySelector(".hx-more")!.textContent).toBe("+7");
     expect(strip.querySelector("button, [data-tile]")).toBeNull();
-    expect(strip.getAttribute("aria-label")).toBe("What you can do: 10 reached, 3 to discover. See all");
+    expect(strip.getAttribute("aria-label")).toBe("What you can do: 10 reached, 3 to discover. Unfold tiles");
     expect(strip.querySelector("[data-current]")).not.toBeNull();
   });
 

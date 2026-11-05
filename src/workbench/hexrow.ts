@@ -15,7 +15,7 @@
  *
  * On a phone (14.2 S5, storyboard "A1 on a phone"), the toolbar gives way to
  * a slim strip: one button, the whole width, that unfolds the full view. Up to
- * six hexes, then "+N" and "See all". The hexes in it are not separate targets
+ * six hexes, then "+N" and "Unfold tiles". The hexes in it are not separate targets
  * (26px hexes are too small to tap). home.css picks one of the two by width.
  */
 import type { TileState } from "../tree/fog";
@@ -59,10 +59,10 @@ function compactRow(tiles: readonly Tile[], states: ReadonlyMap<string, TileStat
   const reached = tiles.filter((t) => (states.get(t.id) ?? "fog") !== "fog");
   const rest = tiles.length - Math.min(reached.length, COMPACT_MAX);
   const pips = reached.slice(0, COMPACT_MAX).map((t) => pip(t, states.get(t.id)!, t.id === selected)).join("");
-  const label = `What you can do: ${reached.length} reached, ${tiles.length - reached.length} to discover. See all`;
+  const label = `What you can do: ${reached.length} reached, ${tiles.length - reached.length} to discover. Unfold tiles`;
   return `<button type="button" class="hx-bar compact" data-unfold aria-expanded="false" aria-label="${esc(label)}">${pips}${
     rest ? `<span class="hx-more">+${rest}</span>` : ""
-  }<span class="hx-see">See all ›</span></button>`;
+  }<span class="hx-see">Unfold tiles ›</span></button>`;
 }
 
 export function renderHexRow(
