@@ -171,3 +171,20 @@ describe("saving the profile: one conditional patch (14.6 S4)", () => {
     expect((err as PublishError).code).toBe("unconfirmed");
   });
 });
+
+describe("a save from an older read is refused (review of 14.6 S4)", () => {
+  it("a baseline ETag that no longer matches the file's: conflict, nothing written", async () => {
+    const p = pod(FILE());
+    const read = await readSpaceFile(URL_, p.fetchImpl);
+    p.edit(FILE().replace("Weld Done", "Someone else"));
+    await expect(saveProfile(URL_, DEF, { baseEtag: read.etag, values: { name: "Mine" } }, p.fetchImpl)).rejects.toMatchObject({ code: "conflict" });
+    expect(p.calls.filter((c) => c.method !== "GET")).toEqual([]);
+  });
+  it("the baseline that matches saves, and says the next baseline", async () => {
+    const p = pod(FILE());
+    const read = await readSpaceFile(URL_, p.fetchImpl);
+    const r = await saveProfile(URL_, DEF, { baseEtag: read.etag, values: { name: "Mine" } }, p.fetchImpl);
+    expect(r.status).toBe("saved");
+    expect(r.etag).not.toBe(read.etag);
+  });
+});

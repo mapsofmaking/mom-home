@@ -539,7 +539,7 @@ describe("tile C, a later visit: the tool (14.6 S4, #39)", () => {
   const opts = (draft: Draft, tool: boolean) => ({
     mode: "workbench" as const, who: "weld-done", done: new Set(["describe", "keep"]), draft, fold: { folded: false },
     onSignIn: () => {}, onSignOut: () => {}, readOffers: async () => "open" as const, saveHours: vi.fn(),
-    ...(tool ? { profileTool: { load: async () => ({ profile }), save: vi.fn() } } : {}),
+    ...(tool ? { profileTool: { load: async () => ({ profile, etag: null }), save: vi.fn() } } : {}),
   } as never);
   const draw = (draft: Draft, tool: boolean) => {
     const root = document.createElement("div");

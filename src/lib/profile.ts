@@ -142,6 +142,8 @@ export interface Change {
 
 /** What the person changed: the simple fields' text by key, the address found, the contact handles as a whole list. */
 export interface Edit {
+  /** The ETag of the read the person's screen was drawn from: a file that has changed since is refused (`conflict`), never overwritten. */
+  baseEtag?: string | null;
   values?: Readonly<Record<string, string>>;
   place?: Place;
   handles?: readonly Handle[];
@@ -222,8 +224,9 @@ export function profilePatch(read: SpaceRead, def: ProfileDef, profile: Profile,
 }
 
 /** The profile as the pod holds it now (the tool's first read). Throws a PublishError like any read of the file. */
-export async function loadProfile(fileUrl: string, def: ProfileDef, fetchImpl: Fetch = (u, i) => authFetch(u, i)): Promise<{ profile: Profile }> {
-  return { profile: readProfile(await readSpaceFile(fileUrl, fetchImpl), def) };
+export async function loadProfile(fileUrl: string, def: ProfileDef, fetchImpl: Fetch = (u, i) => authFetch(u, i)): Promise<{ profile: Profile; etag: string | null }> {
+  const read = await readSpaceFile(fileUrl, fetchImpl);
+  return { profile: readProfile(read, def), etag: read.etag };
 }
 
 export interface SaveResult {
@@ -233,6 +236,8 @@ export interface SaveResult {
   /** The file as the pod holds it after the save (or as read, when nothing was written). */
   text: string;
   profile: Profile;
+  /** The file's ETag now: the next save's baseline. */
+  etag: string | null;
 }
 
 /**
@@ -247,8 +252,10 @@ export async function saveProfile(fileUrl: string, def: ProfileDef, edit: Edit, 
   }
   const before = await readSpaceFile(fileUrl, fetchImpl);
   const profile = readProfile(before, def);
+  // The screen showed an older file: what it holds may not be what is there now. Nothing is written over it.
+  if (edit.baseEtag !== undefined && before.etag !== edit.baseEtag) throw new PublishError("conflict", "The file changed since this screen read it.");
   const list = changes(def, profile, edit);
-  if (!list.length) return { status: "same", changes: [], text: before.text, profile };
+  if (!list.length) return { status: "same", changes: [], text: before.text, profile, etag: before.etag };
   // Without the read's ETag the write can't be conditional: it would land over a change it never saw.
   if (!before.etag) throw new PublishError("refused", "The pod sent no ETag, so the write can't check the file is unchanged.");
 
@@ -273,5 +280,5 @@ export async function saveProfile(fileUrl: string, def: ProfileDef, edit: Edit, 
     handles: asked.has("contacts") ? edit.handles : undefined,
   });
   if (missing.length) throw new PublishError("unconfirmed", "Saved, but the file read back doesn't say it: it may have changed since.");
-  return { status: "saved", changes: list, text: after.text, profile: now };
+  return { status: "saved", changes: list, text: after.text, profile: now, etag: after.etag };
 }

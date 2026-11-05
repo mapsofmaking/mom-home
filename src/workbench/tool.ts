@@ -22,7 +22,7 @@ import { hoursWords, marker } from "./hours";
 import { moveWords } from "./move";
 import { findPlace, meterInto, shortPlace, timing } from "./where";
 
-export const PROFILE_UI_KEYS = ["uiProfileTitle", "uiProfileLead", "uiProfileLoading", "uiProfileLoadFailed", "uiProfileFind", "uiProfileFindPlaceholder", "uiProfileFindCount", "uiProfileFindNone", "uiProfileEmpty", "uiProfileCard", "uiProfileNotSaved", "uiProfileSaved", "uiProfileSave", "uiProfileNothing", "uiProfileChangeOne", "uiProfileChangeMany", "uiProfilePinMoves", "uiProfileStreet", "uiProfileCity", "uiProfileAddHandle", "uiProfileRemoveHandle", "uiProfileHandleKind", "uiProfileHandleValue", "uiProfileFix", "uiProfileFixing", "uiProfileNeedsFix", "uiProfileWhySpaces", "uiProfileWhyCase", "uiProfileWhyAsText", "uiProfileWhyScheme", "uiProfileWhyPrefix", "uiProfileWhyRoom", "uiProfileWhyHandle", "uiProfileWhyEmpty", "uiProfileWhyEmail", "uiProfileWhyPhone", "uiProfileWhyAddress", "uiProfileWhyCity", "uiProfileWhyCountry", "uiProfileWhyPin", "uiProfileAddressProblem", "uiProfileOthers", "uiProfileOthersHint", "uiProfileUnconfirmed", "uiProfileSame", "uiProfileDone", "uiProfileMany"] as const;
+export const PROFILE_UI_KEYS = ["uiProfileTitle", "uiProfileLead", "uiProfileLoading", "uiProfileLoadFailed", "uiProfileFind", "uiProfileFindPlaceholder", "uiProfileFindCount", "uiProfileFindNone", "uiProfileEmpty", "uiProfileCard", "uiProfileNotSaved", "uiProfileSaved", "uiProfileSave", "uiProfileNothing", "uiProfileChangeOne", "uiProfileChangeMany", "uiProfilePinMoves", "uiProfileStreet", "uiProfileCity", "uiProfileAddHandle", "uiProfileRemoveHandle", "uiProfileHandleKind", "uiProfileHandleValue", "uiProfileFix", "uiProfileFixing", "uiProfileNeedsFix", "uiProfileWhySpaces", "uiProfileWhyCase", "uiProfileWhyAsText", "uiProfileWhyScheme", "uiProfileWhyPrefix", "uiProfileWhyRoom", "uiProfileWhyHandle", "uiProfileWhyEmpty", "uiProfileWhyEmail", "uiProfileWhyPhone", "uiProfileWhyAddress", "uiProfileWhyCity", "uiProfileWhyCountry", "uiProfileWhyPin", "uiProfileAddressProblem", "uiProfileOthers", "uiProfileOthersHint", "uiProfileUnconfirmed", "uiProfileSame", "uiProfileDone", "uiProfileMany", "uiProfileChangedSince"] as const;
 export type ProfileUiKey = (typeof PROFILE_UI_KEYS)[number];
 export const profileWords = (tile: Pick<Tile, "ui"> | undefined) => tileUi<ProfileUiKey>(tile, "tile C (profile)");
 
@@ -75,7 +75,7 @@ export interface ToolDeps {
   tile: Pick<Tile, "ui">;
   working: string;
   /** The file as the pod holds it now. */
-  load: () => Promise<{ profile: Profile }>;
+  load: () => Promise<{ profile: Profile; etag: string | null }>;
   save: (edit: Edit) => Promise<SaveResult>;
   find?: typeof findPlace;
   mapRead?: (says: string | ((pin: Pin) => boolean)) => Promise<MapReread>;
@@ -86,6 +86,13 @@ export interface ToolDeps {
 type Status = "loading" | "failed" | "ready" | "finding" | "writing" | "done";
 
 interface State {
+  /** The file's ETag when this screen read it: a save is refused if the file has moved on. */
+  etag: string | null;
+  /** What the file said then: only what differs from it is sent. */
+  base: { values: Record<string, string>; handles: string; };
+  /** Fixes the person tapped on a value that reads the same either way (a web address held as text): saved only for those. */
+  mended: Set<string>;
+  mendedHandles: boolean;
   status: Status;
   profile: Profile | null;
   /** Simple fields' text as typed. */
@@ -119,6 +126,7 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
   let saving = false;
   let stopMeter = () => {};
   const s: State = {
+    etag: null, base: { values: {}, handles: "[]" }, mended: new Set(), mendedHandles: false,
     status: "loading", profile: null, values: {}, street: "", city: "", handles: [], query: "", pick: 0,
     found: "", missed: false, message: "", map: "idle",
   };
@@ -130,15 +138,30 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
     s.street = profile.place?.street ?? "";
     s.city = profile.place?.city ?? "";
     s.handles = (profile.contacts?.handles ?? []).map((h) => ({ type: h.type, value: h.value }));
+    s.base = { values: { ...s.values }, handles: handlesKey(s.handles) };
+    s.mended = new Set();
+    s.mendedHandles = false;
   };
+  const handlesKey = (list: readonly Handle[]) => JSON.stringify(list.filter((h) => h.value.trim()).map((h) => [h.type, h.value.trim()]));
 
   /** What is typed, as an edit. The address is the file's own place with the typed street and city until the geocoder places it. */
-  const placeChanged = () => !!s.profile?.place && (s.street.trim() !== s.profile.place.street || s.city.trim() !== s.profile.place.city);
-  const edit = (): Edit => ({
-    values: s.values,
-    handles: s.handles,
-    ...(placeChanged() && s.profile?.place ? { place: { ...s.profile.place, street: s.street.trim(), city: s.city.trim() } } : {}),
-  });
+  const placeChanged = () => !!s.profile?.place && (s.street.trim() !== s.profile.place.street.trim() || s.city.trim() !== s.profile.place.city.trim());
+  /** A field with several values in the file is shown and left alone: this page changes one value, never collapses them. */
+  const many = (f: ProfileField) => !!s.profile?.values.get(f.key)?.many;
+  /** Only what the person changed (or mended) is sent: the rest stays as the file has it now, whoever wrote it. */
+  const edit = (): Edit => {
+    const values: Record<string, string> = {};
+    for (const f of fields) {
+      if (!simple(f) || many(f)) continue;
+      if (s.values[f.key] !== s.base.values[f.key] || s.mended.has(f.key)) values[f.key] = s.values[f.key];
+    }
+    return {
+      baseEtag: s.etag,
+      values,
+      ...(s.mendedHandles || handlesKey(s.handles) !== s.base.handles ? { handles: s.handles } : {}),
+      ...(placeChanged() && s.profile?.place ? { place: { ...s.profile.place, street: s.street.trim(), city: s.city.trim() } } : {}),
+    };
+  };
   const pending = () => {
     if (!s.profile) return [];
     try {
@@ -218,9 +241,9 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
     }
     const value = s.values[f.key] ?? "";
     const type = f.kind === "email" ? "email" : f.kind === "url" || f.kind === "image" ? "url" : "text";
-    const many = s.profile?.values.get(f.key)?.many ? `<p class="wb-aside">${esc(ui("uiProfileMany"))}</p>` : "";
-    const control = `<input id="${id}" name="${esc(f.key)}" type="${type}" value="${esc(value)}" placeholder="${esc(f.placeholder ?? "")}"${f.hint ? ` aria-describedby="${id}-hint"` : ""}${busy} />`;
-    return `<div class="wb-tool-field" data-field="${esc(f.key)}">${label}${hint}${control}${many}${issueHtml(f.key, issueOf(f), value, `data-fix="${esc(f.key)}"`)}</div>`;
+    const several = many(f) ? `<p class="wb-aside">${esc(ui("uiProfileMany"))}</p>` : "";
+    const control = `<input id="${id}" name="${esc(f.key)}" type="${type}" value="${esc(value)}" placeholder="${esc(f.placeholder ?? "")}"${f.hint ? ` aria-describedby="${id}-hint"` : ""}${busy}${many(f) ? " readonly" : ""} />`;
+    return `<div class="wb-tool-field" data-field="${esc(f.key)}">${label}${hint}${control}${several}${issueHtml(f.key, issueOf(f), value, `data-fix="${esc(f.key)}"`)}</div>`;
   };
 
   const sectionHtml = (sec: Section): string => {
@@ -404,10 +427,11 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
         pinLineTo(`${s.found}`, "ok");
       }
       s.status = "writing";
-      paintSide();
+      paint();
       const result = await deps.save(next);
       s.status = "done";
       fromFile(result.profile);
+      s.etag = result.etag;
       s.message = result.status === "same" ? ui("uiProfileSame") : ui("uiProfileDone");
       s.map = result.status === "same" || !deps.mapRead ? "idle" : "working";
       deps.onSaved?.(result);
@@ -418,6 +442,18 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
       stopMeter();
       s.status = "ready";
       s.message = errorLine(err);
+      // The file moved on since this screen read it: it is read again, so the next Save works from what is there.
+      // What was typed is dropped, never written over what another writer put there.
+      if (err instanceof PublishError && err.code === "conflict") {
+        try {
+          const fresh = await deps.load();
+          fromFile(fresh.profile);
+          s.etag = fresh.etag;
+          s.message = ui("uiProfileChangedSince");
+        } catch (again) {
+          console.warn("The profile was not read again:", again);
+        }
+      }
       console.warn("The profile was not saved:", err);
       if (!life.signal.aborted) {
         paint();
@@ -521,12 +557,18 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
       const i = Number(t.dataset.handleFix);
       const ty = types.find((x) => x.key === s.handles[i]?.type);
       const issue = ty ? checkHandle(ty, s.handles[i].value) : null;
-      if (issue?.type === "fix") s.handles[i].value = issue.fixed;
+      if (issue?.type === "fix") {
+        s.handles[i].value = issue.fixed;
+        s.mendedHandles = true;
+      }
       paint();
     } else if (t.dataset.fix !== undefined) {
       const f = fields.find((x) => x.key === t.dataset.fix);
       const issue = f ? issueOf(f) : null;
-      if (f && issue?.type === "fix") s.values[f.key] = issue.fixed;
+      if (f && issue?.type === "fix") {
+        s.values[f.key] = issue.fixed;
+        s.mended.add(f.key);
+      }
       paint();
     }
   }, { signal: life.signal });
@@ -563,9 +605,10 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
   // ---- start ----
   paint();
   void deps.load().then(
-    ({ profile }) => {
+    ({ profile, etag }) => {
       if (life.signal.aborted) return;
       fromFile(profile);
+      s.etag = etag;
       s.status = "ready";
       paint();
     },

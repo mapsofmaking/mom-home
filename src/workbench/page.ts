@@ -141,7 +141,7 @@ export interface PageOptions {
    * Tile C's tool (S4, #39), on a later visit (the hours are already in the file when the page opens): the profile
    * read from the space file, and saved to it in one patch. Absent: signed out, and the first visit's steps stay.
    */
-  profileTool?: { load: () => Promise<{ profile: Profile }>; save: (edit: Edit) => Promise<SaveResult> };
+  profileTool?: { load: () => Promise<{ profile: Profile; etag: string | null }>; save: (edit: Edit) => Promise<SaveResult> };
   /** The geocoder (where.ts `findPlace`, tile A's route); tests pass their own. */
   findPlace?: typeof geocode;
   /** The space file's text as the pod held it at sign-in: tile C shows it (14.6, live sources only). */

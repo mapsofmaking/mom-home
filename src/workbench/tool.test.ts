@@ -3,8 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parseTree } from "../tree/parse";
 import { pod, URL_ } from "../lib/fakepod";
-import { readSpaceFile } from "../lib/hours";
-import { readProfile, saveProfile } from "../lib/profile";
+import { loadProfile, saveProfile } from "../lib/profile";
 import { finderResults, mark, mountTool, type ToolDeps, type ToolHandle } from "./tool";
 import { timing } from "./where";
 
@@ -36,7 +35,7 @@ const settle = () => new Promise((r) => setTimeout(r, 0));
 const open = async (p: ReturnType<typeof pod>, extra: Partial<ToolDeps> = {}) => {
   const deps: ToolDeps = {
     def: DEF, sections: DEF.sections, tile, working: "Working out where that is.",
-    load: async () => ({ profile: readProfile(await readSpaceFile(URL_, p.fetchImpl), DEF) }),
+    load: () => loadProfile(URL_, DEF, p.fetchImpl),
     save: (edit) => saveProfile(URL_, DEF, edit, p.fetchImpl),
     ...extra,
   };
@@ -194,16 +193,78 @@ describe("the tool screen", () => {
     expect(box.querySelector("#tool-message")!.textContent).toMatch(/can't place/);
   });
 
-  it("a conflicting write says so and keeps the typing", async () => {
+  it("a file that changed since the screen read it is never overwritten: it is read again, and the typing is dropped", async () => {
     const p = pod(FILE());
     await open(p);
     type(input("name"), "Mine");
-    p.edit(FILE("Someone else")); // the file changed since the read
+    p.edit(FILE("Someone else").replace('schema:email "hello@welddone.example"', 'schema:email "hello@welddone.example", "new@welddone.example"'));
     save().click();
     await settle();
     await settle();
-    // saveProfile re-reads at Save, so it lands over the new file; nothing is lost: both read back
-    expect(p.text()).toContain("Mine");
+    await settle();
+    expect(writes(p)).toEqual([]);
+    expect(p.text()).toContain("Someone else");
+    expect(p.text()).toContain("new@welddone.example");
+    expect(input("name").value).toBe("Someone else"); // read again
+    expect(box.querySelectorAll("[data-handle]")).toHaveLength(2);
+    expect(box.querySelector("#tool-message")!.textContent).toMatch(/changed since/);
+  });
+
+  it("only what was changed is sent: another writer's later edit to a field left alone survives", async () => {
+    const p = pod(FILE());
+    await open(p);
+    type(input("name"), "Weld Done Too");
+    // The file is unchanged where it matters to the screen, but the ETag moved: the save is refused, not merged blindly.
+    p.edit(FILE());
+    save().click();
+    await settle();
+    await settle();
+    expect(writes(p)).toEqual([]);
+  });
+
+  it("a field with several values is shown read-only and never collapsed by another change", async () => {
+    const p = pod(FILE().replace('schema:openingHours "Mo 9-17"', 'schema:openingHours "Mo 9-17", "Sa 10-14"'));
+    await open(p);
+    expect(input("hours").readOnly).toBe(true);
+    type(input("name"), "Weld Done Too");
+    save().click();
+    await settle();
+    await settle();
+    expect(p.text()).toContain("Mo 9-17");
+    expect(p.text()).toContain("Sa 10-14");
+    expect(p.text()).toContain("Weld Done Too");
+  });
+
+  it("a web address held as text is mended only when the person taps Fix it", async () => {
+    const p = pod(FILE().replace("schema:openingHours", 'schema:url "https://welddone.example/" ;\n  schema:openingHours'));
+    await open(p);
+    type(input("name"), "Weld Done Too");
+    save().click();
+    await settle();
+    await settle();
+    expect(p.text()).toMatch(/schema:url|url> "https:\/\/welddone\.example\/"/); // still text
+    expect(p.text()).toContain('"https://welddone.example/"');
+    box.querySelector<HTMLButtonElement>("[data-fix=website]")!.click();
+    expect(save().disabled).toBe(false);
+    save().click();
+    await settle();
+    await settle();
+    expect(p.text()).toContain("<https://welddone.example/>");
+  });
+
+  it("the form is locked while a write is in flight", async () => {
+    const p = pod(FILE());
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    await open(p, { save: async (e) => { await gate; return saveProfile(URL_, DEF, e, p.fetchImpl); } });
+    type(input("name"), "Weld Done Too");
+    save().click();
+    await settle();
+    expect(input("name").disabled).toBe(true);
+    release();
+    await settle();
+    await settle();
+    expect(input("name").disabled).toBe(false);
   });
 
   it("the Finder lists fields by label or value; Enter goes to the field; Esc clears", async () => {

@@ -336,7 +336,8 @@
   onb:uiProfileUnconfirmed "The change went to your file, but reading it back didn't work. Press Save again: if the file says it, nothing more is written."@en ;
   onb:uiProfileSame "Your file already says all of this. Nothing was written."@en ;
   onb:uiProfileDone "Written, and read back from your pod."@en ;
-  onb:uiProfileMany "More than one value in your file: Save changes one of them."@en ;
+  onb:uiProfileMany "Your file holds more than one value here. This page leaves them as they are: change them in the backoffice."@en ;
+  onb:uiProfileChangedSince "Your file changed since this page read it, so it was read again. What you typed was not written: nothing of what is there was overwritten."@en ;
   onb:doneWhen """ASK { ?space schema:openingHours ?h }  # tile A doesn't ask for hours: present means set here, or by the coordinator's own edit (decided 2026-11-03)""" .
 
 :join a onb:Tile ;
