@@ -14,7 +14,7 @@
  * Fold is one state of the page, never of a tile (Nicolas, 2026-10-31: the
  * dry run's fold followed the selected tile, and the page seemed to move by
  * itself). Only the coordinator changes it, with the toggle, "Fold" /
- * "Show all", in the same corner of the hex panel; the page never folds by
+ * "Unfold tiles", in the same corner of the hex panel; the page never folds by
  * itself (no planned first fold, 2026-11-03, docs/decisions.md). Picking a tile
  * never moves the layout. The shell keeps the state (`FoldState`): for the
  * tab signed out, in settings/mom-home.ttl signed in (S6). Unset, a desktop
@@ -141,7 +141,7 @@ export interface PageOptions {
    * Tile C's tool (S4, #39), on a later visit (the hours are already in the file when the page opens): the profile
    * read from the space file, and saved to it in one patch. Absent: signed out, and the first visit's steps stay.
    */
-  profileTool?: { load: () => Promise<{ profile: Profile; etag: string | null }>; save: (edit: Edit) => Promise<SaveResult> };
+  profileTool?: { load: () => Promise<{ profile: Profile; etag: string | null; text?: string }>; save: (edit: Edit) => Promise<SaveResult> };
   /** The geocoder (where.ts `findPlace`, tile A's route); tests pass their own. */
   findPlace?: typeof geocode;
   /** The space file's text as the pod held it at sign-in: tile C shows it (14.6, live sources only). */
@@ -427,7 +427,9 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
         save,
         find: opts.findPlace,
         mapRead: opts.mapRead,
+        uploadLogo: opts.uploadLogo,
         onSaved: (result) => keepDraft(result.profile),
+        onLogo: (url) => (opts.draft.logo = url),
       });
     }
     mount.replaceWith(toolBox);

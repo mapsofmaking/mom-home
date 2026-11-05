@@ -283,6 +283,50 @@ describe("the tool screen", () => {
     expect(box.querySelector("#tool-found")!.textContent).toMatch(/Nothing in your file/);
   });
 
+  it("the card is the map's: the popup over the small map, the profile's facts; the source beside it", async () => {
+    const p = pod(FILE());
+    await open(p);
+    expect(box.querySelector("#tool-side .wb-frame .wb-map")).not.toBeNull();
+    expect(box.querySelector("#tool-frame .sp-name")!.textContent).toBe("Weld Done");
+    expect([...box.querySelectorAll("#tool-facts dt")].map((d) => d.textContent)).toEqual(["Description", "Website", "Hours", "Next event", "Contact"]);
+    expect(box.querySelector(".wb-tool-file pre")!.textContent).toContain("schema.org/name");
+    const map = box.querySelector("#tool-side .wb-map");
+    type(input("name"), "Typed");
+    expect(box.querySelector("#tool-frame .sp-name")!.textContent).toBe("Typed");
+    expect(box.querySelector("#tool-side .wb-map")).toBe(map); // the small map isn't redrawn per keystroke
+  });
+
+  it("a saved change is marked in the source", async () => {
+    const p = pod(FILE());
+    await open(p);
+    type(input("hours"), "Tu 10-18");
+    save().click();
+    await settle();
+    await settle();
+    expect(box.querySelector(".wb-tool-file .chg")!.textContent).toContain("openingHours");
+  });
+
+  it("a logo file is uploaded as its own write, then the file is read again and other typing is kept", async () => {
+    const p = pod(FILE());
+    const uploadLogo = vi.fn(async () => {
+      p.edit(FILE().replace("schema:openingHours", "schema:logo <https://weld-done.pod.example/logo> ;\n  schema:openingHours"));
+      return { status: "saved", url: "https://weld-done.pod.example/logo", opened: "opened" } as never;
+    });
+    await open(p, { uploadLogo });
+    type(input("name"), "Still typing");
+    const picker = box.querySelector<HTMLInputElement>("[data-upload-file=logo]")!;
+    Object.defineProperty(picker, "files", { value: [new File(["x"], "logo.png", { type: "image/png" })] });
+    picker.dispatchEvent(new Event("change", { bubbles: true }));
+    await settle();
+    await settle();
+    await settle();
+    expect(uploadLogo).toHaveBeenCalledOnce();
+    expect(input("logo").value).toBe("https://weld-done.pod.example/logo");
+    expect(input("name").value).toBe("Still typing");
+    expect(save().disabled).toBe(false);
+    expect(box.querySelector("#tool-message")!.textContent).toMatch(/points at it/);
+  });
+
   it("a file that can't be read says so and offers nothing to change", async () => {
     const p = pod(FILE());
     await open(p, { load: async () => { throw new Error("gone"); } });

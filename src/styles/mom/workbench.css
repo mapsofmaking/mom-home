@@ -136,7 +136,12 @@
 /* Tool (tile C on a later visit): the Finder over the fields, the form by section, and the card as it would read, fixed beside it. */
 .wb-tool { display: flex; flex-direction: column; gap: var(--space-14); }
 .wb-tool-find { display: flex; flex-direction: column; gap: var(--space-6); }
-.wb-tool-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 340px); gap: var(--space-20); align-items: start; }
+.wb-tool-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 320px); gap: var(--space-20); align-items: start; }
+/* Tiles folded, the step has the width: the source file goes beside the card, to cross-check it. Unfolded, it hides. */
+.wb-page.is-folded .wb-tool-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 320px) minmax(0, 400px); }
+.wb-tool-file { display: none; }
+.wb-page.is-folded .wb-tool-file { display: flex; position: sticky; top: var(--space-14); }
+.wb-tool-file pre.wb-file { max-height: 70vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 10.5px; }
 .wb-tool-form { gap: var(--space-20); }
 .wb-tool-section { display: flex; flex-direction: column; gap: var(--space-10); }
 .wb-tool-heading { margin: 0; font: 600 10px/1.2 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); padding-bottom: var(--space-4); border-bottom: var(--stroke-rule) dashed var(--rule); }
@@ -150,4 +155,5 @@
 .wb-issue.fix { border-left-color: var(--accent-2); }
 .sp-channel.on { opacity: 1; }
 .ct-picto { display: block; fill: currentColor; }
-@media (max-width: 900px) { .wb-tool-grid { grid-template-columns: minmax(0, 1fr); } .wb-tool-side { position: static; } }
+@media (max-width: 1200px) { .wb-page.is-folded .wb-tool-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 320px); } .wb-page.is-folded .wb-tool-file { display: none; } }
+@media (max-width: 900px) { .wb-tool-grid, .wb-page.is-folded .wb-tool-grid { grid-template-columns: minmax(0, 1fr); } .wb-tool-side { position: static; } }

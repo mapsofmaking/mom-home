@@ -1,7 +1,7 @@
 /**
  * The folded hex view (Story 14.1 AC7, design system: HexRow): one line of
  * small hexes, the tiles reached so far in prio order, then "+ N to
- * discover", "Now: <step>" and "Show all", which unfolds the full view in
+ * discover", "Now: <step>" and "Unfold tiles", which unfolds the full view in
  * place (page.ts: the toggle).
  *
  * One component in both modes, the design system's HexRow toolbar (`.hx-bar`,
@@ -77,7 +77,7 @@ export function renderHexRow(
   const more = toDiscover ? `<span class="hx-more">+ ${toDiscover} to discover</span>` : "";
   const nowLine = `<span class="hx-now"><span><span class="k">Now:</span> <b>${esc(
     now ? name(now, states.get(now.id) ?? "fog") : ""
-  )}</b></span> <button type="button" class="btn wb-fold" id="unfold" data-unfold aria-expanded="false">Show all</button></span>`;
+  )}</b></span> <button type="button" class="btn wb-fold" id="unfold" data-unfold aria-expanded="false">Unfold tiles</button></span>`;
 
   return `<nav class="hx-bar full" aria-label="What you can do"><span class="k">What you can do</span>${hexes}${more}${nowLine}</nav>${compactRow(
     tiles,

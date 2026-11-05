@@ -224,9 +224,9 @@ export function profilePatch(read: SpaceRead, def: ProfileDef, profile: Profile,
 }
 
 /** The profile as the pod holds it now (the tool's first read). Throws a PublishError like any read of the file. */
-export async function loadProfile(fileUrl: string, def: ProfileDef, fetchImpl: Fetch = (u, i) => authFetch(u, i)): Promise<{ profile: Profile; etag: string | null }> {
+export async function loadProfile(fileUrl: string, def: ProfileDef, fetchImpl: Fetch = (u, i) => authFetch(u, i)): Promise<{ profile: Profile; etag: string | null; text: string }> {
   const read = await readSpaceFile(fileUrl, fetchImpl);
-  return { profile: readProfile(read, def), etag: read.etag };
+  return { profile: readProfile(read, def), etag: read.etag, text: read.text };
 }
 
 export interface SaveResult {
