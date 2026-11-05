@@ -19,7 +19,7 @@ Kit-level decisions (Solid, ACLs, sign-in) are ADRs in the kit repo; this file o
 - **No planned first fold, and no line teaching it** (Nicolas, after the live pass of 14.6 S3, #38; supersedes
   14.1 AC7's "first fold after tile C's tutorial"). Folding as the map caught up changed two things at once:
   the layout moved while the coordinator was looking for the new hours, which is the lesson of C3. The page
-  never folds by itself. Fold / Unfold tiles (renamed from "Show all" 2026-11-05, to pair with Fold) is plain enough to be found by curiosity. Unset, a desktop stays
+  never folds by itself. Fold / Unfold tiles (renamed from "Show all", and the phone strip's "See all", 2026-11-05, to pair with Fold) is plain enough to be found by curiosity. Unset, a desktop stays
   unfolded and a phone starts folded, as before. Tile C stays side by side unfolded (the 520px step).
 - **Tile C changes one statement, never the whole file** (14.6 S1). The space file has other writers (the
   backoffice, later Bernard), so a save is one N3 Patch on the statement the tile owns, sent with the ETag of
