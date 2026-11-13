@@ -4,8 +4,8 @@
 //   - the dry run reads the app's tree: a tile or a ui* key renamed in public/onboarding.ttl must
 //     fail here, not on the staging site;
 //   - the hosted page may call no other host (the gateway's policy blocks it, and the page breaks);
-//   - on the network's side, a join request waits for a hand-given yes; on the space's side the
-//     dry run's timer answers.
+//   - a network with a fee is reached only through its checklist and a declared payment; its
+//     treasury's confirmation is the yes; a network without one still answers on its own.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { JSDOM, VirtualConsole } from "jsdom";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -102,29 +102,71 @@ describe("the dry run", () => {
     p.close();
   });
 
-  it("on the network's side, the request waits for a yes given by hand", async () => {
+  // Brussels Makers asks for profile fields, then a fee paid before the yes; the treasury's confirmation is the yes.
+  const fillHours = async (p) => {
+    p.click(p.q('#bench [data-go="change"]'));
+    const input = p.q("#bench input"); input.value = "Tu-Sa 10:00-18:00";
+    input.closest("form").dispatchEvent(new p.w.Event("submit", { bubbles: true, cancelable: true }));
+    await sleep(1500);
+  };
+  const askBrusselsMakers = (p) => { p.click(p.q('#map [data-id="join"]')); p.$("f-network").value = "Brussels Makers"; p.submit("f-net"); };
+
+  it("joins a network with a fee: checklist, payment, the treasury's yes, a line for Dolibarr", async () => {
     const p = await open("dry-run/index.html", "#published");
+    askBrusselsMakers(p);
+    expect(p.text("bench")).toMatch(/1 of 2/);
+    expect(p.q("#joinpaid")).toBeNull();
+    await fillHours(p);
     p.click(p.q('#map [data-id="join"]'));
-    p.$("f-network").value = "Brussels Makers"; p.submit("f-net");
+    expect(p.text("bench")).toMatch(/200 €/);
+    p.click(p.$("joinpaid"));
     p.click(p.q('#roles [data-role="welcome"]'));
     await sleep(6500);
-    expect(p.text("bench")).toMatch(/Request/);
-    p.click(p.q("[data-accept]"));
-    expect(p.text("bench")).toMatch(/Listed as a member/);
+    expect(p.q("[data-accept]")).toBeNull();
+    expect(p.text("bench")).not.toMatch(/200/);
     p.click(p.q('#roles [data-role="treasury"]'));
+    p.click(p.q("[data-confirm]"));
+    expect(p.text("bench")).toMatch(/Paid until/);
+    expect(p.$("csv").textContent).toMatch(/^Company,Member type,/);
+    expect(p.$("csv").textContent).toMatch(/Weld Done,Space,/);
     p.click(p.q("#bench [data-remind]"));
     expect(p.text("bench")).toMatch(/Due · reminder 1 of 3/);
     p.click(p.q('#roles [data-role="space"]'));
     p.click(p.q('#map [data-id="join"]'));
-    expect(p.text("bench")).toMatch(/Reminder 1 of 3/);
+    expect(p.q("[data-renew]")).toBeNull();
+    p.click(p.q("[data-renewpaid]"));
+    p.click(p.q('#roles [data-role="treasury"]'));
+    p.click(p.q("[data-renew]"));
+    expect(p.text("bench")).toMatch(/Renewed/);
+    expect(p.$("csv").textContent.trim().split("\n")).toHaveLength(3);
     expect(p.errors).toEqual([]);
     p.close();
-  }, 20000);
+  }, 30000);
 
-  it("on the space's side, the dry run's timer answers", async () => {
+  it("on the space's side, the dry run's timer confirms a declared payment", async () => {
+    const p = await open("dry-run/index.html", "#published");
+    askBrusselsMakers(p);
+    await fillHours(p);
+    p.click(p.q('#map [data-id="join"]'));
+    p.click(p.$("joinpaid"));
+    await sleep(6500);
+    expect(p.text("bench")).toMatch(/said yes/);
+    p.close();
+  }, 30000);
+
+  it("starts as a paid member at #member", async () => {
+    const p = await open("dry-run/index.html", "#member");
+    p.click(p.q('#roles [data-role="treasury"]'));
+    expect(p.text("bench")).toMatch(/Paid until/);
+    expect(p.$("csv").textContent).toMatch(/Weld Done,Space,/);
+    expect(p.errors).toEqual([]);
+    p.close();
+  });
+
+  it("a network without a fee still answers on its own", async () => {
     const p = await open("dry-run/index.html", "#published");
     p.click(p.q('#map [data-id="join"]'));
-    p.$("f-network").value = "Brussels Makers"; p.submit("f-net");
+    p.$("f-network").value = "Fablabs Wallonie"; p.submit("f-net");
     await sleep(6500);
     expect(p.text("bench")).toMatch(/said yes/);
     p.close();
