@@ -62,8 +62,8 @@ main{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:32px;ali
 .meta{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font:.6875rem/1 var(--font-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--text-tertiary)}
 .side{padding:5px 8px;border:1.5px solid var(--text-primary);color:var(--text-primary)}
 h1{font:400 clamp(1.6rem,3.2vw,2.5rem)/1.12 var(--font-display);letter-spacing:-.01em;margin:0;text-wrap:balance}
-.was{margin:0;color:var(--text-secondary);font-size:.9375rem}
-.was s{text-decoration-thickness:1px}
+.done{margin:0;font-size:1.125rem;line-height:1.45;max-width:34ch}
+.was{margin:0;color:var(--text-secondary);font-size:.9375rem;max-width:40ch}
 .was b{font:.6875rem/1 var(--font-mono);font-weight:400;letter-spacing:.1em;text-transform:uppercase;color:var(--text-tertiary);margin-right:8px}
 .end{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
 .cta{display:inline-block;font:600 .9375rem/1 var(--font-body);border-radius:4px;padding:12px 18px;background:var(--accent);color:var(--accent-contrast);text-decoration:none}
@@ -89,6 +89,9 @@ svg{display:block;width:100%;height:auto;max-height:calc(100dvh - 200px)}
 .edge.hot path{stroke:var(--accent);stroke-width:3}
 .edge.hot text{fill:var(--text-primary);font-weight:700}
 .edge.dashed path{stroke-dasharray:6 6}
+.edge .tip{fill:none;stroke:none}
+.edge.on .tip.show{fill:var(--text-tertiary)}
+.edge.hot .tip.show{fill:var(--accent)}
 .pin{fill:var(--fog-line)} .node.on .pin,.node.hot .pin{fill:var(--accent)}
 @media (prefers-reduced-motion:no-preference){
   .node rect,.node text,.edge path,.edge text,.pin{transition:fill .35s,stroke .35s,stroke-width .35s}
@@ -118,6 +121,7 @@ button:disabled{opacity:.4;cursor:default}
     <section class="say" id="say" aria-live="polite">
       <p class="meta"><span id="count"></span><span class="side" id="side"></span></p>
       <h1 id="now"></h1>
+      <p class="done" id="done"></p>
       <p class="was" id="was"></p>
       <div class="end" id="end" hidden>
         <a class="cta" href="../dry-run/">Try it yourself</a>
@@ -128,10 +132,14 @@ button:disabled{opacity:.4;cursor:default}
     <section class="pic" aria-label="Who holds what: the space's pod, the map, the network's pod, the network's tools">
       <svg viewBox="0 0 680 400" role="img" aria-labelledby="pictitle">
         <title id="pictitle">A space's pod on the left, the map above, the network's pod on the right, the network's tools below it.</title>
-        <g class="edge" id="e-map"><path d="M125 150 C125 95 170 60 235 60"/><text x="112" y="92" text-anchor="middle" id="l-map">reads</text></g>
-        <g class="edge" id="e-hs"><path d="M230 195 H450"/><text x="340" y="184" text-anchor="middle" id="l-hs"></text></g>
-        <g class="edge" id="e-tools"><path d="M555 240 V292"/><text x="566" y="270" id="l-tools">opens</text></g>
-        <g class="edge" id="e-gate"><path d="M125 240 V330 H450"/><text x="288" y="350" text-anchor="middle" id="l-gate">the gate reads the handshake</text></g>
+        <g class="edge" id="e-map"><path d="M125 150 C125 95 170 60 233 60"/><text x="112" y="92" text-anchor="middle" id="l-map">reads</text>
+          <polygon class="tip" data-end="b" points="235,60 223,54 223,66"/></g>
+        <g class="edge" id="e-hs"><path d="M232 195 H448"/><text x="340" y="184" text-anchor="middle" id="l-hs"></text>
+          <polygon class="tip" data-end="a" points="230,195 242,189 242,201"/><polygon class="tip" data-end="b" points="450,195 438,189 438,201"/></g>
+        <g class="edge" id="e-tools"><path d="M555 240 V290"/><text x="566" y="270" id="l-tools">opens</text>
+          <polygon class="tip" data-end="b" points="555,292 549,280 561,280"/></g>
+        <g class="edge" id="e-gate"><path d="M125 240 V330 H448"/><text x="288" y="350" text-anchor="middle" id="l-gate"></text>
+          <polygon class="tip" data-end="b" points="450,330 438,324 438,336"/></g>
 
         <g class="node" id="n-map"><rect x="235" y="20" width="210" height="80" rx="3"/>
           <text class="k" x="249" y="42">The map</text><text class="t" x="249" y="64">Maps of Making</text>
@@ -158,20 +166,27 @@ button:disabled{opacity:.4;cursor:default}
 /* Each scene: who acts, what is true now, what it replaces (a first wording, to check with networks),
    and the picture: which boxes and links are lit (on), are the point (hot), and what they say. */
 const SCENES = [
-  { side:"The space", now:"Described once.", was:"A new form for every map and every directory.",
+  { side:"The space", now:"Write your profile once.", done:"Name, town, contact: written once, kept in the space's own pod.",
+    was:"A new form for every map and every directory.",
     n:{space:"hot"}, e:{}, s:{space:"name, town, contact"} },
-  { side:"The space", now:"The file lives in the space's own pod. The map reads it there.", was:"A listing kept in someone else's database.",
-    n:{space:"on", map:"hot"}, e:{map:"hot"}, s:{space:"space.ttl", map:"one more pin"} },
-  { side:"The space", now:"The space asks to join: what the network needs is already in its profile. Then it pays.", was:"A membership form, filled in again for every network.",
-    n:{space:"hot", map:"on", net:"on"}, e:{map:"on", hs:"hot dashed"}, s:{space:"profile complete · fee paid", map:"one more pin", net:"1 request · payment declared"}, l:{hs:"request"} },
-  { side:"The network · treasury", now:"The treasury sees the payment: that is the yes. Every member tool opens.", was:"An account made by hand in every shared tool.",
-    n:{space:"on", map:"on", net:"hot", tools:"on"}, e:{map:"on", hs:"hot", tools:"hot"}, s:{space:"member of Brussels Makers", map:"pin, with the network's badge", net:"paid until next year", tools:"open to members"}, l:{hs:"handshake"} },
-  { side:"The space", now:"The tool's gate reads the handshake. No new account.", was:"One more login per tool.",
-    n:{space:"on", map:"on", net:"on", tools:"hot"}, e:{map:"on", hs:"on", tools:"on", gate:"hot"}, s:{space:"member of Brussels Makers", map:"pin, with the network's badge", net:"member: Weld Done", tools:"✓ Weld Done is in"}, l:{hs:"handshake"} },
-  { side:"The network · treasury", now:"A year later, reminders follow the published rule. Each payment is one line for the network's own CRM.", was:"Renewals chased by email, then typed into the books.",
-    n:{space:"on", map:"on", net:"hot", tools:"on"}, e:{map:"on", hs:"hot", tools:"on", gate:"on"}, s:{space:"sees: due, reminder 1 of 3", map:"pin, with the network's badge", net:"rule: 3 reminders, then pause", tools:"still open"}, l:{hs:"reminder 1 of 3"} },
-  { side:"Both sides", now:"No renewal: the tools pause, nothing is deleted. A renewal brings everything back.", was:"A lapsed member removed tool by tool, then signed up again.",
-    n:{space:"on", map:"on", net:"on", tools:"paused"}, e:{map:"on", hs:"hot dashed", tools:"on dashed", gate:"on dashed"}, s:{space:"its file and pin stay", map:"pin stays, badge dashed", net:"paused, as the rule says", tools:"paused · nothing deleted"}, l:{hs:"renewal → solid again"} },
+  { side:"The space", now:"Get on the map.", done:"The profile lives in the space's own pod. The map reads it from there.",
+    was:"A new profile in every map's database.",
+    n:{space:"on", map:"hot"}, e:{map:"hot"}, to:{map:"b"}, s:{space:"profile", map:"one more pin"} },
+  { side:"The space", now:"Ask to join a network.", done:"What the network asks for is already in the profile. The fee goes with the request.",
+    was:"A membership form for each network, and a payment chased by email.",
+    n:{space:"hot", map:"on", net:"on"}, e:{map:"on", hs:"hot dashed"}, to:{hs:"b"}, s:{space:"profile complete · fee paid", map:"one more pin", net:"1 request"}, l:{hs:"request"} },
+  { side:"The network · treasury", now:"Welcome a new member.", done:"The treasury sees the payment: that is the yes. The member tools open.",
+    was:"An account made by hand in every shared tool.",
+    n:{space:"on", map:"on", net:"hot", tools:"on"}, e:{map:"on", hs:"hot", tools:"hot"}, to:{tools:"b"}, s:{space:"member of Brussels Makers", map:"pin, with the network's badge", net:"paid until next year", tools:"open to members"}, l:{hs:"handshake"} },
+  { side:"The space", now:"Use the network's tools.", done:"Access granted: each tool's gate reads the handshake. No new account.",
+    was:"One more login per tool.",
+    n:{space:"on", map:"on", net:"on", tools:"hot"}, e:{map:"on", hs:"on", tools:"on", gate:"hot"}, to:{gate:"b"}, s:{space:"member of Brussels Makers", map:"pin, with the network's badge", net:"paid until next year", tools:"✓ Weld Done is in"}, l:{hs:"handshake", gate:"access granted"} },
+  { side:"The network · treasury", now:"Renew the membership.", done:"A year later, reminders follow the rule the network published. Each payment is one line for its CRM.",
+    was:"Renewals chased by email, then typed into the books.",
+    n:{space:"on", map:"on", net:"hot", tools:"on"}, e:{map:"on", hs:"hot", tools:"on", gate:"on"}, to:{hs:"a"}, s:{space:"sees: due, reminder 1 of 3", map:"pin, with the network's badge", net:"rule: 3 reminders, then pause", tools:"still open"}, l:{hs:"reminder 1 of 3"} },
+  { side:"Both sides", now:"Pause, never delete.", done:"Without a renewal the tools pause and nothing is deleted. A renewal brings everything back.",
+    was:"A lapsed member removed from each tool, then signed up again.",
+    n:{space:"on", map:"on", net:"on", tools:"paused"}, e:{map:"on", hs:"hot dashed", tools:"on dashed", gate:"on dashed"}, to:{hs:"b"}, s:{space:"its profile and pin stay", map:"pin stays, badge dashed", net:"paused, as the rule says", tools:"paused · nothing deleted"}, l:{hs:"renewal"} },
 ];
 const $ = id => document.getElementById(id);
 let i = 0, seen = 0;
@@ -181,11 +196,14 @@ function show(k, push){
   $("count").textContent = `${i+1} of ${SCENES.length}`;
   $("side").textContent = sc.side;
   $("now").textContent = sc.now;
-  $("was").innerHTML = "<b>Instead of</b><s></s>"; $("was").lastChild.textContent = sc.was;
+  $("done").textContent = sc.done;
+  $("was").innerHTML = "<b>Instead of</b><span></span>"; $("was").lastChild.textContent = sc.was;
   $("end").hidden = i < SCENES.length-1;
   ["space","map","net","tools"].forEach(id=>{ $("n-"+id).setAttribute("class", "node " + (sc.n[id]||"")); $("s-"+id).textContent = (sc.s||{})[id] || ""; });
   ["map","hs","tools","gate"].forEach(id=>$("e-"+id).setAttribute("class", "edge " + (sc.e[id]||"")));
   $("l-hs").textContent = (sc.l||{}).hs || "";
+  $("l-gate").textContent = (sc.l||{}).gate || (sc.e.gate ? "the gate reads the handshake" : "");
+  document.querySelectorAll(".edge .tip").forEach(t=>{ const id = t.parentNode.id.slice(2); t.classList.toggle("show", (sc.to||{})[id]===t.dataset.end); });
   $("prev").disabled = i===0;
   $("next").hidden = i===SCENES.length-1;
   $("dots").innerHTML = SCENES.map((_,k)=>`<li><button type="button" data-k="${k}" class="${k<=seen && k!==i ? "seen" : ""}" ${k===i?'aria-current="step"':""} aria-label="Step ${k+1}">${k+1}</button></li>`).join("");
