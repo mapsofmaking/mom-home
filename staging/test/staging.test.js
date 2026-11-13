@@ -1,3 +1,4 @@
+// @vitest-environment node
 // The pages test.mapsofmaking.org serves, built as the image builds them, then walked in jsdom.
 // What broke before, or would break silently:
 //   - the dry run reads the app's tree: a tile or a ui* key renamed in public/onboarding.ttl must
@@ -9,11 +10,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { JSDOM, VirtualConsole } from "jsdom";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "../build.mjs";
 
-const root = fileURLToPath(new URL("../..", import.meta.url));
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 let out;
 beforeAll(() => { out = build(mkdtempSync(join(tmpdir(), "mom-staging-"))); });
 afterAll(() => rmSync(out, { recursive: true, force: true }));
