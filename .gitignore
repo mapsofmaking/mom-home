@@ -5,6 +5,7 @@ dist-ssr
 .DS_Store
 .vite
 dist-doc-view
+dist-staging
 
 # Server values (HOME_TAG): never committed.
 .env

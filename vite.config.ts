@@ -68,6 +68,7 @@ export default defineConfig({
     // The kit's code is browser code; jsdom-free tests stub what they need,
     // but localStorage and DOM globals have to exist for draft.ts.
     environment: "jsdom",
-    include: ["src/**/*.test.ts"],
+    // staging/: the dry run and the tour served at test.mapsofmaking.org (never in the app build).
+    include: ["src/**/*.test.ts", "staging/test/**/*.test.js"],
   },
 });
