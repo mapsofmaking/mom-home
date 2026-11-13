@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Maps of Making: the tour</title>
+<style>
+/* One screen, one picture. The same four boxes stay put through seven scenes; each scene lights what it is
+   about and leaves the rest dim, with one sentence beside it. Nothing to fill in: next, back, or the arrow keys. */
+@font-face{font-family:"Newsreader";src:url("../dry-run/fonts/newsreader-400.woff2") format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Caveat";src:url("../dry-run/fonts/caveat-700.woff2") format("woff2");font-weight:700;font-display:swap}
+@font-face{font-family:"Commit Mono";src:url("../dry-run/fonts/commit-mono-400.woff2") format("woff2");font-weight:400;font-display:swap}
+:root{
+  --font-display:"Newsreader",Georgia,serif;
+  --font-body:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"Commit Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  --surface:#f6f4ef; --surface-elevated:#fbfaf7; --surface-recessed:#f0ede4;
+  --text-primary:#26241f; --text-secondary:#5c5647; --text-tertiary:#6d6757;
+  --border:#e7e2d6;
+  --accent:#3d6b52; --accent-contrast:#ffffff; --accent-soft:#eef3ef; --accent-line:#b8ccbf;
+  --warn:#b5722a; --warn-soft:#faf3e6;
+  --fog:#e9e5da; --fog-line:#ddd8ca; --fog-text:#a9a392;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --surface:#12140f; --surface-elevated:#1b1e17; --surface-recessed:#0d0f0b;
+    --text-primary:#eceadf; --text-secondary:#b8b3a3; --text-tertiary:#9a9585;
+    --border:rgba(255,255,255,.09);
+    --accent:#8fb98a; --accent-contrast:#12140f; --accent-soft:rgba(143,185,138,.14); --accent-line:rgba(143,185,138,.4);
+    --warn:#d99a55; --warn-soft:rgba(217,154,85,.13);
+    --fog:#171a14; --fog-line:#22261e; --fog-text:#4b4e44;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --surface:#12140f; --surface-elevated:#1b1e17; --surface-recessed:#0d0f0b;
+  --text-primary:#eceadf; --text-secondary:#b8b3a3; --text-tertiary:#9a9585;
+  --border:rgba(255,255,255,.09);
+  --accent:#8fb98a; --accent-contrast:#12140f; --accent-soft:rgba(143,185,138,.14); --accent-line:rgba(143,185,138,.4);
+  --warn:#d99a55; --warn-soft:rgba(217,154,85,.13);
+  --fog:#171a14; --fog-line:#22261e; --fog-text:#4b4e44;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--surface);color:var(--text-primary);font:1rem/1.5 var(--font-body);
+  padding:0 max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px))}
+a{color:var(--accent);text-underline-offset:.18em}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:72rem;margin:0 auto;min-height:100%;display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:12px;padding:12px 0 16px}
+header{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline;justify-content:space-between}
+.mark{display:flex;align-items:baseline;gap:10px}
+.logo{font:700 26px/1 "Caveat",cursive}
+.tag{font:10px/1 var(--font-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--text-tertiary);border:1px dashed var(--text-tertiary);padding:3px 6px;border-radius:2px}
+header a{font-size:.875rem}
+
+main{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:32px;align-items:center;min-height:0}
+@media (max-width:52rem){main{grid-template-columns:1fr;gap:16px;align-items:start}}
+.say{display:grid;gap:14px;align-content:center}
+.meta{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font:.6875rem/1 var(--font-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--text-tertiary)}
+.side{padding:5px 8px;border:1.5px solid var(--text-primary);color:var(--text-primary)}
+h1{font:400 clamp(1.6rem,3.2vw,2.5rem)/1.12 var(--font-display);letter-spacing:-.01em;margin:0;text-wrap:balance}
+.was{margin:0;color:var(--text-secondary);font-size:.9375rem}
+.was s{text-decoration-thickness:1px}
+.was b{font:.6875rem/1 var(--font-mono);font-weight:400;letter-spacing:.1em;text-transform:uppercase;color:var(--text-tertiary);margin-right:8px}
+.end{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
+.cta{display:inline-block;font:600 .9375rem/1 var(--font-body);border-radius:4px;padding:12px 18px;background:var(--accent);color:var(--accent-contrast);text-decoration:none}
+
+/* the picture */
+.pic{background:var(--surface-elevated);border:1px solid var(--border);border-radius:4px;padding:8px;min-width:0}
+svg{display:block;width:100%;height:auto;max-height:calc(100dvh - 200px)}
+@media (max-width:52rem){svg{max-height:none}}
+.node rect{fill:var(--fog);stroke:var(--fog-line);stroke-width:1.5}
+.node .t{font:600 15px var(--font-body);fill:var(--fog-text)}
+.node .k{font:10px var(--font-mono);letter-spacing:.08em;text-transform:uppercase;fill:var(--fog-text)}
+.node .s{font:12.5px var(--font-body);fill:var(--fog-text)}
+.node.on rect{fill:var(--surface);stroke:var(--text-tertiary)}
+.node.on .t{fill:var(--text-primary)} .node.on .k{fill:var(--text-tertiary)} .node.on .s{fill:var(--text-secondary)}
+.node.hot rect{fill:var(--accent-soft);stroke:var(--accent);stroke-width:3}
+.node.hot .t{fill:var(--text-primary)} .node.hot .k{fill:var(--text-tertiary)} .node.hot .s{fill:var(--text-primary);font-weight:600}
+.node.paused rect{fill:var(--surface);stroke:var(--warn);stroke-width:2.5;stroke-dasharray:5 5}
+.node.paused .t{fill:var(--text-primary)} .node.paused .k{fill:var(--text-tertiary)} .node.paused .s{fill:var(--text-primary);font-weight:600}
+.edge path{fill:none;stroke:var(--fog-line);stroke-width:1.5}
+.edge text{font:11px var(--font-mono);letter-spacing:.06em;text-transform:uppercase;fill:transparent}
+.edge.on path{stroke:var(--text-tertiary)}
+.edge.on text{fill:var(--text-tertiary)}
+.edge.hot path{stroke:var(--accent);stroke-width:3}
+.edge.hot text{fill:var(--text-primary);font-weight:700}
+.edge.dashed path{stroke-dasharray:6 6}
+.pin{fill:var(--fog-line)} .node.on .pin,.node.hot .pin{fill:var(--accent)}
+@media (prefers-reduced-motion:no-preference){
+  .node rect,.node text,.edge path,.edge text,.pin{transition:fill .35s,stroke .35s,stroke-width .35s}
+  .say.swap > *{animation:in .35s ease-out both}
+  @keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+}
+
+nav{display:flex;gap:12px;align-items:center;justify-content:space-between}
+button{font:600 .9375rem/1 var(--font-body);border-radius:4px;padding:11px 16px;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:var(--accent-contrast)}
+button.ghost{background:transparent;color:var(--text-primary);border-color:var(--border)}
+button:disabled{opacity:.4;cursor:default}
+.dots{display:flex;gap:6px;list-style:none;margin:0;padding:0}
+.dots button{width:28px;height:28px;padding:0;border-radius:50%;background:transparent;border:1.5px solid var(--text-tertiary);color:var(--text-tertiary);font:.75rem/1 var(--font-mono)}
+.dots button[aria-current="step"]{background:var(--text-primary);border-color:var(--text-primary);color:var(--surface)}
+.dots button.seen{border-color:var(--accent-line);background:var(--accent-soft);color:var(--text-primary)}
+@media (max-width:30rem){.dots{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="mark"><span class="logo">maps of making</span><span class="tag">the tour</span></div>
+    <a href="../dry-run/">Skip to the dry run</a>
+  </header>
+
+  <main>
+    <section class="say" id="say" aria-live="polite">
+      <p class="meta"><span id="count"></span><span class="side" id="side"></span></p>
+      <h1 id="now"></h1>
+      <p class="was" id="was"></p>
+      <div class="end" id="end" hidden>
+        <a class="cta" href="../dry-run/">Try it yourself</a>
+        <a href="../dry-run/#signin">Or start with a pod that already exists</a>
+      </div>
+    </section>
+
+    <section class="pic" aria-label="Who holds what: the space's pod, the map, the network's pod, the network's tools">
+      <svg viewBox="0 0 680 400" role="img" aria-labelledby="pictitle">
+        <title id="pictitle">A space's pod on the left, the map above, the network's pod on the right, the network's tools below it.</title>
+        <g class="edge" id="e-map"><path d="M125 150 C125 95 170 60 235 60"/><text x="112" y="92" text-anchor="middle" id="l-map">reads</text></g>
+        <g class="edge" id="e-hs"><path d="M230 195 H450"/><text x="340" y="184" text-anchor="middle" id="l-hs"></text></g>
+        <g class="edge" id="e-tools"><path d="M555 240 V292"/><text x="566" y="270" id="l-tools">opens</text></g>
+        <g class="edge" id="e-gate"><path d="M125 240 V330 H450"/><text x="288" y="350" text-anchor="middle" id="l-gate">the gate reads the handshake</text></g>
+
+        <g class="node" id="n-map"><rect x="235" y="20" width="210" height="80" rx="3"/>
+          <text class="k" x="249" y="42">The map</text><text class="t" x="249" y="64">Maps of Making</text>
+          <circle class="pin" cx="423" cy="40" r="6"/><text class="s" x="249" y="85" id="s-map"></text></g>
+        <g class="node" id="n-space"><rect x="20" y="150" width="210" height="90" rx="3"/>
+          <text class="k" x="34" y="172">A space · its own pod</text><text class="t" x="34" y="196">Weld Done</text><text class="s" x="34" y="222" id="s-space"></text></g>
+        <g class="node" id="n-net"><rect x="450" y="150" width="210" height="90" rx="3"/>
+          <text class="k" x="464" y="172">A network · its own pod</text><text class="t" x="464" y="196">Brussels Makers</text><text class="s" x="464" y="222" id="s-net"></text></g>
+        <g class="node" id="n-tools"><rect x="450" y="292" width="210" height="78" rx="3"/>
+          <text class="k" x="464" y="314">The network's tools</text><text class="t" x="464" y="336">Whiteboard · Calendar</text><text class="s" x="464" y="358" id="s-tools"></text></g>
+      </svg>
+    </section>
+  </main>
+
+  <nav aria-label="Tour steps">
+    <button type="button" class="ghost" id="prev">← Back</button>
+    <ol class="dots" id="dots"></ol>
+    <button type="button" id="next">Next →</button>
+  </nav>
+</div>
+
+<script>
+"use strict";
+/* Each scene: who acts, what is true now, what it replaces (a first wording, to check with networks),
+   and the picture: which boxes and links are lit (on), are the point (hot), and what they say. */
+const SCENES = [
+  { side:"The space", now:"Described once.", was:"A new form for every map and every directory.",
+    n:{space:"hot"}, e:{}, s:{space:"name, town, contact"} },
+  { side:"The space", now:"The file lives in the space's own pod. The map reads it there.", was:"A listing kept in someone else's database.",
+    n:{space:"on", map:"hot"}, e:{map:"hot"}, s:{space:"space.ttl", map:"one more pin"} },
+  { side:"The space", now:"The space asks to join, from its own pod.", was:"A membership list kept by hand, one per network.",
+    n:{space:"hot", map:"on", net:"on"}, e:{map:"on", hs:"hot dashed"}, s:{space:"space.ttl", map:"one more pin", net:"1 request"}, l:{hs:"request"} },
+  { side:"The network · welcome", now:"One yes opens every member tool.", was:"An account made by hand in every shared tool.",
+    n:{space:"on", map:"on", net:"hot", tools:"on"}, e:{map:"on", hs:"hot", tools:"hot"}, s:{space:"member of Brussels Makers", map:"pin, with the network's badge", net:"member: Weld Done", tools:"open to members"}, l:{hs:"handshake"} },
+  { side:"The space", now:"The tool's gate reads the handshake. No new account.", was:"One more login per tool.",
+    n:{space:"on", map:"on", net:"on", tools:"hot"}, e:{map:"on", hs:"on", tools:"on", gate:"hot"}, s:{space:"member of Brussels Makers", map:"pin, with the network's badge", net:"member: Weld Done", tools:"✓ Weld Done is in"}, l:{hs:"handshake"} },
+  { side:"The network · treasury", now:"The renewal rule is published. Reminders follow it, and the member sees where it stands.", was:"Renewals chased by email, from a spreadsheet.",
+    n:{space:"on", map:"on", net:"hot", tools:"on"}, e:{map:"on", hs:"hot", tools:"on", gate:"on"}, s:{space:"sees: due, reminder 1 of 3", map:"pin, with the network's badge", net:"rule: 3 reminders, then pause", tools:"still open"}, l:{hs:"reminder 1 of 3"} },
+  { side:"Both sides", now:"No renewal: the tools pause, nothing is deleted. A renewal brings everything back.", was:"A lapsed member removed tool by tool, then signed up again.",
+    n:{space:"on", map:"on", net:"on", tools:"paused"}, e:{map:"on", hs:"hot dashed", tools:"on dashed", gate:"on dashed"}, s:{space:"its file and pin stay", map:"pin stays, badge dashed", net:"paused, as the rule says", tools:"paused · nothing deleted"}, l:{hs:"renewal → solid again"} },
+];
+const $ = id => document.getElementById(id);
+let i = 0, seen = 0;
+function show(k, push){
+  i = Math.max(0, Math.min(SCENES.length-1, k)); seen = Math.max(seen, i);
+  const sc = SCENES[i];
+  $("count").textContent = `${i+1} of ${SCENES.length}`;
+  $("side").textContent = sc.side;
+  $("now").textContent = sc.now;
+  $("was").innerHTML = "<b>Instead of</b><s></s>"; $("was").lastChild.textContent = sc.was;
+  $("end").hidden = i < SCENES.length-1;
+  ["space","map","net","tools"].forEach(id=>{ $("n-"+id).setAttribute("class", "node " + (sc.n[id]||"")); $("s-"+id).textContent = (sc.s||{})[id] || ""; });
+  ["map","hs","tools","gate"].forEach(id=>$("e-"+id).setAttribute("class", "edge " + (sc.e[id]||"")));
+  $("l-hs").textContent = (sc.l||{}).hs || "";
+  $("prev").disabled = i===0;
+  $("next").hidden = i===SCENES.length-1;
+  $("dots").innerHTML = SCENES.map((_,k)=>`<li><button type="button" data-k="${k}" class="${k<=seen && k!==i ? "seen" : ""}" ${k===i?'aria-current="step"':""} aria-label="Step ${k+1}">${k+1}</button></li>`).join("");
+  const say = $("say"); say.classList.remove("swap"); void say.offsetWidth; say.classList.add("swap");
+  if(push !== false){ try{ history.replaceState(null, "", "#"+(i+1)); }catch(_){ /* a page opened from a file: the address just stays */ } }
+}
+$("prev").addEventListener("click", ()=>show(i-1));
+$("next").addEventListener("click", ()=>show(i+1));
+$("dots").addEventListener("click", e=>{ const b = e.target.closest("[data-k]"); if(b) show(+b.dataset.k); });
+document.addEventListener("keydown", e=>{
+  if(e.altKey || e.ctrlKey || e.metaKey) return;
+  if(e.key==="ArrowRight" || e.key==="PageDown") { e.preventDefault(); show(i+1); }
+  else if(e.key==="ArrowLeft" || e.key==="PageUp") { e.preventDefault(); show(i-1); }
+});
+const fromHash = () => { const n = parseInt(location.hash.slice(1), 10); return n>=1 && n<=SCENES.length ? n-1 : 0; };
+window.addEventListener("hashchange", ()=>show(fromHash(), false));
+show(fromHash(), false);
+</script>
+</body>
+</html>

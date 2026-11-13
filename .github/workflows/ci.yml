@@ -1,5 +1,6 @@
-# Checks every pull request, and every push to main. On main, also publishes the image the server runs:
-# ghcr.io/mapsofmaking/mom-home:sha-<short commit> and :main (solid-kit ADR 011).
+# Checks every pull request, and every push to main. On main, also publishes the images the server runs:
+# ghcr.io/mapsofmaking/mom-home:sha-<short commit> and :main (solid-kit ADR 011), and
+# ghcr.io/mapsofmaking/mom-staging (same tags), what test.mapsofmaking.org serves (staging/README.md).
 name: CI
 
 # Branches are checked through their pull request only: a push to a branch with a PR used to start
@@ -51,8 +52,23 @@ jobs:
           curl -fsSI http://localhost:8082/id.jsonld | grep -qi '^content-type: application/ld+json'
           curl -fsS http://localhost:8082/id.jsonld | grep -q '"client_id": "https://home.example.org/id.jsonld"'
 
+  staging-image:
+    # The tour and the dry run as test.mapsofmaking.org serves them. Their tests run in verify.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f staging/Dockerfile -t mom-staging:ci .
+      - name: the landing, the tour and the dry run serve
+        run: |
+          docker run -d --name staging -p 8083:80 mom-staging:ci
+          sleep 2
+          curl -fsS http://localhost:8083/ | grep -q 'href="tour/"'
+          curl -fsS http://localhost:8083/tour/ | grep -q 'id="next"'
+          curl -fsS http://localhost:8083/dry-run/ | grep -q 'id="tree"'
+          curl -fsSI http://localhost:8083/dry-run/n3.min.js | grep -qi '^content-type: .*javascript'
+
   publish:
-    needs: [verify, image]
+    needs: [verify, image, staging-image]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
@@ -76,4 +92,11 @@ jobs:
             -t $R:$SHA -t $R:main .
           docker push $R:$SHA
           docker push $R:main
-          echo "Pushed $SHA" >> "$GITHUB_STEP_SUMMARY"
+          S=ghcr.io/mapsofmaking/mom-staging
+          docker build -f staging/Dockerfile --build-arg REVISION=${GITHUB_SHA::7} \
+            --label org.opencontainers.image.source=https://github.com/${{ github.repository }} \
+            --label org.opencontainers.image.revision=${{ github.sha }} \
+            -t $S:$SHA -t $S:main .
+          docker push $S:$SHA
+          docker push $S:main
+          echo "Pushed $SHA (mom-home, mom-staging)" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Maps of Making: staging</title>
+<style>
+@font-face{font-family:"Newsreader";src:url("dry-run/fonts/newsreader-400.woff2") format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Caveat";src:url("dry-run/fonts/caveat-700.woff2") format("woff2");font-weight:700;font-display:swap}
+@font-face{font-family:"Commit Mono";src:url("dry-run/fonts/commit-mono-400.woff2") format("woff2");font-weight:400;font-display:swap}
+:root{--surface:#f6f4ef;--elevated:#fbfaf7;--text:#26241f;--text-2:#5c5647;--text-3:#6d6757;--border:#e7e2d6;--accent:#3d6b52;--accent-soft:#eef3ef}
+*{box-sizing:border-box}
+body{margin:0;background:var(--surface);color:var(--text);font:1rem/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:0 16px 48px}
+main{max-width:40rem;margin:0 auto;padding-top:12vh}
+.logo{font:700 1.75rem/1 "Caveat",cursive;margin:0}
+.eyebrow{font:.6875rem/1 "Commit Mono",ui-monospace,Menlo,monospace;letter-spacing:.16em;text-transform:uppercase;color:var(--text-3);margin:6px 0 40px}
+h1{font:400 clamp(1.75rem,5vw,2.25rem)/1.1 "Newsreader",Georgia,serif;margin:0 0 12px;text-wrap:balance}
+p{margin:0 0 12px;color:var(--text-2);max-width:60ch}
+a{color:var(--accent);text-underline-offset:.18em}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.card{background:var(--elevated);border:1.5px solid var(--text);box-shadow:3px 3px 0 var(--text);padding:20px;margin-top:28px}
+.card h2{font:600 1.125rem/1.3 system-ui,sans-serif;margin:0 0 6px}
+.card ul{list-style:none;padding:0;margin:16px 0 0;display:grid;gap:10px}
+.card li{display:grid;gap:2px}
+.card li a{font-weight:600}
+.card li span{font-size:.875rem;color:var(--text-2)}
+.cta{display:inline-block;margin-top:16px;font-weight:600;background:var(--accent);color:#fff;text-decoration:none;padding:11px 16px;border-radius:4px}
+footer{margin-top:40px;font-size:.875rem;color:var(--text-3)}
+</style>
+</head>
+<body>
+<main>
+  <p class="logo">maps of making</p>
+  <p class="eyebrow">staging</p>
+  <h1>Things shown here before they are real</h1>
+  <p>This address is where Maps of Making tries what comes next. What you see here is a preview: it can change or disappear, and it is not indexed.</p>
+
+  <section class="card" aria-labelledby="dr">
+    <h2 id="dr">The dry run: a space, its network, and what membership opens</h2>
+    <p>A simulation of the home app, from a makerspace's first description to the tools a network shares with its members. Nothing you type is stored or sent: it all stays in the page.</p>
+    <a class="cta" href="tour/">Take the tour</a>
+    <ul>
+      <li><span>Seven steps, a minute or two: what changes for a space and for its network, one sentence and one picture at a time. Nothing to fill in.</span></li>
+      <li><a href="dry-run/">Try it yourself</a><span>The dry run: describe a space, publish it, join a network, then play the network's welcome and treasury sides.</span></li>
+      <li><a href="dry-run/#signin">Start with a pod that already exists</a><span>Sign in with the demo pod: its profile comes filled in, and only what is missing is asked.</span></li>
+    </ul>
+  </section>
+
+  <footer>The real thing: <a href="https://mapsofmaking.org">the map</a> · <a href="https://home.mapsofmaking.org">the home app</a></footer>
+</main>
+</body>
+</html>
