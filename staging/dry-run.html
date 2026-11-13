@@ -400,6 +400,10 @@ details.sim .row{margin-top:8px}
 .roles button[aria-selected="true"]{background:var(--text-primary);color:var(--surface);font-weight:600}
 .roles small{font:.625rem/1 var(--font-mono);letter-spacing:.06em;text-transform:uppercase;opacity:.75;margin-right:6px}
 @media (min-width:60.01rem){.stage.wide.net{height:calc(100dvh - 80px)}}
+.fee{display:flex;gap:14px;align-items:center;margin:4px 0 14px}
+.fee .qr{width:72px;height:72px;flex:none;border:1.5px solid var(--text-primary);background:conic-gradient(var(--text-primary) 25%,transparent 0 50%,var(--text-primary) 0 75%,transparent 0) 0 0/12px 12px,var(--surface)}
+.fee-amount{font:600 1.5rem/1.1 var(--font-body);margin:0 0 4px}
+pre.csv{font-size:.75rem;white-space:pre;overflow-x:auto;max-width:100%}
 .net-list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .net-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center;width:100%;text-align:left;background:var(--surface);color:var(--text-primary);border:1px solid var(--border);border-radius:0;padding:9px 11px;font:400 .9375rem/1.3 var(--font-body)}
 .net-item[aria-current="true"]{border:2px solid var(--text-primary)}
@@ -986,11 +990,23 @@ details.sim .row{margin-top:8px}
   onb:sayRestored "You're back in. Everything is where you left it."@en ;
   onb:sayGate "The gate asks {collective}'s pod whether you're in."@en ;
   onb:sayRefused "{collective} has paused your membership, so its tools won't let you in. Nothing is deleted."@en ;
-  onb:sayOpened "In. What you draw stays on {collective}'s server, under their rules."@en .
+  onb:sayOpened "In. What you draw stays on {collective}'s server, under their rules."@en ;
+  onb:sayChecklist "{collective} asks for {count} things in your profile before you join. Your pod is read, nothing is retyped."@en ;
+  onb:sayMissing "One is missing: {missing}. Fill it in once, in your profile; {collective} reads it from there."@en ;
+  onb:sayFee "All there. Last step: {collective}'s fee. Pay, then say so. Their treasury confirms, and that confirmation is your handshake."@en ;
+  onb:sayDeclared "Payment declared. {collective}'s treasury confirms it, not me."@en ;
+  onb:sayRenewFee "Renewing is the same fee for another year. Pay, then say so: their treasury confirms."@en ;
+  onb:sayRenewDeclared "Renewal declared. {collective}'s treasury confirms it; everything stays open meanwhile."@en .
 
 :bm a onb:Collective ;
   onb:name "Brussels Makers" ; onb:domain "brusselsmakers.example" ;
-  onb:offers :bm-board , :bm-agenda ; onb:renewal :bm-rule .
+  onb:offers :bm-board , :bm-agenda ; onb:renewal :bm-rule ; onb:fee :bm-fee .
+# Joining Brussels Makers: the profile fields it asks for (keys of the tree's onb:ProfileField), then its fee.
+# Paid before the yes: the treasury's confirmation of the payment is the handshake. Numbers from a real
+# European network's space membership; the network itself is made up.
+:bm-fee a onb:Fee ; onb:amount 200 ; onb:currency "EUR" ; onb:period onb:Year ; onb:per "space"@en ;
+  onb:requiresField "name" , "address" , "contacts" , "hours" ;
+  onb:crm "Dolibarr" .
 :bm-board a onb:ServiceTile ; onb:kind "whiteboard" ; onb:icon "whiteboard" ;
   onb:preview <https://excalidash.xyz/images/workspace-light.png?v=de56823b0ae7> ;
   onb:cue "Sketch it out together"@en ; onb:title "Whiteboard"@en ;
@@ -1142,7 +1158,7 @@ function podBanner(){
 }
 function fresh(){ return {done:[], branch:null, signedIn:false, step:null, editing:false, notNow:false, view:null, pending:null, justSaved:false,
   data:{name:"",address:"",description:"",email:"",website:"",logo:"",contacts:[],hours:"",lastChange:null,network:"",accepted:false,event:null,podName:"",accEmail:"",account:null},
-  hs:{}, gate:null, colFilter:"all", role:"space", netSel:null,
+  hs:{}, gate:null, colFilter:"all", role:"space", netSel:null, joinStep:null,
   selected:"describe", designer:false, word:null, err:null}; }
 S = fresh();
 
@@ -1561,6 +1577,7 @@ function toolField(f){
 }
 
 function workbenchPanel(t, s){
+  if(t.id==="join" && S.joinStep && S.signedIn) return joinStepPanel(t);
   if(!S.signedIn){
     // Self-hosters have no account: the workbench is reached by signing in through a pod.
     return head(t.title) + say(APP.sayNeedsPod) + `<div class="row"><button type="button" id="switchpod">Let us look after it after all</button></div>`;
@@ -1808,7 +1825,9 @@ function wireBench(t){
     else if(e.key==="Enter" && $("f-find").value.trim() && hits.length){ e.preventDefault(); fdGo(hits[fdOn].key); }
   });
   $("fd-clear")?.addEventListener("click",()=>{ $("f-find").value=""; fdShow(); $("f-find").focus(); });
-  $("f-net")?.addEventListener("submit",e=>{ e.preventDefault(); const v=$("f-network").value.trim(); if(!v) return fail("f-network","Needed: any name your network goes by."); S.data.network=v; S.data.accepted=false; requestJoin(v); complete("join"); });
+  $("f-net")?.addEventListener("submit",e=>{ e.preventDefault(); const v=$("f-network").value.trim(); if(!v) return fail("f-network","Needed: any name your network goes by."); S.data.network=v; S.data.accepted=false; requestJoin(v); if(S.joinStep){ S.err=null; render(); } else complete("join"); });
+  $("joinpaid")?.addEventListener("click",()=>{ const c = colById[S.joinStep.c]; S.joinStep = null; S.data.network = S.data.network || c.name; requestJoin(c.name, {on:TODAY, how:"transfer"}); complete("join"); });
+  $("joinstop")?.addEventListener("click",()=>{ S.joinStep = null; render(); });
   $("f-event")?.addEventListener("submit",e=>{ e.preventDefault(); const ti=$("f-evtitle").value.trim(), da=$("f-evdate").value; if(!ti) return fail("f-evtitle","Needed: a title."); if(!da) return fail("f-evdate","Needed: a date."); S.data.event={title:ti,date:da}; complete("event"); });
   $("doit")?.addEventListener("click",()=>complete(t.id));
   document.querySelectorAll("#bench [data-fold]").forEach(el=>el.addEventListener("click",()=>{ SETTINGS.foldIntro=true; setFold(el.dataset.fold==="1"); }));
@@ -1841,7 +1860,7 @@ function loadCollectives(){
   const subj = {};
   new N3.Parser().parse(src).forEach(q=>{ ((subj[q.subject.value] ||= {})[q.predicate.value] ||= []).push(q.object); });
   const local = iri => iri.split("#").pop(), one = (o,k) => o[ONB+k] ? o[ONB+k][0].value : undefined;
-  const tools = {}, rules = {}, events = {};
+  const tools = {}, rules = {}, events = {}, fees = {};
   Object.entries(subj).forEach(([s,o])=>{ if((o[RDFT]||[]).some(x=>x.value===ONB+"SampleEvent")) events[local(s)] = {title:one(o,"title"), at:one(o,"at"),
       date:one(o,"date") || new Date(Date.now() + (+one(o,"inDays")||0)*864e5).toISOString().slice(0,10)}; });   // onb:inDays: counted from today, so the calendar never shows the past
   Object.entries(subj).forEach(([s,o])=>{
@@ -1850,12 +1869,14 @@ function loadCollectives(){
       blurb:one(o,"blurb"), url:one(o,"url"), storage:local(one(o,"storage")||"CollectivePod"), kept:one(o,"kept"), preview:one(o,"preview"), saidOpened:one(o,"saidOpened"),
       events:(o[ONB+"shows"]||[]).map(x=>events[local(x.value)]).filter(Boolean)};
     else if(type.includes(ONB+"RenewalRule")) rules[id] = {reminders:+one(o,"reminders"), every:+one(o,"everyDays")};
+    else if(type.includes(ONB+"Fee")) fees[id] = {amount:+one(o,"amount"), currency:one(o,"currency")||"EUR", per:one(o,"per")||"member", crm:one(o,"crm"),
+      requires:(o[ONB+"requiresField"]||[]).map(x=>x.value)};
     else if(type.includes(ONB+"CollectiveCopy")) Object.keys(o).forEach(p=>{ if(p.startsWith(ONB)) CCOPY[p.slice(ONB.length)] = o[p][0].value; });
   });
   Object.entries(subj).forEach(([s,o])=>{
     if(!(o[RDFT]||[]).some(x=>x.value===ONB+"Collective")) return;
     COLS.push({id:local(s), name:one(o,"name"), domain:one(o,"domain"), offers:(o[ONB+"offers"]||[]).map(x=>tools[local(x.value)]).filter(Boolean),
-      rule:o[ONB+"renewal"] ? rules[local(o[ONB+"renewal"][0].value)] : null});
+      rule:o[ONB+"renewal"] ? rules[local(o[ONB+"renewal"][0].value)] : null, fee:o[ONB+"fee"] ? fees[local(o[ONB+"fee"][0].value)] : null});
   });
   colById = Object.fromEntries(COLS.map(c=>[c.id,c]));
   document.getElementById("colsrc").textContent = src.trim();
@@ -1879,17 +1900,23 @@ function prefsClear(){ drop(PREFS_KEY); PREFS = {pins:[]}; }
 
 /* ---------- the dry run's clock: membership falls due today, whenever the page is opened; each rule spaces its reminders ---------- */
 const DAY = 864e5, TODAY = Math.floor(Date.now()/DAY)*DAY, DUE = TODAY;
-const fmtDay = ms => new Date(ms).toLocaleDateString("en-GB",{day:"numeric",month:"short",timeZone:"UTC"});
-const remindDay = (rule,k) => fmtDay(DUE + (k-1)*rule.every*DAY);
-const pauseDay = rule => fmtDay(DUE + rule.reminders*rule.every*DAY);
+const YEAR = 365*DAY;
+const fmtDay = ms => new Date(ms).toLocaleDateString("en-GB",{day:"numeric",month:"short",timeZone:"UTC", ...(new Date(ms).getUTCFullYear()!==new Date(TODAY).getUTCFullYear()?{year:"numeric"}:{})});
+/* The day a membership falls due: a year after its last payment, for a network with a fee; else the dry run's today. */
+const dueOf = h => h && h.until ? h.until : DUE;
+const remindDay = (rule,k,h) => fmtDay(dueOf(h) + (k-1)*rule.every*DAY);
+const pauseDay = (rule,h) => fmtDay(dueOf(h) + rule.reminders*rule.every*DAY);
+const money = f => `${f.amount} ${f.currency==="EUR" ? "€" : f.currency}`;
 
 /* ---------- joining: a request, then their answer (a timer stands in for the days it takes) ---------- */
 const WAIT_S = 5;
-function requestJoin(name){
+function requestJoin(name, paid){
   const n = String(name||"").trim(), lower = n.toLowerCase();
   let c = COLS.find(x=>x.name.toLowerCase()===lower) || COLS.find(x=>lower.length>2 && x.name.toLowerCase().includes(lower));
   if(!c){ c = {id:"x-"+slug(n), name:n||"Your network", domain:"", offers:[], rule:null, adhoc:true}; if(!colById[c.id]){ COLS.push(c); colById[c.id]=c; } }
-  if(!S.hs[c.id]) S.hs[c.id] = {state:"requested", wait:WAIT_S, reminders:0, restored:false};
+  // A network with a fee: no request without its checklist done and a payment declared. Every way in comes through here.
+  if(c.fee && !paid){ if(!S.hs[c.id]){ S.joinStep = {c:c.id}; S.selected = "join"; S.view = null; } return c; }
+  if(!S.hs[c.id]) S.hs[c.id] = {state:"requested", wait:WAIT_S, reminders:0, restored:false, ...(paid ? {declared:paid, payments:[]} : {})};
   ensureTick();
   return c;
 }
@@ -1900,13 +1927,24 @@ function ensureTick(){
     if(S.role!=="space") return;   // while you play the network's side, the answer is yours to give there
     let pending = false, changed = false;
     Object.entries(S.hs).forEach(([id,h])=>{
+      if(h.renewDeclared){ if(--h.wait <= 0){ confirmPayment(id); changed = true; } else pending = true; return; }
       if(h.state!=="requested") return;
-      if(--h.wait <= 0){ h.state = "active"; S.justAccepted = id; S.data.accepted = true; changed = true; } else pending = true;
+      if(--h.wait <= 0){ if(h.declared) confirmPayment(id); else { h.state = "active"; S.justAccepted = id; S.data.accepted = true; } changed = true; } else pending = true;
     });
     if(!pending){ clearInterval(joinTick); joinTick = null; }
     const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName||"");
     if(changed || (!typing && S.selected==="join")) render();
   }, 1000);
+}
+/* The treasury saw the payment: the handshake holds a year from the day it was due (or paid, the first time).
+   One line per payment, for the network's CRM. */
+function confirmPayment(id){
+  const h = S.hs[id], c = colById[id], first = h.state==="requested";
+  const from = first ? TODAY : Math.max(dueOf(h), TODAY - 30*DAY);
+  h.payments = [...(h.payments||[]), {from, to:from+YEAR, amount:c.fee.amount, how:"transfer"}];
+  h.until = from + YEAR; h.declared = null; h.renewDeclared = null; h.reminders = 0;
+  if(first){ h.state = "active"; S.justAccepted = id; S.data.accepted = true; }
+  else { h.state = "active"; h.restored = true; }
 }
 function waitHtml(h){
   h = h || Object.values(S.hs).find(x=>x.state==="requested");
@@ -1954,8 +1992,8 @@ const HEXI = `<svg viewBox="0 0 100 115.5" aria-hidden="true"><polygon points="5
 const intentsHtml = offers => `<ul class="intents">${offers.map(o=>`<li>${HEXI}${esc(o.cue)}</li>`).join("")}</ul>`;
 const toolOf = t => colById[t.svc.c].offers.find(o=>o.id===t.svc.t);
 function hsChip(c, h){
-  if(h.state==="requested") return `<span class="chip dashed">Request sent</span>`;
-  if(h.state==="paused") return `<span class="chip dashed">Paused since ${esc(pauseDay(c.rule))}</span>`;
+  if(h.state==="requested") return `<span class="chip dashed">${h.declared ? "Payment declared" : "Request sent"}</span>`;
+  if(h.state==="paused") return `<span class="chip dashed">Paused since ${esc(pauseDay(c.rule,h))}</span>`;
   if(h.state==="due") return `<span class="chip warn">Reminder ${h.reminders} of ${c.rule.reminders}</span>`;
   return `<span class="chip">Handshake${h.restored?" · restored":""}</span>`;
 }
@@ -1964,7 +2002,7 @@ function joinPanel(t){
   if(!active.length){
     const asked = COLS.find(c=>S.hs[c.id] && S.hs[c.id].state==="requested");
     const ahead = asked && asked.offers.length ? `<div class="out">${sayC("sayAhead",{collective:asked.name, count: asked.offers.length===1?"one thing":asked.offers.length+" things"})}${intentsHtml(asked.offers)}</div>` : "";
-    return head(t.title) + say(t.saidDone) + preview(t, "What changed", "Dry run") + ahead;
+    return head(t.title) + (asked && asked.fee ? sayC("sayDeclared",{collective:asked.name}) + waitHtml() : say(t.saidDone) + preview(t, "What changed", "Dry run")) + ahead;
   }
   const ja = S.justAccepted && colById[S.justAccepted];
   let intro = "";
@@ -1976,6 +2014,19 @@ function joinPanel(t){
       + `</div>`;
   }
   return head(t.title, "Member") + intro + collectivesTool();
+}
+/* Joining a network with a fee: its checklist read from the profile, then the fee. Kept in S.joinStep, so a
+   detour to the profile to fill a missing field comes back to it. */
+const hasField = (d, k) => k==="contacts" ? cClean(d.contacts).length>0 : !!String(d[k]||"").trim();
+function joinStepPanel(t){
+  const c = colById[S.joinStep.c], f = c.fee, d = S.data, missing = f.requires.filter(k=>!hasField(d,k));
+  const list = `<ul class="needs">${f.requires.map(k=>{ const ok = hasField(d,k); return `<li class="${ok?"ok":""}"><i>${ok?"✓":"○"}</i>${esc(flabel(k))}</li>`; }).join("")}</ul>`;
+  const top = head(t.title, `${c.name} · ${missing.length ? "1 of 2" : "2 of 2"}`) + sayC("sayChecklist",{collective:c.name, count:f.requires.length});
+  if(missing.length) return top + list + sayC("sayMissing",{collective:c.name, missing:missing.map(flabel).join(", ").toLowerCase()})
+    + `<div class="row"><button type="button" data-go="change">Fill it in</button><button type="button" class="link" id="joinstop">Not now</button></div>`;
+  return top + list + sayC("sayFee",{collective:c.name})
+    + `<div class="fee"><div class="qr" aria-hidden="true"></div><div><p class="fee-amount">${esc(money(f))}</p><p class="hint">a year, per ${esc(f.per)} · by transfer, reference “${esc(c.name)} · ${esc(d.name)}”</p></div></div>
+      <div class="row"><button type="button" id="joinpaid">I've made the transfer</button><button type="button" class="link" id="joinstop">Not now</button></div>`;
 }
 function collectivesTool(){
   const st = states();
@@ -2013,24 +2064,29 @@ function shelfHtml(c, st){
     ${S.ruleOpen===c.id && r ? `<p class="rule">${r.reminders} reminders, ${r.every} days apart, then ${esc(poss(c.name))} tools pause. Renewing brings them back. Nothing is deleted. This is ${esc(poss(c.name))} rule, read from their pod.</p>` : ""}
     ${bandHtml(c,h)}${rows?`<ul class="trows">${rows}</ul>`:""}${simHtml(c,h)}</div>`;
 }
+function renewHtml(c, h){
+  if(!c.fee) return `<div class="row"><button type="button" data-renew="${c.id}">Renew with ${esc(c.name)} ↗</button><span class="hint">Dry run: their membership page would open. Here the renewal is recorded at once.</span></div>`;
+  if(h.renewDeclared) return sayC("sayRenewDeclared",{collective:c.name}) + waitHtml(h);
+  return sayC("sayRenewFee") + `<div class="row"><button type="button" data-renewpaid="${c.id}">I've made the transfer · ${esc(money(c.fee))}</button></div>`;
+}
 function bandHtml(c, h){
   const r = c.rule;
   if(h.state==="due"){
-    const next = h.reminders < r.reminders ? remindDay(r, h.reminders+1) : pauseDay(r);
-    const ladder = Array.from({length:r.reminders},(_,i)=>i+1).map(k=>`<li class="${k<h.reminders?"ok":k===h.reminders?"now":"next"}"><i>${k<h.reminders?"✓":k}</i>Reminder ${k} · ${esc(remindDay(r,k))}</li>`).join("")
-      + `<li class="next"><i>‖</i>Tools pause · ${esc(pauseDay(r))}</li>`;
+    const next = h.reminders < r.reminders ? remindDay(r, h.reminders+1, h) : pauseDay(r,h);
+    const ladder = Array.from({length:r.reminders},(_,i)=>i+1).map(k=>`<li class="${k<h.reminders?"ok":k===h.reminders?"now":"next"}"><i>${k<h.reminders?"✓":k}</i>Reminder ${k} · ${esc(remindDay(r,k,h))}</li>`).join("")
+      + `<li class="next"><i>‖</i>Tools pause · ${esc(pauseDay(r,h))}</li>`;
     return `<div class="band" role="status">${sayC("sayReminder",{collective:c.name, next})}<ol class="ladder" aria-label="${esc(poss(c.name))} renewal schedule">${ladder}</ol>
-      <div class="row"><button type="button" data-renew="${c.id}">Renew with ${esc(c.name)} ↗</button><span class="hint">Dry run: their membership page would open. Here the renewal is recorded at once.</span></div></div>`;
+      ${renewHtml(c, h)}</div>`;
   }
   if(h.state==="paused") return `<div class="band pause" role="status">${sayC("sayPaused",{collective:c.name})}
       ${steps([["✓","ok","<strong>Your pin stays on the map.</strong> The "+esc(c.name)+" badge on your card goes dashed until you renew."],["✓","ok","<strong>Your pins and settings stay.</strong> They live in your pod, not theirs."],["‖","","<strong>Their tiles lock</strong> until the membership is settled with them."]])}
-      <div class="row"><button type="button" data-renew="${c.id}">Renew with ${esc(c.name)} ↗</button></div></div>`;
+      ${renewHtml(c, h)}</div>`;
   if(h.restored) return `<div class="band back" role="status">${sayC("sayRestored")}
       ${steps([["✓","ok",`<strong>${esc(c.name)} recorded your renewal.</strong>`],["✓","ok","<strong>The handshake is solid again.</strong> Your card's badge too."],["✓","ok","<strong>Their tiles open again.</strong> Everything untouched."]])}</div>`;
   return "";
 }
 function simHtml(c, h){
-  const r = c.rule; if(!r) return "";
+  const r = c.rule; if(!r || c.fee) return "";   // a network with a fee is played from its own side: the treasury tab
   let btn;
   if(h.state==="paused") btn = `<button type="button" class="ghost" data-renew="${c.id}">Record a renewal</button>`;
   else if(h.reminders < r.reminders) btn = `<button type="button" class="ghost" data-remind="${c.id}">Send reminder ${h.reminders+1} of ${r.reminders}</button>`;
@@ -2046,7 +2102,8 @@ function svcPanel(t, s){
   const facts = `<ul class="facts"><li><b>Run by</b><span>${esc(c.name)}, on their own server (${esc(dom)})</span></li>
     <li><b>Your data</b>${whereHtml(c,tool)}</li><li><b>Who gets in</b><span>Members. The gate checks your handshake each time.</span></li></ul>`;
   if(s==="lock") return label + head(t.title, "Paused") + sayC("sayRefused",{collective:c.name}) + `<p class="kept"><b>Kept:</b> ${esc(tool.kept||"everything")}.</p>`
-    + `<div class="row" style="margin-top:12px"><button type="button" data-renew="${c.id}">Renew with ${esc(c.name)} ↗</button><button type="button" class="ghost" data-go="join">Your collectives</button></div>`;
+    + (c.fee ? `<div style="margin-top:12px">${renewHtml(c, S.hs[c.id])}</div><div class="row"><button type="button" class="ghost" data-go="join">Your collectives</button></div>`
+      : `<div class="row" style="margin-top:12px"><button type="button" data-renew="${c.id}">Renew with ${esc(c.name)} ↗</button><button type="button" class="ghost" data-go="join">Your collectives</button></div>`);
   const first = s!=="done", pinned = PREFS.pins.includes(t.id);
   const star = `<button type="button" class="star adv" data-pin="${t.id}" aria-pressed="${pinned}" aria-label="${pinned?"Unpin":"Pin"} ${esc(t.title)}, ${esc(c.name)}">${STAR}</button>`;
   let body = label + `<div class="head"><h2>${esc(t.title)}</h2>${first?"":star}</div>` + (first ? say(t.say) : `<p class="hint">${esc(tool.blurb||"")}</p>`) + facts;
@@ -2059,7 +2116,7 @@ function gateHtml(t, c, tool){
   const list = [
     ["Your WebID", `https://${podName()}.pod.mapsofmaking.org/profile/card#me`],
     [`${c.name} lists you as a member`, "read from their pod"],
-    [h.state==="due" ? `Membership due, still open until ${pauseDay(c.rule)}` : "Membership in good standing", c.rule ? `their rule: ${c.rule.reminders} reminders, then a pause` : ""],
+    [h.state==="due" ? `Membership due, still open until ${pauseDay(c.rule,h)}` : "Membership in good standing", c.rule ? `their rule: ${c.rule.reminders} reminders, then a pause` : ""],
     [`Signed in to ${t.title} as ${S.data.accEmail||S.data.email||"the space's mailbox"}`, "group: members"]];
   const rows = list.map(([lab, note], i)=>[i<n?"✓":String(i+1), i<n?"ok":i===n?"now":"", i<n?`<strong>${esc(lab)}.</strong> <span class="hint">${esc(note)}</span>`:esc(lab)+(i===n?"…":"")]);
   const done = n >= list.length;
@@ -2103,7 +2160,11 @@ function wireCollectives(){
   on("[data-rule]", el=>{ S.ruleOpen = S.ruleOpen===el.dataset.rule ? null : el.dataset.rule; render(); });
   on("[data-remind]", el=>{ const h=S.hs[el.dataset.remind]; h.reminders++; h.state="due"; h.restored=false; S.simOpen=el.dataset.remind; render(); });
   on("[data-pause]", el=>{ const h=S.hs[el.dataset.pause]; h.state="paused"; h.restored=false; S.simOpen=el.dataset.pause; S.gate=null; render(); });
-  on("[data-renew]", el=>{ const id=el.dataset.renew, h=S.hs[id]; h.state="active"; h.reminders=0; h.restored=true; S.simOpen=id; render(); });
+  on("[data-renew]", el=>{ const id=el.dataset.renew, h=S.hs[id]; if(colById[id].fee){ confirmPayment(id); render(); return; } h.state="active"; h.reminders=0; h.restored=true; S.simOpen=id; render(); });
+  on("[data-renewpaid]", el=>{ const h=S.hs[el.dataset.renewpaid]; h.renewDeclared = {on:TODAY, how:"transfer"}; h.wait = WAIT_S; ensureTick(); render(); });
+  on("[data-confirm]", el=>{ confirmPayment(el.dataset.confirm); render(); });
+  on("[data-copycsv]", el=>{ const txt = document.getElementById("csv")?.textContent||"", note = document.getElementById("csvnote");
+    try{ navigator.clipboard.writeText(txt).then(()=>note.textContent="Copied.",()=>note.textContent="Select the text to copy it."); }catch(_){ note.textContent="Select the text to copy it."; } });
   on("[data-join]", el=>{ requestJoin(colById[el.dataset.join].name); render(); });
   b.querySelectorAll("details.sim").forEach(d=>d.addEventListener("toggle",()=>{ if(d.open) S.simOpen=d.dataset.sim; else if(S.simOpen===d.dataset.sim) S.simOpen=null; }));
 }
@@ -2119,7 +2180,8 @@ const spaceName = () => S.data.name || "The space";
 const peersOf = c => [...new Set(c.offers.flatMap(o=>o.events||[]).map(e=>e.at))];
 function netChip(h){
   if(!h) return "";
-  if(h.state==="requested") return `<span class="chip warn">Request</span>`;
+  if(h.state==="requested") return `<span class="chip warn">${h.declared ? "Paid · to confirm" : "Request"}</span>`;
+  if(h.renewDeclared) return `<span class="chip warn">Renewal · to confirm</span>`;
   if(h.state==="paused") return `<span class="chip dashed">Paused</span>`;
   if(h.state==="due") return `<span class="chip warn">Due · reminder ${h.reminders}</span>`;
   return `<span class="chip">Member</span>`;
@@ -2128,7 +2190,7 @@ function networkPanel(role){
   const c = netCol(), h = S.hs[c.id], peers = peersOf(c), treas = role==="treasury";
   if(h && !S.netSel) S.netSel = "me";
   const item = (key, name, chip, note, isNew) => `<li><button type="button" class="net-item${isNew?" new":""}" data-net="${esc(key)}" aria-current="${S.netSel===key}"><b>${esc(name)}</b>${chip}${note?`<small>${esc(note)}</small>`:""}</button></li>`;
-  const mine = h ? item("me", spaceName(), netChip(h), h.state==="requested" ? "Asked today, from its own pod" : treas && h.state==="due" ? "Next step on "+(h.reminders<c.rule.reminders ? remindDay(c.rule,h.reminders+1) : pauseDay(c.rule)) : "", h.state==="requested" || (treas && h.state==="due")) : "";
+  const mine = h ? item("me", spaceName(), netChip(h), h.state==="requested" ? (h.declared ? "Profile complete · payment declared today" : "Asked today, from its own pod") : treas && h.renewDeclared ? "Renewal payment declared today" : treas && h.state==="active" && h.until ? "Paid until "+fmtDay(h.until) : treas && h.state==="due" ? "Next step on "+(h.reminders<c.rule.reminders ? remindDay(c.rule,h.reminders+1,h) : pauseDay(c.rule,h)) : "", h.state==="requested" || (treas && (h.state==="due" || !!h.renewDeclared))) : "";
   const list = `<ul class="net-list">${mine}${peers.map(p=>item("p:"+p, p, `<span class="chip">Member</span>`, treas ? "In good standing" : "")).join("")}</ul>`;
   const count = treas ? `${peers.length + (h && h.state==="active" ? 1 : 0)} in good standing${h && h.state==="due" ? " · 1 due" : ""}${h && h.state==="paused" ? " · 1 paused" : ""}`
     : `${peers.length + (h && h.state!=="requested" ? 1 : 0)} members${h && h.state==="requested" ? " · 1 request" : ""}`;
@@ -2149,8 +2211,9 @@ function welcomeDetail(c, h){
         <li><b>Where</b><span>${esc(locality(d.address) || "not said")}</span></li>
         <li><b>Contact</b><span>${esc(d.email || "not said")}</span></li></ul>
       <p class="hint" style="margin-top:8px">Read from the space's own pod, not typed again here. When the space changes a line, this page shows the new one.</p>
-      <p class="label" style="margin-top:16px">A yes opens</p>${opens}
-      <div class="row" style="margin-top:14px"><button type="button" data-accept="${c.id}">Say yes</button><span class="hint">Saying yes stays a person's decision. Dry run: left alone on the space's side, the answer comes after a few seconds.</span></div>`;
+      ${c.fee ? `<p class="label" style="margin-top:16px">${esc(c.name)} asks for</p><ul class="needs">${c.fee.requires.map(k=>`<li class="${hasField(d,k)?"ok":""}"><i>${hasField(d,k)?"✓":"○"}</i>${esc(flabel(k))}</li>`).join("")}</ul>` : ""}
+      <p class="label" style="margin-top:16px">${c.fee ? "Once the treasury confirms the payment, it opens" : "A yes opens"}</p>${opens}
+      ${c.fee ? `<p class="hint" style="margin-top:12px">The profile is complete and a payment is declared. The yes is the treasury's: it confirms the payment.</p>` : `<div class="row" style="margin-top:14px"><button type="button" data-accept="${c.id}">Say yes</button><span class="hint">Saying yes stays a person's decision. Dry run: left alone on the space's side, the answer comes after a few seconds.</span></div>`}`;
   return head(spaceName(), h.state==="paused" ? "Paused" : "Member")
     + steps([["✓","ok",`<strong>Listed as a member in ${esc(poss(c.name))} pod.</strong> The space states the same in its own: a handshake.`],
         ["✓","ok", c.offers.length ? `<strong>${c.offers.map(o=>esc(o.title)).join(" and ")} let it in.</strong> Each tool's gate reads the handshake. No account was made by hand.` : `<strong>The badge shows on its card.</strong>`],
@@ -2158,21 +2221,35 @@ function welcomeDetail(c, h){
     + `<p class="label" style="margin-top:16px">Open to it</p>${opens}`;
 }
 function treasuryDetail(c, h){
-  const r = c.rule;
-  const ahead = `<p class="ahead">Still ahead in this dry run: the fee itself, and an export of memberships to the network's own CRM (Zoho, Dolibarr, Odoo).</p>`;
-  if(h.state==="requested") return head(spaceName(), "Not a member yet") + `<p class="hint">The welcome side answers the request first. Nothing to follow here until then.</p>` + ahead;
-  if(!r) return head(spaceName(), "Member") + `<p class="hint">${esc(c.name)} has published no renewal rule, so nothing falls due.</p>` + ahead;
-  const rule = `<p class="rule">The rule ${esc(c.name)} published, and each member accepted on joining: ${r.reminders} reminders, ${r.every} days apart, then the tools pause. A renewal brings them back.</p>`;
-  const ladder = `<ol class="ladder" style="margin:12px 0" aria-label="Renewal schedule">${Array.from({length:r.reminders},(_,i)=>i+1).map(k=>`<li class="${k<h.reminders || h.state==="paused" ? "ok" : k===h.reminders ? "now" : "next"}"><i>${k<h.reminders || h.state==="paused" ? "✓" : k}</i>Reminder ${k} · ${esc(remindDay(r,k))}</li>`).join("")}<li class="${h.state==="paused"?"now":"next"}"><i>‖</i>Tools pause · ${esc(pauseDay(r))}</li></ol>`;
-  const renew = `<button type="button" class="ghost" data-renew="${c.id}">Record a renewal</button>`;
-  if(h.state==="paused") return head(spaceName(), "Paused") + rule + ladder + `<p class="hint">The tools refuse this member since ${esc(pauseDay(r))}. Nothing was deleted, on your server or in its pod.</p><div class="row" style="margin-top:12px">${renew}</div>` + ahead;
+  const r = c.rule, f = c.fee;
+  if(h.state==="requested" && !f) return head(spaceName(), "Not a member yet") + `<p class="hint">The welcome side answers the request first. Nothing to follow here until then.</p>`;
+  if(h.state==="requested") return head(spaceName(), "Payment declared")
+    + `<ul class="facts"><li><b>Fee</b><span>${esc(money(f))}, a year, per ${esc(f.per)}</span></li><li><b>Declared</b><span>Today, by transfer · “${esc(c.name)} · ${esc(spaceName())}”</span></li>
+        <li><b>Profile</b><span>Complete: ${f.requires.map(flabel).map(esc).join(", ").toLowerCase()}</span></li></ul>
+      <div class="row" style="margin-top:14px"><button type="button" data-confirm="${c.id}">Payment seen: confirm</button><span class="hint">This confirmation is the yes. The invoice is made now, already paid.</span></div>`;
+  if(!r) return head(spaceName(), "Member") + `<p class="hint">${esc(c.name)} has published no renewal rule, so nothing falls due.</p>`;
+  const rule = `<p class="rule">The rule ${esc(c.name)} published, and each member accepted on joining:${f ? ` ${esc(money(f))} a year;` : ""} ${r.reminders} reminders, ${r.every} days apart, then the tools pause. A renewal brings them back.</p>`;
+  const ladder = `<ol class="ladder" style="margin:12px 0" aria-label="Renewal schedule">${Array.from({length:r.reminders},(_,i)=>i+1).map(k=>`<li class="${k<h.reminders || h.state==="paused" ? "ok" : k===h.reminders ? "now" : "next"}"><i>${k<h.reminders || h.state==="paused" ? "✓" : k}</i>Reminder ${k} · ${esc(remindDay(r,k,h))}</li>`).join("")}<li class="${h.state==="paused"?"now":"next"}"><i>‖</i>Tools pause · ${esc(pauseDay(r,h))}</li></ol>`;
+  const renew = h.renewDeclared ? `<button type="button" data-renew="${c.id}">Payment seen: confirm the renewal</button>` : `<button type="button" class="ghost" data-renew="${c.id}">${f ? "Payment seen: record the renewal" : "Record a renewal"}</button>`;
+  const until = f && h.until ? `<li><b>Paid until</b><span>${esc(fmtDay(h.until))}</span></li>` : "";
+  if(h.state==="paused") return head(spaceName(), "Paused") + rule + ladder + `<p class="hint">The tools refuse this member since ${esc(pauseDay(r,h))}. Nothing was deleted, on your server or in its pod.</p><div class="row" style="margin-top:12px">${renew}</div>` + crmHtml(c, h);
   if(h.state==="due"){
     const next = h.reminders < r.reminders ? `<button type="button" data-remind="${c.id}">Send reminder ${h.reminders+1} of ${r.reminders}</button>` : `<button type="button" data-pause="${c.id}">Pause, as the rule says</button>`;
-    return head(spaceName(), `Due · reminder ${h.reminders} of ${r.reminders}`) + rule + ladder + `<p class="hint">The member sees the same schedule on its side, and the tools stay open meanwhile.</p><div class="row" style="margin-top:12px">${next}${renew}</div>` + ahead;
+    return head(spaceName(), `Due · reminder ${h.reminders} of ${r.reminders}`) + rule + ladder + `<div class="row" style="margin-top:12px">${h.renewDeclared ? renew : next + renew}</div>` + crmHtml(c, h);
   }
-  return head(spaceName(), h.restored ? "Renewed" : "In good standing") + rule
-    + (h.restored ? steps([["✓","ok","<strong>Renewal recorded.</strong>"],["✓","ok","<strong>The tools let it in again.</strong> Nothing had to be set up anew."]]) : "")
-    + `<div class="row" style="margin-top:12px"><button type="button" data-remind="${c.id}">Send reminder 1 of ${r.reminders}</button><span class="hint">Dry run: this jumps to the day the membership falls due.</span></div>` + ahead;
+  return head(spaceName(), h.restored ? "Renewed" : "In good standing") + (until ? `<ul class="facts">${until}</ul>` : "") + rule
+    + `<div class="row" style="margin-top:12px"><button type="button" class="ghost" data-remind="${c.id}">Send reminder 1 of ${r.reminders}</button><span class="hint">Dry run: jumps to ${esc(fmtDay(dueOf(h)))}, when the membership falls due.</span></div>` + crmHtml(c, h);
+}
+/* The line the network's CRM imports: one per payment. Nothing is sent; the CRM stays the network's. */
+function crmHtml(c, h){
+  const f = c.fee; if(!f || !(h.payments||[]).length) return "";
+  const d = S.data, iso = ms => new Date(ms).toISOString().slice(0,10), q = v => /[",;\n]/.test(v) ? `"${String(v).replace(/"/g,'""')}"` : v;
+  const cols = ["Company","Member type","Email","Address","Town","WebID","Subscription start","Subscription end","Amount","Currency","Payment"];
+  const rows = h.payments.map(p=>[d.name, "Space", d.email, d.address, locality(d.address), `https://${podName()}.pod.mapsofmaking.org/profile/card#me`, iso(p.from), iso(p.to), p.amount, f.currency, p.how]);
+  const csv = [cols, ...rows].map(r=>r.map(v=>q(String(v??""))).join(",")).join("\n");
+  return `<div class="out"><p class="label" style="margin:0">For ${esc(f.crm||"your CRM")} · members module</p>
+    <pre class="csv" id="csv">${esc(csv)}</pre>
+    <div class="row"><button type="button" class="ghost" data-copycsv="1">Copy the lines</button><span class="hint" id="csvnote" aria-live="polite">Match the columns once in your ${esc(f.crm||"CRM")} import profile. Nothing is sent from here.</span></div></div>`;
 }
 function renderRoles(){
   document.getElementById("roles").innerHTML = ROLES.map(([id,group,label])=>`<button type="button" role="tab" data-role="${id}" aria-selected="${S.role===id}">${group?`<small>${group}</small>`:""}${label}</button>`).join("");
@@ -2265,7 +2342,7 @@ document.getElementById("undo").addEventListener("click",()=>{
   if(S.step || S.editing){ S.step=null; S.editing=false; render(); return; }
   const id = S.done.pop();
   if(id==="keep" && !S.fromPod){ S.branch=null; S.data.account=null; S.signedIn=false; }
-  if(id==="join"){ S.data.accepted=false; S.hs={}; S.gate=null; S.justAccepted=null; removeSvc(); }
+  if(id==="join"){ S.data.accepted=false; S.hs={}; S.gate=null; S.justAccepted=null; S.joinStep=null; removeSvc(); }
   if(byId[id]?.svc){ /* a collective tile: undone, it waits for its first look again */ }
   if(id==="change" && S.data.lastChange){ Object.entries(S.data.lastChange).forEach(([f,[from]])=>S.data[f]=from); S.data.lastChange=null; S.justSaved=false; syncEmail(); }
   S.selected = id || "describe"; render();
@@ -2284,7 +2361,9 @@ function preset(name){
   S.branch = "pod"; S.signedIn = true; S.done = ["describe","keep"]; S.selected = "keep";
   if(name==="member"){
     d.hours = ui(byId.change,"uiHoursPlaceholder"); d.network = "Brussels Makers"; S.done.push("change","join");
-    const c = requestJoin(d.network); S.hs[c.id].state = "active"; d.accepted = true; S.justAccepted = c.id; S.selected = "join";
+    const c = requestJoin(d.network, {on:TODAY - 300*DAY, how:"transfer"}), h = S.hs[c.id];
+    if(c.fee){ h.payments = [{from:TODAY - 300*DAY, to:TODAY + 65*DAY, amount:c.fee.amount, how:"transfer"}]; h.until = TODAY + 65*DAY; h.declared = null; }
+    h.state = "active"; d.accepted = true; S.justAccepted = c.id; S.selected = "join";
   }
 }
 function fromHash(){ const h = location.hash.slice(1);
