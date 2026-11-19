@@ -15,12 +15,21 @@
  * The name commits on Tab or Enter (or on leaving it) and opens where; the
  * city commits and opens the rest. A beat not reached yet is `inert`, so focus
  * can't land in it early. A draft that already has the values opens them all.
+ *
+ * A space or a network (2026-11-19): the first choice, two buttons over a
+ * hidden `kind` input; a space unless a network is picked, so a space's form
+ * works exactly as before. A network has no street or city: its where is the
+ * area it serves, picked from the areas the map names (a select, not a typed
+ * code: nothing the geocoder or the map can't read reaches either). Both
+ * where parts are drawn; the one not chosen is hidden and inert, and is left
+ * out of the draft when the form is read back.
  */
 import type { FieldWords, Tile } from "../tree/parse";
 import { esc } from "./html";
 import { tileUi } from "./tilewords";
-import type { Draft } from "./previews";
+import type { Draft, PreviewWords } from "./previews";
 import { pinLine, pinned } from "./where";
+import { cleanAreas } from "../lib/spacefile";
 
 type Key = "name" | "street" | "city" | "description" | "email" | "matrix" | "website" | "logo";
 
@@ -53,14 +62,25 @@ const FIELDS = [...BEDROCK, ...OPTIONAL];
 /** What where.ts writes into the form: read back into the draft with the fields. */
 const WHERE = ["country", "lat", "lon", "postcode", "place"] as const;
 const REST = OPTIONAL.map((f) => f.key);
+/** A space's where, left out of a network's draft. */
+const SPACE_ONLY = ["street", "city", "postcode"] as const;
+
+/**
+ * The areas a network can pick: the map's own (web/app.js AREA_NAMES), each named by its `onb:uiArea*` line.
+ * More come when a network elsewhere asks; the geocode proxy and the file take any ISO 3166 code already.
+ */
+export const AREAS = ["BE", "BE-VLG", "BE-WAL", "BE-BRU"] as const;
+const areaKey = (code: string) => `uiArea${code.replace("-", "")}` as UiKey;
 
 /** Every field the form draws, typed or worked out: each needs its words in the tree. */
-export const FIELD_KEYS: readonly string[] = [...FIELDS.map((f) => f.key), "country", "lat", "lon"];
+export const FIELD_KEYS: readonly string[] = [...FIELDS.map((f) => f.key), "area", "country", "lat", "lon"];
 /** Every `onb:ui*` line tile A shows (form, card, where.ts): each needs to be in the tree. */
 export const UI_KEYS = [
   "uiSeeMap", "uiOptional", "uiMore", "uiCta", "uiExample", "uiStartOver", "uiStartOverAsk", "uiClear",
   "uiKeepIt", "uiCleared", "uiFix", "uiChange", "uiNotOnPod", "uiPinWorking", "uiPinFound", "uiPinByHand",
   "uiStreetMissed", "uiNoResult", "uiUnavailable", "uiRate", "uiAddedScheme", "uiAddedRoom",
+  "uiKind", "uiKindSpace", "uiKindNetwork", "uiNameNetwork", "uiAreaBE", "uiAreaBEVLG", "uiAreaBEWAL", "uiAreaBEBRU",
+  "uiPinArea", "uiNoResultArea", "uiUnavailableArea", "uiRateArea", "uiYourNetwork", "uiServes",
 ] as const;
 export type UiKey = (typeof UI_KEYS)[number];
 
@@ -92,6 +112,29 @@ export function describeWords(tile: Pick<Tile, "ui" | "fields"> | undefined): De
   };
 }
 
+/** An area's name in the tree's words; a code the list doesn't name (read from a pod) shows as itself. */
+export function areaName(code: string, w: Pick<DescribeWords, "ui">): string {
+  return (AREAS as readonly string[]).includes(code) ? w.ui(areaKey(code)) || code : code;
+}
+
+/** The areas, named and joined ("Flanders, Brussels"). */
+export const areaNames = (codes: readonly string[] | undefined, w: Pick<DescribeWords, "ui">) =>
+  (codes ?? []).map((c) => areaName(c, w)).join(", ");
+
+/** The words a network's preview takes from tile A (previews.ts): "Your network", "Serves Flanders". */
+export function previewWords(w: Pick<DescribeWords, "ui">): PreviewWords {
+  return {
+    yourNetwork: w.ui("uiYourNetwork"),
+    areas: (d) => areaNames(cleanAreas(d.areaServed), w),
+    serves: (d) => {
+      const areas = areaNames(cleanAreas(d.areaServed), w);
+      return areas ? w.ui("uiServes", { area: areas }) : "";
+    },
+  };
+}
+
+type Kind = "space" | "network";
+
 type Beat = "where" | "rest";
 
 const beat = (name: Beat, open: boolean, body: string) =>
@@ -100,7 +143,12 @@ const beat = (name: Beat, open: boolean, body: string) =>
 function field(f: Field, draft: Draft, w: DescribeWords): string {
   const id = `f-${f.key}`;
   const { label, placeholder, hint } = w.field(f.key);
-  return `<label class="wb-field" for="${id}">${esc(label)}
+  // The name's label says what is named; both are on the label, so picking the kind swaps it in place.
+  const named =
+    f.key === "name"
+      ? ` data-label-space="${esc(label)}" data-label-network="${esc(w.ui("uiNameNetwork"))}"><span class="wb-field-name">${esc(draft.kind === "network" ? w.ui("uiNameNetwork") : label)}</span>`
+      : `>${esc(label)}`;
+  return `<label class="wb-field" for="${id}"${named}
         <input id="${id}" name="${f.key}" type="${f.type ?? "text"}" value="${esc(draft[f.key] ?? "")}"
           ${placeholder ? `placeholder="${esc(placeholder)}"` : ""}
           ${f.autocomplete ? `autocomplete="${f.autocomplete}"` : ""}
@@ -111,6 +159,37 @@ function field(f: Field, draft: Draft, w: DescribeWords): string {
       </label>`;
 }
 
+/** The first choice: a space or a network. Two buttons over a hidden input, so the form's fields stay its fields. */
+function kindChoice(kind: Kind, w: DescribeWords): string {
+  const option = (k: Kind, words: UiKey) =>
+    `<button type="button" class="btn wb-kind-option" data-kind="${k}" aria-pressed="${kind === k}">${esc(w.ui(words))}</button>`;
+  return `
+      <div class="wb-kind" role="group" aria-labelledby="f-kind-q">
+        <p class="wf-label" id="f-kind-q">${esc(w.ui("uiKind"))}</p>
+        <div class="wb-kind-options">${option("space", "uiKindSpace")}${option("network", "uiKindNetwork")}</div>
+        <input type="hidden" name="kind" value="${kind}" />
+      </div>`;
+}
+
+/** A network's where: the area it serves, from the map's list (a code read from the pod that isn't listed stays). */
+function areaField(draft: Draft, w: DescribeWords): string {
+  const { label, placeholder, hint } = w.field("area");
+  const current = cleanAreas(draft.areaServed)[0] ?? "";
+  const codes: string[] = [...AREAS];
+  if (current && !codes.includes(current)) codes.push(current);
+  const options = codes.map((c) => `<option value="${esc(c)}"${c === current ? " selected" : ""}>${esc(areaName(c, w))}</option>`).join("");
+  return `<label class="wb-field" for="f-area">${esc(label)}
+        <select id="f-area" name="area"${hint ? ` aria-describedby="f-area-hint"` : ""}>
+          <option value=""${current ? "" : " selected"}>${esc(placeholder ?? "")}</option>${options}
+        </select>
+        ${hint ? `<span class="hint" id="f-area-hint">${esc(hint)}</span>` : ""}
+      </label>`;
+}
+
+/** The where part of one kind: shown and reachable when it is the kind picked, hidden and inert otherwise. */
+const part = (kind: Kind, on: boolean, cls: string, body: string) =>
+  `<div${cls ? ` class="${cls}"` : ""} data-kind-part="${kind}"${on ? "" : " hidden inert"}>${body}</div>`;
+
 /**
  * Under street and city: the pin line, and the two fallbacks where.ts opens
  * when the geocoder can't answer for everything (a country, the coordinates).
@@ -119,7 +198,8 @@ function whereOut(draft: Draft, w: DescribeWords): string {
   const line = pinLine(draft, w);
   // Resumed (AC7): a pin set by hand reopens the fallbacks it was typed in.
   const byHand = !!draft.lat && !draft.place;
-  const needCountry = (!!draft.lat && !draft.country) || byHand;
+  // A network's country is its area's: never asked.
+  const needCountry = draft.kind !== "network" && ((!!draft.lat && !draft.country) || byHand);
   const country = w.field("country");
   const lat = w.field("lat");
   const lon = w.field("lon");
@@ -138,7 +218,8 @@ function whereOut(draft: Draft, w: DescribeWords): string {
           <label class="wb-field" for="f-lon">${esc(lon.label)}<input id="f-lon" name="lon" type="number" step="any" min="-180" max="180" value="${esc(draft.lon ?? "")}"${ph(lon)} /></label>
         </div>
         <input type="hidden" name="postcode" value="${esc(draft.postcode ?? "")}" />
-        <input type="hidden" name="place" value="${esc(draft.place ?? "")}" />`;
+        <input type="hidden" name="place" value="${esc(draft.place ?? "")}" />
+        <input type="hidden" name="fidelity" value="${esc(draft.fidelity ?? "")}" />`;
 }
 
 /**
@@ -147,24 +228,33 @@ function whereOut(draft: Draft, w: DescribeWords): string {
  * A country typed by hand is part of the ask; a derived one isn't (where.ts).
  */
 function locatedKey(draft: Draft): string | null {
+  if (draft.kind === "network") {
+    const area = cleanAreas(draft.areaServed)[0];
+    return draft.lat && draft.lon && draft.place && area ? `area|${area}` : null;
+  }
   if (!draft.lat || !draft.lon || !draft.place || !draft.city) return null;
   return `${draft.street ?? ""}|${draft.city}|`;
 }
 
 export function renderDescribeForm(draft: Draft, w: DescribeWords): string {
   const [name, street, city] = BEDROCK.map((f) => field(f, draft, w));
-  const ready = !!(draft.name && draft.city && draft.lat && draft.lon && draft.country);
+  const network = draft.kind === "network";
+  const kind: Kind = network ? "network" : "space";
+  // Where is the city for a space, the area for a network.
+  const where = network ? !!cleanAreas(draft.areaServed).length : !!draft.city;
+  const ready = !!(draft.name && where && draft.lat && draft.lon && draft.country);
   const located = locatedKey(draft);
-  const typed = FIELDS.some((f) => draft[f.key]);
+  const typed = FIELDS.some((f) => draft[f.key]) || (network && where);
   // Anything optional already typed keeps the fold open: nothing typed hides behind it.
   const more = OPTIONAL.some((f) => draft[f.key]);
   return `
     <form id="f-describe" class="wb-form${more ? " more-open" : ""}" novalidate${located ? ` data-located="${esc(located)}"` : ""}>
+      ${kindChoice(kind, w)}
       ${name}
-      ${beat("where", !!draft.name, `<div class="wb-doors">${street}${city}</div>${whereOut(draft, w)}`)}
+      ${beat("where", !!draft.name, `${part("space", !network, "wb-doors", `${street}${city}`)}${part("network", network, "", areaField(draft, w))}${whereOut(draft, w)}`)}
       ${beat(
         "rest",
-        !!draft.name && !!draft.city,
+        !!draft.name && where,
         // On a phone the optional fields fold behind one line (AC3); home.css shows the button there only.
         `<button type="button" class="inline-link wb-more" id="more" aria-expanded="${more}" aria-controls="f-optional">${esc(w.ui("uiMore"))}</button>
         <fieldset class="wb-optional" id="f-optional">
@@ -185,7 +275,10 @@ export function renderDescribeForm(draft: Draft, w: DescribeWords): string {
     </form>`;
 }
 
-/** Reads the form back into the draft. Only what was typed: empty stays empty. */
+/**
+ * Reads the form back into the draft. Only what was typed: empty stays empty. A space's draft holds no area
+ * and no kind (absent is a space); a network's holds no street, city or postcode.
+ */
 export function readDescribeForm(form: HTMLFormElement, draft: Draft): void {
   const data = new FormData(form);
   for (const key of [...FIELDS.map((f) => f.key), ...WHERE]) {
@@ -193,6 +286,59 @@ export function readDescribeForm(form: HTMLFormElement, draft: Draft): void {
     if (value) draft[key] = value;
     else delete draft[key];
   }
+  if (kindOf(form) === "network") {
+    draft.kind = "network";
+    for (const key of SPACE_ONLY) delete draft[key];
+    const picked = areaOf(form);
+    // One area is picked here. A draft read from the pod with several shows the first: left as it is, it keeps them all.
+    if (!picked) delete draft.areaServed;
+    else if (cleanAreas(draft.areaServed)[0] !== picked) draft.areaServed = [picked];
+    const fidelity = String(data.get("fidelity") ?? "").trim();
+    if (fidelity) draft.fidelity = fidelity;
+    else delete draft.fidelity;
+  } else {
+    delete draft.kind;
+    delete draft.areaServed;
+    delete draft.fidelity;
+  }
+}
+
+/** The kind picked in the form: a space unless a network is. */
+export function kindOf(form: HTMLFormElement): Kind {
+  return (form.elements.namedItem("kind") as HTMLInputElement | null)?.value === "network" ? "network" : "space";
+}
+
+/**
+ * Picks the kind in place: the buttons, the name's label, which where part is shown. What was typed in the
+ * other part stays in its fields (switching back finds it); the pin goes, it was for the other where.
+ * Returns true when the kind changed.
+ */
+export function setKind(form: HTMLFormElement, kind: Kind): boolean {
+  const hidden = form.elements.namedItem("kind") as HTMLInputElement | null;
+  if (!hidden || hidden.value === kind) return false;
+  hidden.value = kind;
+  for (const b of form.querySelectorAll<HTMLElement>("[data-kind]")) b.setAttribute("aria-pressed", String(b.dataset.kind === kind));
+  for (const p of form.querySelectorAll<HTMLElement>("[data-kind-part]")) {
+    const on = p.dataset.kindPart === kind;
+    p.hidden = !on;
+    p.toggleAttribute("inert", !on);
+  }
+  const label = form.querySelector<HTMLElement>('label[for="f-name"]');
+  const name = label?.querySelector(".wb-field-name");
+  if (label && name) name.textContent = (kind === "network" ? label.dataset.labelNetwork : label.dataset.labelSpace) ?? "";
+  // The rest opens on the where of the kind picked.
+  if (filled(form, "name") && whereFilled(form)) reveal(form, "rest");
+  return true;
+}
+
+/** The where of the kind picked is given: the city for a space, the area for a network. */
+function whereFilled(form: HTMLFormElement): boolean {
+  return kindOf(form) === "network" ? !!areaOf(form) : filled(form, "city");
+}
+
+/** The area picked, as a code the map reads; "" when none. */
+export function areaOf(form: HTMLFormElement): string {
+  return cleanAreas([(form.elements.namedItem("area") as HTMLSelectElement | null)?.value ?? ""])[0] ?? "";
 }
 
 /** "Fill in an example": the tree's `onb:example`s, a space that doesn't exist. */
@@ -201,6 +347,9 @@ export function fillExample(form: HTMLFormElement, w: DescribeWords): void {
     const input = form.elements.namedItem(f.key) as HTMLInputElement | null;
     if (input) input.value = w.field(f.key).example ?? "";
   }
+  // A network's example serves the tree's example area.
+  const area = form.elements.namedItem("area") as HTMLSelectElement | null;
+  if (area && kindOf(form) === "network") area.value = w.field("area").example ?? "";
   reveal(form, "where");
   reveal(form, "rest");
   showMore(form, true);
@@ -227,9 +376,9 @@ export function reveal(form: HTMLFormElement, name: Beat): void {
 /** The card needs a name, a city and a pin; until then the button says so by being off. */
 export function syncCta(form: HTMLFormElement): void {
   const cta = form.querySelector<HTMLButtonElement>("button[type=submit]");
-  if (cta) cta.disabled = !(filled(form, "name") && filled(form, "city") && pinned(form));
+  if (cta) cta.disabled = !(filled(form, "name") && whereFilled(form) && pinned(form));
   // Nothing typed: the example. Something typed: the way back to nothing (AC7, the draft is kept).
-  const typed = FIELDS.some((f) => filled(form, f.key));
+  const typed = FIELDS.some((f) => filled(form, f.key)) || (kindOf(form) === "network" && !!areaOf(form));
   const example = form.querySelector<HTMLElement>("#example");
   const over = form.querySelector<HTMLElement>("#start-over");
   if (example && over && example.hidden === !typed) {
@@ -250,8 +399,21 @@ export function askStartOver(form: HTMLFormElement, open: boolean): void {
 }
 
 /** The first required field still empty, to send focus to; null when the card can be drawn. */
-export function missing(form: HTMLFormElement): HTMLInputElement | null {
+export function missing(form: HTMLFormElement): HTMLInputElement | HTMLSelectElement | null {
   if (!filled(form, "name")) return input(form, "name");
+  if (kindOf(form) === "network") {
+    const area = form.elements.namedItem("area") as HTMLSelectElement;
+    if (!areaOf(form)) {
+      reveal(form, "where");
+      return area;
+    }
+    if (!pinned(form)) {
+      const by = (name: string) => form.elements.namedItem(name) as HTMLInputElement;
+      if (!form.querySelector<HTMLElement>('[data-manual="coords"]')?.hidden) return by(by("lat").value.trim() ? "lon" : "lat");
+      return area;
+    }
+    return null;
+  }
   if (!filled(form, "city")) {
     reveal(form, "where"); // an inert field can't take focus
     return input(form, "city");
@@ -269,9 +431,10 @@ export function missing(form: HTMLFormElement): HTMLInputElement | null {
 
 /** Leaving a field commits it, without moving focus (a click elsewhere is the coordinator's choice). */
 export function describeCommit(form: HTMLFormElement, target: EventTarget | null): void {
-  if (!(target instanceof HTMLInputElement)) return;
+  if (!(target instanceof HTMLInputElement) && !(target instanceof HTMLSelectElement)) return;
   if (target.name === "name" && filled(form, "name")) reveal(form, "where");
   if (target.name === "city" && filled(form, "city") && filled(form, "name")) reveal(form, "rest");
+  if (target.name === "area" && areaOf(form) && filled(form, "name")) reveal(form, "rest");
 }
 
 /**
@@ -293,7 +456,10 @@ export function describeKeydown(form: HTMLFormElement, event: KeyboardEvent): vo
   if (key === "name") {
     if (filled(form, "name")) {
       reveal(form, "where");
-      go("street");
+      if (kindOf(form) === "network") {
+        event.preventDefault();
+        (form.elements.namedItem("area") as HTMLSelectElement | null)?.focus();
+      } else go("street");
     } else if (enter) event.preventDefault();
   } else if (key === "street") {
     if (enter) go("city");

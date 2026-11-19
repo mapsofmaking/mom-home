@@ -188,3 +188,21 @@ describe("a save from an older read is refused (review of 14.6 S4)", () => {
     expect(r.etag).not.toBe(read.etag);
   });
 });
+
+describe("a network's file in tile C (2026-11-19)", () => {
+  const maakbib = readFileSync(join(__dirname, "../../test/fixtures/maakbib.ttl"), "utf8");
+
+  it("is read like a space's, with no place and no problem with one: a network has no address", async () => {
+    const p = await fileOf(pod(maakbib));
+    expect(p.network).toBe(true);
+    expect(p.place).toBeNull();
+    expect(p.placeProblem).toBeNull();
+    expect(p.values.get("name")?.text).toBe("Maakbib");
+    // Its area and fidelity are no field's: shown as other statements, never touched.
+    expect(p.others).toEqual(expect.arrayContaining([S + "areaServed", "https://mapsofmaking.org/ns/mom#geolocationFidelity"]));
+  });
+
+  it("a space's file is no network", async () => {
+    expect((await fileOf(pod(FILE()))).network).toBe(false);
+  });
+});

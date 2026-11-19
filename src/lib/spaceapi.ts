@@ -9,9 +9,13 @@
  * the same draft gives the same text, in the fixture's key order, pretty-printed.
  *
  * SpaceAPI's `contact` takes one of each of `email`, `phone`, `matrix`; the draft holds an email and a room.
+ *
+ * A network (2026-11-19) has no `location.address`: its `location` is the country its areas share (when they
+ * share one) and the pin at their centre, and a `mom` block says the kind, the areas and the pin's fidelity.
+ * `test/fixtures/maakbib.json` holds it.
  */
 import type { Draft } from "../workbench/previews";
-import { matrixRoom, plainIri, requiredParts, type SpaceFile } from "./spacefile";
+import { isNetwork, matrixRoom, networkParts, plainIri, requiredParts, type SpaceFile } from "./spacefile";
 
 export interface SpaceApi {
   json: string;
@@ -20,7 +24,9 @@ export interface SpaceApi {
 }
 
 export function spaceApiJson(draft: Draft): SpaceApi {
-  const { name, town, country, lat, lon } = requiredParts(draft);
+  const network = isNetwork(draft) ? networkParts(draft) : null;
+  const space = network ? null : requiredParts(draft);
+  const { name, lat, lon } = network ?? space!;
   const dropped: SpaceApi["dropped"] = [];
   const out: Record<string, unknown> = { api_compatibility: ["15"], space: name };
 
@@ -35,15 +41,21 @@ export function spaceApiJson(draft: Draft): SpaceApi {
   if (web.logo) out.logo = web.logo;
   if (web.website) out.url = web.website;
 
-  // "<street>, <postcode> <city>, <CC>"; without a street "<postcode> <city>, <CC>" (the order the map reads).
-  const street = (draft.street ?? "").trim();
-  const locality = [(draft.postcode ?? "").trim(), town].filter(Boolean).join(" ");
-  out.location = {
-    address: [street, locality, country].filter(Boolean).join(", "),
-    country_code: country,
-    lat: Number(lat),
-    lon: Number(lon),
-  };
+  if (space) {
+    // "<street>, <postcode> <city>, <CC>"; without a street "<postcode> <city>, <CC>" (the order the map reads).
+    const { town, country } = space;
+    const street = (draft.street ?? "").trim();
+    const locality = [(draft.postcode ?? "").trim(), town].filter(Boolean).join(" ");
+    out.location = {
+      address: [street, locality, country].filter(Boolean).join(", "),
+      country_code: country,
+      lat: Number(lat),
+      lon: Number(lon),
+    };
+  } else {
+    // A network: no address; the country its areas share, when they share one.
+    out.location = { ...(network!.country ? { country_code: network!.country } : {}), lat: Number(lat), lon: Number(lon) };
+  }
 
   const description = (draft.description ?? "").trim();
   if (description) out.description = description;
@@ -62,6 +74,7 @@ export function spaceApiJson(draft: Draft): SpaceApi {
   if (hours) out.opening_hours = hours;
 
   out.state = { open: null };
+  if (network) out.mom = { kind: "network", areaServed: network.areas, geolocationFidelity: network.fidelity };
   return { json: JSON.stringify(out, null, 2) + "\n", dropped };
 }
 

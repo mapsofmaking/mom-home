@@ -1,0 +1,15 @@
+{
+  "api_compatibility": ["15"],
+  "space": "Maakbib",
+  "logo": "https://maakbib.be/wp-content/uploads/2026/08/logo-maakbib-kleur.svg",
+  "url": "https://maakbib.be/",
+  "location": {
+    "country_code": "BE",
+    "lat": 51.0378,
+    "lon": 4.2406
+  },
+  "description": "MaakBib helpt bibliotheken en jeugdwerkingen met kennis en een netwerk om een maakplaats of fablab uit te bouwen en te runnen.",
+  "contact": { "email": "info@decreatievestem.be" },
+  "state": { "open": null },
+  "mom": { "kind": "network", "areaServed": ["BE-VLG"], "geolocationFidelity": "region" }
+}

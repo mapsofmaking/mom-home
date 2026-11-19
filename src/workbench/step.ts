@@ -10,7 +10,7 @@
  */
 import type { TileState } from "../tree/fog";
 import type { Tile } from "../tree/parse";
-import { describeWords, renderDescribeForm, type DescribeWords } from "./describe";
+import { areaNames, describeWords, previewWords, renderDescribeForm, type DescribeWords } from "./describe";
 import { bernard, esc } from "./html";
 import { hasPreview, renderPreview, type Draft } from "./previews";
 import type { PodMade } from "../lib/handoff";
@@ -127,13 +127,20 @@ function describeStep(tile: Tile, state: TileState, ctx: StepContext): string {
   const next = ctx.tiles.find((t) => t.id === "keep");
   return `${head(tile, state)}
     ${bernard(tile.lines.saidDone)}
-    ${hasPreview(tile.preview) ? renderPreview(tile.preview, ctx.draft) : ""}
+    ${hasPreview(tile.preview) ? renderPreview(tile.preview, ctx.draft, previewWords(w)) : ""}
     ${kept ? "" : bernard(tile.lines.sayNext)}
     <div class="wb-out">
       ${kept || !next ? "" : `<button type="button" class="btn btn-primary wb-cta" data-go="keep">${esc(next.title)}</button>`}
       <button type="button" class="inline-link" id="fix">${esc(w.ui(kept ? "uiChange" : "uiFix"))}</button>
     </div>`;
 }
+
+/** Tile A's words, wherever they are needed: the page's one reader, or read from the tree's tile A. */
+const tileAWords = (ctx: StepContext) => ctx.words ?? describeWords(ctx.tiles.find((t) => t.act === "describe"));
+
+/** Where "anyone looking in …" looks: the town for a space, the areas a network serves ("Flanders"). */
+const locality = (ctx: StepContext) =>
+  ctx.draft.kind === "network" ? areaNames(ctx.draft.areaServed, tileAWords(ctx)) : (ctx.draft.city ?? "");
 
 function openStep(tile: Tile, state: TileState, ctx: StepContext): string {
   if (tile.act === "describe") return describeStep(tile, state, ctx);
@@ -147,7 +154,7 @@ function openStep(tile: Tile, state: TileState, ctx: StepContext): string {
     return `
     <div class="wb-step-head">
       <h2 class="wb-step-title" tabindex="-1">${esc(tile.title)}</h2>
-    </div>${renderPublish(tile, ctx.publish, ctx.draft.city ?? "", ctx.tiles.find((t) => t.id === "change"))}`;
+    </div>${renderPublish(tile, ctx.publish, locality(ctx), ctx.tiles.find((t) => t.id === "change"))}`;
   }
   if (tile.act === "threshold" && state !== "done") {
     const t = { offers: ctx.offers ?? null, door: ctx.door ?? null, draft: ctx.draft, pod: ctx.pod ?? null, prior: ctx.prior ?? null, makeAnother: ctx.makeAnother ?? false, selfDone: ctx.selfDone ?? false, selfFailed: ctx.selfFailed ?? false };
@@ -160,7 +167,7 @@ function openStep(tile: Tile, state: TileState, ctx: StepContext): string {
   const line = state === "done" ? (tile.lines.saidDone ?? tile.lines.say) : tile.lines.say;
   return `${head(tile, state)}
     ${bernard(line)}
-    ${hasPreview(tile.preview) ? renderPreview(tile.preview, ctx.draft) : ""}
+    ${hasPreview(tile.preview) ? renderPreview(tile.preview, ctx.draft, previewWords(tileAWords(ctx))) : ""}
     <div class="wb-out">
       <p class="wb-aside">This one isn't built yet. What it will do is above; nothing here is sent anywhere.</p>
     </div>`;

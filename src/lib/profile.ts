@@ -27,6 +27,7 @@ type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 const SCHEMA = "https://schema.org/";
 const CONTACT = SCHEMA + "contactPoint";
 const RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
+const MOM_NETWORK = "https://mapsofmaking.org/ns/mom#Network";
 
 /** Why a value is wrong: the tool turns the code into the tree's words (`onb:uiProfile*`). */
 export type Why =
@@ -57,6 +58,8 @@ export interface Profile {
   /** The address and pin; null with `placeProblem` when the file doesn't hold exactly one of each. */
   place: Place | null;
   placeProblem: string | null;
+  /** The node is a network (2026-11-19): it has no address, so the place field isn't its to show. */
+  network: boolean;
   /** The contact handles; null when no field is of kind contacts. */
   contacts: Contacts | null;
   /** Predicates on the space that no profile field covers: shown read-only, never touched. */
@@ -83,7 +86,9 @@ export function readProfile(read: SpaceRead, def: ProfileDef): Profile {
   }
   let place: Place | null = null;
   let placeProblem: string | null = null;
-  if (def.fields.some((f) => f.kind === "place")) {
+  const network = one(read, RDF_TYPE).some((q) => q.object.value === MOM_NETWORK);
+  // A network serves an area, it has no address: no place, and no problem with one.
+  if (!network && def.fields.some((f) => f.kind === "place")) {
     try {
       place = nodesOf(read).was;
     } catch (err) {
@@ -91,7 +96,7 @@ export function readProfile(read: SpaceRead, def: ProfileDef): Profile {
     }
   }
   const others = [...new Set(read.quads.filter((q) => q.subject.value === read.subject && !covered.has(q.predicate.value)).map((q) => q.predicate.value))];
-  return { values, place, placeProblem, contacts, others };
+  return { values, place, placeProblem, network, contacts, others };
 }
 
 const URLISH = /^[^\s/@]+\.[^\s/@]+/;

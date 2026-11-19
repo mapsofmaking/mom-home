@@ -14,11 +14,17 @@
  * The form holds the result in its own inputs (country, lat, lon, postcode,
  * place), so the draft reads it back like any field. What the pin line says
  * is the tree's (`onb:uiPin*`, 14.2 AC8).
+ *
+ * A network (2026-11-19) has no address: the geocoder is asked for the area it
+ * serves (`{"area": "BE-VLG"}`, the map's proxy), and the pin sits at the
+ * area's centre, with the answer's fidelity (`region`, `country`). The country
+ * is the area's own. Nothing found: the coordinates of the centre by hand.
  */
 import type { DescribeWords } from "./describe";
+import { areaFidelity, cleanAreas, cleanFidelity } from "../lib/spacefile";
 
 /** The wait has a floor so the pin reads as worked out, not magicked (genjson). */
-export const timing = { minWait: 2300, retryGap: 1100, tick: 110 };
+export const timing = { minWait: 2300, retryGap: 1100, tick: 110, areaGap: 400 };
 
 interface Answer {
   lat: number | null;
@@ -26,16 +32,22 @@ interface Answer {
   country_code: string | null;
   postcode: string | null;
   display_name: string | null;
+  /** How coarse the answer is (the proxy says it since 2026-11-19); absent from older answers. */
+  fidelity?: string | null;
 }
 
 type Outcome = Answer | "unavailable" | "rate";
 
 async function ask(street: string, city: string, country: string): Promise<Outcome> {
+  return post({ address: street, city, postcode: "", country_code: country });
+}
+
+async function post(body: object): Promise<Outcome> {
   try {
     const res = await fetch("/api/geocode", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ address: street, city, postcode: "", country_code: country }),
+      body: JSON.stringify(body),
     });
     if (res.status === 429) return "rate";
     if (!res.ok) return "unavailable";
@@ -63,6 +75,17 @@ export async function findPlace(street: string, city: string, country = ""): Pro
   if (answer === "rate" || answer === "unavailable") return answer;
   if (answer.lat === null || answer.lon === null) return "none";
   return { answer: answer as Answer & { lat: number; lon: number }, missed };
+}
+
+/** What the geocoder found for an area (a network's where): its centre, or why not. */
+export type FoundArea = { answer: Answer & { lat: number; lon: number } } | "rate" | "unavailable" | "none";
+
+/** Asks the geocoder for an area's centre: the code only (`{"area": "BE-VLG"}`), never an address. */
+export async function findArea(area: string): Promise<FoundArea> {
+  const answer = await post({ area });
+  if (answer === "rate" || answer === "unavailable") return answer;
+  if (answer.lat === null || answer.lon === null) return "none";
+  return { answer: answer as Answer & { lat: number; lon: number } };
 }
 
 /**
@@ -139,11 +162,15 @@ function meter(form: HTMLFormElement, w: DescribeWords): () => void {
   return meterInto((text, tone) => say(form, text, tone), w.ui("uiPinWorking"));
 }
 
-/** True when the form has everything the card needs from where: a country and a pin. */
+const isNetwork = (form: HTMLFormElement) => value(form, "kind") === "network";
+const areaIn = (form: HTMLFormElement) => cleanAreas([value(form, "area")])[0] ?? "";
+
+/** True when the form has everything the card needs from where: a country and a pin (a network: an area too). */
 export function pinned(form: HTMLFormElement): boolean {
   const lat = Number(value(form, "lat"));
   const lon = Number(value(form, "lon"));
   return (
+    (!isNetwork(form) || !!areaIn(form)) &&
     /^[A-Z]{2}$/.test(value(form, "country")) &&
     value(form, "lat") !== "" && value(form, "lon") !== "" &&
     Math.abs(lat) <= 90 && Math.abs(lon) <= 180
@@ -152,7 +179,7 @@ export function pinned(form: HTMLFormElement): boolean {
 
 /** Street or city changed: the old pin no longer holds. */
 export function unpin(form: HTMLFormElement): void {
-  for (const name of ["lat", "lon", "postcode", "place"]) set(form, name, "");
+  for (const name of ["lat", "lon", "postcode", "place", "fidelity"]) set(form, name, "");
   if (form.querySelector<HTMLElement>('[data-manual="country"]')?.hidden) set(form, "country", "");
   delete form.dataset.located;
   say(form, "");
@@ -170,6 +197,7 @@ export function pinByHand(form: HTMLFormElement, w: DescribeWords): void {
  * button may turn on).
  */
 export async function locate(form: HTMLFormElement, w: DescribeWords, done: () => void = () => {}): Promise<void> {
+  if (isNetwork(form)) return locateArea(form, w, done);
   const street = value(form, "street");
   const city = value(form, "city");
   // The country sharpens the ask only when typed by hand; a derived one would make every ask new.
@@ -218,5 +246,53 @@ export async function locate(form: HTMLFormElement, w: DescribeWords, done: () =
     country: value(form, "country"),
   }, w);
   say(form, line, "ok", missed ? w.ui("uiStreetMissed", { city }) : "");
+  done();
+}
+
+/**
+ * A network's pin: the centre of the area picked, asked once per area. The country and the fidelity follow
+ * from the area (BE-VLG: BE, region), so a centre typed by hand when the geocoder can't answer is enough.
+ */
+async function locateArea(form: HTMLFormElement, w: DescribeWords, done: () => void): Promise<void> {
+  const area = areaIn(form);
+  if (!area) return;
+  const key = `area|${area}`;
+  if (form.dataset.located === key) return;
+  form.dataset.located = key;
+  // Arrow keys on a closed select pick one area after another: only the one that stays is asked for (1 req/s).
+  await wait(timing.areaGap);
+  if (form.dataset.located !== key) return;
+  // The area's name as the select shows it: the tree's words.
+  const select = form.elements.namedItem("area") as HTMLSelectElement | null;
+  const name = select?.selectedOptions[0]?.textContent?.trim() || area;
+
+  const started = Date.now();
+  const stop = meter(form, w);
+  const found = await findArea(area);
+  await wait(Math.max(0, timing.minWait - (Date.now() - started)));
+  stop();
+  if (form.dataset.located !== key) return; // another area was picked meanwhile
+
+  set(form, "country", area.slice(0, 2));
+  show(form, "country", false);
+  if (typeof found !== "object") {
+    say(form, w.ui(found === "rate" ? "uiRateArea" : found === "unavailable" ? "uiUnavailableArea" : "uiNoResultArea"), "error");
+    // By hand, the centre is as coarse as the area: the fidelity follows its shape.
+    set(form, "fidelity", areaFidelity(area));
+    if (found !== "rate") show(form, "coords", true);
+    delete form.dataset.located; // picking the area again asks again
+    done();
+    return;
+  }
+
+  const { answer } = found;
+  set(form, "lat", String(answer.lat));
+  set(form, "lon", String(answer.lon));
+  set(form, "postcode", "");
+  set(form, "place", shortPlace(answer.display_name));
+  set(form, "fidelity", cleanFidelity(answer.fidelity ?? undefined) ?? areaFidelity(area));
+  show(form, "coords", false);
+  const line = pinLine({ lat: String(answer.lat), lon: String(answer.lon), place: shortPlace(answer.display_name), country: area.slice(0, 2) }, w);
+  say(form, line, "ok", w.ui("uiPinArea", { area: name }));
   done();
 }

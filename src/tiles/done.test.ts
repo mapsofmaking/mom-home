@@ -12,6 +12,12 @@ describe("done is read from the space's file (#11)", () => {
     expect(await DONE_CHECKS.describe({ ...base, space: null, spaceData: null })).toBe(false);
   });
 
+  it("describe, for a network (2026-11-19): a name, an area and a pin; no town", async () => {
+    const network = { kind: "network" as const, name: "Maakbib", areaServed: ["BE-VLG"], lat: "51.0378", lon: "4.2406" };
+    expect(await DONE_CHECKS.describe({ ...base, space, spaceData: network })).toBe(true);
+    expect(await DONE_CHECKS.describe({ ...base, space, spaceData: { ...network, areaServed: [] } })).toBe(false);
+  });
+
   it("keep: a file in the pod is not published until it is on the map (S3)", async () => {
     expect(await DONE_CHECKS.keep({ ...base, space, spaceData: full })).toBe(false);
     expect(await DONE_CHECKS.keep({ ...base, space, spaceData: full, onMap: true })).toBe(true);

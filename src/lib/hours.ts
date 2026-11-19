@@ -14,14 +14,13 @@
 import { Parser, type Quad, type Term } from "n3";
 import { authFetch } from "./auth";
 import { PublishError, send } from "./publish";
-import { literal } from "./spacefile";
+import { literal, SPACE_TYPES } from "./spacefile";
 
 type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 
 const SCHEMA = "https://schema.org/";
 const HOURS = SCHEMA + "openingHours";
 const RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
-const MOM_SPACE = "https://mapsofmaking.org/ns/mom#Space";
 const XSD_STRING = "http://www.w3.org/2001/XMLSchema#string";
 
 export interface HoursResult {
@@ -91,7 +90,8 @@ export async function readSpaceFile(fileUrl: string, fetchImpl: Fetch): Promise<
     throw new PublishError("unreadable", `The space file isn't Turtle any more: ${(err as Error).message}`);
   }
   // The same space the form was filled from (spacefile.ts draftFromTurtle): the file's own <#space>, else the first.
-  const spaces = quads.filter((q) => q.predicate.value === RDF_TYPE && q.object.value === MOM_SPACE);
+  // A network's node counts the same (2026-11-19): tile C changes its hours, logo and profile like a space's.
+  const spaces = quads.filter((q) => q.predicate.value === RDF_TYPE && SPACE_TYPES.includes(q.object.value));
   const own = `${fileUrl}#space`;
   const found = (spaces.find((q) => q.subject.value === own) ?? spaces[0])?.subject;
   if (!found) throw new PublishError("unreadable", "The space file names no space.");

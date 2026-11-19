@@ -13,6 +13,11 @@
  * reported in `dropped`, never written as it was typed. The three things a card
  * cannot do without (a name, a town and country, a pin) are required: without
  * them there is no file to write.
+ *
+ * A network (2026-11-19, the map's "A network" section of the same reference) has no address: it serves an
+ * area. Its node is typed `mom:Network, schema:Organization` (the subject stays `<#space>`), says each area in
+ * a `schema:areaServed` of its own, and sits at the area's centre with `mom:geolocationFidelity` saying how
+ * coarse that pin is. Required for a network: a name, an area, a pin. `test/fixtures/maakbib.ttl` holds it.
  */
 import { Parser, type Quad, type Term } from "n3";
 import type { Draft } from "../workbench/previews";
@@ -20,7 +25,7 @@ import type { Draft } from "../workbench/previews";
 const SCHEMA = "https://schema.org/";
 const MOM = "https://mapsofmaking.org/ns/mom#";
 
-export type SpaceFileProblem = "name" | "town" | "country" | "pin";
+export type SpaceFileProblem = "name" | "town" | "country" | "pin" | "area";
 
 /** A draft that is not yet enough for a card: which of the required parts is missing. */
 export class SpaceFileError extends Error {
@@ -97,6 +102,70 @@ export function matrixRoom(value: string | undefined): string | null {
 
 const DECIMAL = /^-?\d+(\.\d+)?$/;
 
+/** An ISO 3166-1 alpha-2 country (`BE`) or an ISO 3166-2 subdivision (`BE-VLG`): the map's area codes. */
+export const AREA_CODE = /^[A-Z]{2}(-[A-Z0-9]{1,3})?$/;
+/** The ontology's fidelity values (the map leaves any other out). Never "street". */
+export const FIDELITIES = ["exact", "approximate", "city", "region", "country"] as const;
+const MAX_AREAS = 10;
+
+/** Areas as the map keeps them: upper case, valid codes only, once each, sorted, ten at most. */
+export function cleanAreas(areas: readonly string[] | undefined): string[] {
+  const codes = (areas ?? []).map((a) => a.trim().toUpperCase()).filter((a) => AREA_CODE.test(a));
+  return [...new Set(codes)].sort().slice(0, MAX_AREAS);
+}
+
+/** The one country all the areas are in (`BE-VLG`, `BE-BRU` → `BE`); null when they span several, or none. */
+export function areasCountry(areas: readonly string[]): string | null {
+  const countries = new Set(areas.map((a) => a.slice(0, 2)));
+  return countries.size === 1 ? [...countries][0] : null;
+}
+
+/** How coarse a pin at an area's centre is: a subdivision is a region, a country a country. */
+export const areaFidelity = (area: string): "region" | "country" => (area.includes("-") ? "region" : "country");
+
+/** A fidelity the map reads, or null. */
+export const cleanFidelity = (value: string | undefined): string | null => {
+  const v = (value ?? "").trim().toLowerCase();
+  return (FIDELITIES as readonly string[]).includes(v) ? v : null;
+};
+
+export const isNetwork = (draft: Pick<Draft, "kind">) => draft.kind === "network";
+
+/**
+ * A draft kept in this browser, read back (main.ts): text fields only, as before, plus a network's areas (the
+ * one list a draft holds, cleaned). A kind that isn't "network" is dropped: absent is a space.
+ */
+export function draftFromStore(raw: unknown): Draft {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(raw)) if (typeof v === "string") out[k] = v;
+  const areas = (raw as { areaServed?: unknown }).areaServed;
+  if (Array.isArray(areas)) {
+    const clean = cleanAreas(areas.filter((a): a is string => typeof a === "string"));
+    if (clean.length) out.areaServed = clean;
+  }
+  if (out.kind !== "network") delete out.kind;
+  return out as Draft;
+}
+
+/**
+ * What a network's card cannot do without, checked and trimmed: a name, an area, a pin. The fidelity is the
+ * draft's when the map reads it, else the first area's shape; the country is the one all areas share (or none).
+ */
+export function networkParts(draft: Draft) {
+  const name = (draft.name ?? "").trim();
+  const areas = cleanAreas(draft.areaServed);
+  const lat = (draft.lat ?? "").trim();
+  const lon = (draft.lon ?? "").trim();
+  const missing: SpaceFileProblem[] = [];
+  if (!name) missing.push("name");
+  if (!areas.length) missing.push("area");
+  if (!DECIMAL.test(lat) || !DECIMAL.test(lon)) missing.push("pin");
+  if (missing.length) throw new SpaceFileError(missing);
+  const fidelity = cleanFidelity(draft.fidelity) ?? areaFidelity(areas[0]);
+  return { name, areas, country: areasCountry(areas), lat, lon, fidelity };
+}
+
 /** What a card cannot do without, checked and trimmed; throws `SpaceFileError` naming what is missing. */
 export function requiredParts(draft: Draft) {
   const name = (draft.name ?? "").trim();
@@ -114,7 +183,11 @@ export function requiredParts(draft: Draft) {
 }
 
 export function spaceFile(draft: Draft): SpaceFile {
-  const { name, town, country, lat, lon } = requiredParts(draft);
+  const network = isNetwork(draft);
+  // A network's required parts, or a space's: each throws `SpaceFileError` naming what is missing.
+  const parts = network ? networkParts(draft) : null;
+  const space = parts ? null : requiredParts(draft);
+  const { name, lat, lon } = parts ?? space!;
   const dropped: SpaceFile["dropped"] = [];
   const lines: string[] = [];
   const add = (predicate: string, object: string) => lines.push(`  ${predicate} ${object}`);
@@ -123,15 +196,22 @@ export function spaceFile(draft: Draft): SpaceFile {
   const description = (draft.description ?? "").trim();
   if (description) add("schema:description", literal(description));
 
-  const address = [`a schema:PostalAddress`];
-  const street = (draft.street ?? "").trim();
-  if (street) address.push(`schema:streetAddress ${literal(street)}`);
-  const postcode = (draft.postcode ?? "").trim();
-  if (postcode) address.push(`schema:postalCode ${literal(postcode)}`);
-  address.push(`schema:addressLocality ${literal(town)}`, `schema:addressCountry ${literal(country)}`);
-  add("schema:address", `[ ${address.join(" ;\n    ")} ]`);
+  if (parts) {
+    // A network: no address, one statement per area served.
+    for (const area of parts.areas) add("schema:areaServed", literal(area));
+  } else {
+    const { town, country } = space!;
+    const address = [`a schema:PostalAddress`];
+    const street = (draft.street ?? "").trim();
+    if (street) address.push(`schema:streetAddress ${literal(street)}`);
+    const postcode = (draft.postcode ?? "").trim();
+    if (postcode) address.push(`schema:postalCode ${literal(postcode)}`);
+    address.push(`schema:addressLocality ${literal(town)}`, `schema:addressCountry ${literal(country)}`);
+    add("schema:address", `[ ${address.join(" ;\n    ")} ]`);
+  }
 
   add("schema:geo", `[ a schema:GeoCoordinates ;\n    schema:latitude ${lat} ; schema:longitude ${lon} ]`);
+  if (parts) add("mom:geolocationFidelity", literal(parts.fidelity));
 
   const email = (draft.email ?? "").trim();
   if (email) add("schema:email", literal(email));
@@ -155,7 +235,7 @@ export function spaceFile(draft: Draft): SpaceFile {
     `@prefix schema: <${SCHEMA}> .`,
     `@prefix mom: <${MOM}> .`,
     "",
-    `<#space> a mom:Space, schema:Place ;`,
+    network ? `<#space> a mom:Network, schema:Organization ;` : `<#space> a mom:Space, schema:Place ;`,
     lines.join(" ;\n") + " .",
     "",
   ].join("\n");
@@ -193,32 +273,44 @@ export function sameStatements(a: string, b: string): boolean {
 }
 
 const RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
+const MOM_NETWORK = MOM + "Network";
+/** The types a space file's node may have: a space, or a network (2026-11-19). */
+export const SPACE_TYPES: readonly string[] = [MOM + "Space", MOM_NETWORK];
 
 /**
  * The other way: what a space file in the pod says, as the draft tile A shows
  * (#11). The pod is the source: signed in, the form and the card are filled from
  * here. Reads what `spaceFile` writes, and any file that says the same with other
  * prefixes, order or blank-node labels. null when the document holds no
- * `mom:Space`. A value the form can't hold (a non-decimal coordinate) is left out,
- * never guessed.
+ * `mom:Space` and no `mom:Network`. A value the form can't hold (a non-decimal
+ * coordinate, an area that isn't an ISO code, a fidelity the map doesn't read) is
+ * left out, never guessed. A network's country is the one its areas share.
  */
 export function draftFromTurtle(turtle: string, base: string): Draft | null {
   const quads: Quad[] = new Parser({ baseIRI: base }).parse(turtle);
-  const typed = quads.filter((q) => q.predicate.value === RDF_TYPE && q.object.value === MOM + "Space").map((q) => q.subject);
+  const typed = quads.filter((q) => q.predicate.value === RDF_TYPE && SPACE_TYPES.includes(q.object.value)).map((q) => q.subject);
   if (!typed.length) return null;
-  // The file's own `<#space>` first; otherwise the first space it names.
+  // The file's own `<#space>` first; otherwise the first space (or network) it names.
   const own = `${base.split("#")[0]}#space`;
   const subject = typed.find((s) => s.value === own) ?? typed[0];
+  const network = quads.some((q) => q.subject.equals(subject) && q.predicate.value === RDF_TYPE && q.object.value === MOM_NETWORK);
   const objects = (s: Term, p: string) =>
     quads.filter((q) => q.subject.equals(s) && q.predicate.value === SCHEMA + p).map((q) => q.object);
   const one = (s: Term | undefined, p: string): string | undefined => (s ? objects(s, p)[0]?.value : undefined);
 
-  const draft: Draft = {};
+  const draft: Draft = network ? { kind: "network" } : {};
   const set = (key: keyof Draft, value: string | undefined) => {
     const text = value?.trim();
     if (text) (draft as Record<string, string>)[key] = text;
   };
   set("name", one(subject, "name"));
+  if (network) {
+    const areas = cleanAreas(objects(subject, "areaServed").filter((o) => o.termType === "Literal").map((o) => o.value));
+    if (areas.length) draft.areaServed = areas;
+    set("country", areasCountry(areas) ?? undefined);
+    const fidelity = quads.find((q) => q.subject.equals(subject) && q.predicate.value === MOM + "geolocationFidelity")?.object.value;
+    set("fidelity", cleanFidelity(fidelity) ?? undefined);
+  }
   set("description", one(subject, "description"));
   const address = objects(subject, "address")[0];
   set("street", one(address, "streetAddress"));

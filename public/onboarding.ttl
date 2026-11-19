@@ -49,6 +49,22 @@
   onb:uiRate "Too many requests to the geocoder. Wait a moment, then leave the city field again."@en ;
   onb:uiAddedScheme "Added https://. Change it if that's wrong."@en ;
   onb:uiAddedRoom "Added # for a room. Change it to + if it's a community."@en ;
+  # A space or a network (2026-11-19): the first choice. A network serves an area instead of sitting at an
+  # address; the code holds the area codes (the map's), the names are here.
+  onb:uiKind "A space or a network?"@en ;
+  onb:uiKindSpace "A space"@en ;
+  onb:uiKindNetwork "A network"@en ;
+  onb:uiNameNetwork "Network name"@en ;
+  onb:uiAreaBE "Belgium"@en ;
+  onb:uiAreaBEVLG "Flanders"@en ;
+  onb:uiAreaBEWAL "Wallonia"@en ;
+  onb:uiAreaBEBRU "Brussels"@en ;
+  onb:uiPinArea "A network sits at the centre of the area it serves: {area}."@en ;
+  onb:uiNoResultArea "The geocoder (OpenStreetMap) can't place that area. Enter the coordinates of its centre below."@en ;
+  onb:uiUnavailableArea "The geocoder isn't answering right now. Enter the coordinates below, or pick the area again in a moment."@en ;
+  onb:uiRateArea "Too many requests to the geocoder. Wait a moment, then pick the area again."@en ;
+  onb:uiYourNetwork "Your network"@en ;
+  onb:uiServes "Serves {area}"@en ;
   # The form's fields, in no order (the code orders them). onb:example fills "Fill in an
   # example": a space that doesn't exist, so nothing typed is mistaken for real. Its street
   # doesn't exist either: the pin falls back to the Marolles, and the pin line says so.
@@ -58,6 +74,8 @@
     [ onb:key "street" ; onb:label "Street address"@en ; onb:placeholder "e.g. Rue du Canal 12"@en ;
       onb:hint "Optional. Without it, the pin sits in the town's centre."@en ; onb:example "Rue de l'Étincelle 12" ] ,
     [ onb:key "city" ; onb:label "City"@en ; onb:hint "The town or municipality."@en ; onb:example "Marolles, Bruxelles" ] ,
+    [ onb:key "area" ; onb:label "Area served"@en ; onb:placeholder "Pick an area"@en ;
+      onb:hint "Where the network works. Its pin sits at the centre of that area."@en ; onb:example "BE-VLG" ] ,
     [ onb:key "description" ; onb:label "Description"@en ; onb:placeholder "One or two sentences. What kind of space is this?"@en ;
       onb:example "Metal shop with two welding stations. Gloves provided, sparks included."@en ] ,
     [ onb:key "email" ; onb:label "Contact email"@en ; onb:placeholder "hello@example.org"@en ;
@@ -72,7 +90,7 @@
       onb:hint "Two letters, ISO. e.g. DE, FR, BE."@en ] ,
     [ onb:key "lat" ; onb:label "Latitude"@en ; onb:placeholder "e.g. 50.84"@en ] ,
     [ onb:key "lon" ; onb:label "Longitude"@en ; onb:placeholder "e.g. 4.33"@en ] ;
-  onb:doneWhen """ASK { ?space a mom:Space ; schema:name ?n ; schema:address ?a }""" .
+  onb:doneWhen """ASK { ?space schema:name ?n . { ?space a mom:Space ; schema:address ?a } UNION { ?space a mom:Network ; schema:areaServed ?area } }""" .
 
 :keep a onb:Tile ;
   onb:icon "publish" ;
@@ -178,6 +196,7 @@
   onb:uiMissingTown "a town"@en ;
   onb:uiMissingCountry "a country"@en ;
   onb:uiMissingPin "a pin on the map"@en ;
+  onb:uiMissingArea "an area"@en ;
   onb:uiPublishExpired "Your session ended. Sign in again, then press Put it on the map: it continues where it stopped."@en ;
   onb:uiPublishUnreachable "The pod isn't answering. Press the button again in a moment."@en ;
   onb:uiPublishRefused "Your pod said no ({status}). Press the button again; if it keeps saying no, the people who run the pod server can see why."@en ;

@@ -275,13 +275,16 @@ export function mountTool(box: HTMLElement, deps: ToolDeps): ToolHandle {
     return `<div class="wb-tool-field" data-field="${esc(f.key)}">${label}${hint}${control}${several}${issueHtml(f.key, issueOf(f), value, `data-fix="${esc(f.key)}"`)}</div>`;
   };
 
+  /** A network has no address (2026-11-19): its place field isn't drawn, nor found. */
+  const shown = (f: ProfileField) => !(f.kind === "place" && s.profile?.network);
+
   const sectionHtml = (sec: Section): string => {
-    const own = fields.filter((f) => f.section === sec.id);
+    const own = fields.filter((f) => f.section === sec.id && shown(f));
     return own.length ? `<section class="wb-tool-section" data-section="${esc(sec.id)}"><h3 class="wb-tool-heading">${esc(sec.label)}</h3>${own.map(fieldHtml).join("")}</section>` : "";
   };
 
   const foundHtml = (): string => {
-    const rows: FindRow[] = fields.map((f) => ({ key: f.key, label: f.label, section: f.section, value: valueOf(f) }));
+    const rows: FindRow[] = fields.filter(shown).map((f) => ({ key: f.key, label: f.label, section: f.section, value: valueOf(f) }));
     const groups = finderResults(s.query, rows, sections);
     const total = groups.reduce((n, g) => n + g.rows.length, 0);
     const flat = groups.flatMap((g) => g.rows);

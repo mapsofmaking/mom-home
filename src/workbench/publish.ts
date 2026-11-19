@@ -16,7 +16,7 @@ import { livePopup } from "./popup";
 export const PUBLISH_UI_KEYS = [
   "uiPublishGo", "uiStepFile", "uiStepFileWorking", "uiStepFileWritten", "uiStepFileThere", "uiStepFileKept",
   "uiPublishDropped", "uiPublishIncomplete", "uiMissingName", "uiMissingTown", "uiMissingCountry",
-  "uiMissingPin", "uiPublishExpired", "uiPublishUnreachable", "uiPublishRefused", "uiPublishUnreadable",
+  "uiMissingPin", "uiMissingArea", "uiPublishExpired", "uiPublishUnreachable", "uiPublishRefused", "uiPublishUnreadable",
   "uiStepPublic", "uiStepPublicWorking", "uiStepPublicDone", "uiStepPublicAlready", "uiPublicUnknown", "uiPublicNotPublic",
   "uiPublicBlocked", "uiPublicWider", "uiPublicNoControl", "uiPublicConflict", "uiPublicGone", "uiPublicNoWac",
   "uiStepMap", "uiStepMapWorking", "uiStepMapDone", "uiMapRefused", "uiMapDown", "uiOnMapLive", "uiPinLate",
