@@ -279,7 +279,9 @@ async function locateArea(form: HTMLFormElement, w: DescribeWords, done: () => v
     say(form, w.ui(found === "rate" ? "uiRateArea" : found === "unavailable" ? "uiUnavailableArea" : "uiNoResultArea"), "error");
     // By hand, the centre is as coarse as the area: the fidelity follows its shape.
     set(form, "fidelity", areaFidelity(area));
-    if (found !== "rate") show(form, "coords", true);
+    // Always: picking the same option again fires no `input`, so without the coordinates a `rate`
+    // answer left no way on (review of #67).
+    show(form, "coords", true);
     delete form.dataset.located; // picking the area again asks again
     done();
     return;

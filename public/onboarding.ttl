@@ -62,7 +62,7 @@
   onb:uiPinArea "A network sits at the centre of the area it serves: {area}."@en ;
   onb:uiNoResultArea "The geocoder (OpenStreetMap) can't place that area. Enter the coordinates of its centre below."@en ;
   onb:uiUnavailableArea "The geocoder isn't answering right now. Enter the coordinates below, or pick the area again in a moment."@en ;
-  onb:uiRateArea "Too many requests to the geocoder. Wait a moment, then pick the area again."@en ;
+  onb:uiRateArea "Too many requests to the geocoder. Enter the coordinates below, or pick the area again in a moment."@en ;
   onb:uiYourNetwork "Your network"@en ;
   onb:uiServes "Serves {area}"@en ;
   # The form's fields, in no order (the code orders them). onb:example fills "Fill in an

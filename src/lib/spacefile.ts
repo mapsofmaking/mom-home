@@ -139,6 +139,9 @@ export function draftFromStore(raw: unknown): Draft {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(raw)) if (typeof v === "string") out[k] = v;
+  // A stored `areaServed` that is a string (damaged or hand-edited) must not pass the copy above:
+  // cleanAreas maps over it, and a throw there would break tile A on every load (review of #67).
+  delete out.areaServed;
   const areas = (raw as { areaServed?: unknown }).areaServed;
   if (Array.isArray(areas)) {
     const clean = cleanAreas(areas.filter((a): a is string => typeof a === "string"));
@@ -312,11 +315,14 @@ export function draftFromTurtle(turtle: string, base: string): Draft | null {
     set("fidelity", cleanFidelity(fidelity) ?? undefined);
   }
   set("description", one(subject, "description"));
-  const address = objects(subject, "address")[0];
-  set("street", one(address, "streetAddress"));
-  set("postcode", one(address, "postalCode"));
-  set("city", one(address, "addressLocality"));
-  set("country", one(address, "addressCountry")?.toUpperCase());
+  // A network has no address: a stray one is not read, so the country stays the one its areas share.
+  const address = network ? undefined : objects(subject, "address")[0];
+  if (address) {
+    set("street", one(address, "streetAddress"));
+    set("postcode", one(address, "postalCode"));
+    set("city", one(address, "addressLocality"));
+    set("country", one(address, "addressCountry")?.toUpperCase());
+  }
   const geo = objects(subject, "geo")[0];
   const lat = one(geo, "latitude");
   const lon = one(geo, "longitude");

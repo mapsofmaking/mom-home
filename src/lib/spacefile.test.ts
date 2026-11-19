@@ -180,6 +180,13 @@ describe("a network (2026-11-19): it serves an area, it has no address", () => {
     expect(sameStatements(spaceFile(read).turtle, maakbib)).toBe(true);
   });
 
+  it("does not read a stray address on a network: the country stays the one its areas share (review of #67)", () => {
+    const stray = maakbib.replace(/\.\s*$/, ` ;\n  schema:address [ schema:addressLocality "Paris" ; schema:addressCountry "FR" ] .\n`);
+    const read = draftFromTurtle(stray, base)!;
+    expect(read.country).toBe("BE");
+    expect(read.city).toBeUndefined();
+  });
+
   it("writes one statement per area, upper case, sorted, valid codes only; the street and town typed before are not written", () => {
     const { turtle } = spaceFile({ ...network, areaServed: ["be-vlg", "BE-BRU", "Flanders", "BE-VLG"], street: "Rue 1", city: "Gent", country: "BE" });
     const areas = statements(turtle).filter((s) => s.includes("schema.org/areaServed"));
@@ -227,6 +234,8 @@ describe("draftFromStore: the draft kept in this browser, read back", () => {
       kind: "network", name: "Maakbib", areaServed: ["BE-VLG"],
     });
     expect(draftFromStore({ kind: "garden", name: "Atelier", city: "Gent" })).toEqual({ name: "Atelier", city: "Gent" });
+    // A string where the list should be: dropped, never passed on to cleanAreas (review of #67).
+    expect(draftFromStore({ kind: "network", name: "Maakbib", areaServed: "BE-VLG" })).toEqual({ kind: "network", name: "Maakbib" });
     expect(draftFromStore(null)).toEqual({});
     expect(draftFromStore(["x"])).toEqual({});
   });
