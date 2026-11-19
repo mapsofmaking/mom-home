@@ -6,6 +6,7 @@ import { parseTree } from "../tree/parse";
 import { hexPosition, renderHexView, tileLabel } from "./hexview";
 import { renderPreview } from "./previews";
 import { renderStep } from "./step";
+import * as describeModule from "./describe";
 import { describeWords, renderDescribeForm as renderDescribeFormFor } from "./describe";
 import { metWords, renderWords } from "./words";
 import { renderHexRow } from "./hexrow";
@@ -594,5 +595,137 @@ describe("tile A's words come from the tree (14.2 AC8)", () => {
     expect(bare.field("name").label).toBe("name");
     expect(warn).toHaveBeenCalledTimes(2);
     warn.mockRestore();
+  });
+});
+
+describe("tile A, a network (2026-11-19)", async () => {
+  const { areaOf, describeKeydown, kindOf, missing, readDescribeForm, renderDescribeForm, setKind, syncCta } = await import("./describe");
+  const { locate, timing } = await import("./where");
+  timing.minWait = 0;
+  timing.tick = 0;
+  timing.areaGap = 0;
+  const VLAANDEREN = { lat: 51.0378, lon: 4.2406, country_code: "be", postcode: null, display_name: "Vlaanderen, België / Belgique / Belgien", fidelity: "region", area: "BE-VLG" };
+  afterEach(() => vi.unstubAllGlobals());
+  const mount = (draft = {}) => {
+    document.body.innerHTML = renderDescribeForm(draft, W);
+    return document.querySelector<HTMLFormElement>("#f-describe")!;
+  };
+  const part = (kind: string) => document.querySelector<HTMLElement>(`[data-kind-part="${kind}"]`)!;
+  const area = () => document.querySelector<HTMLSelectElement>("#f-area")!;
+  const cta = () => document.querySelector<HTMLButtonElement>(".wb-cta")!;
+
+  it("asks a space or a network first; a space unless a network is picked, with the space's form as before", () => {
+    const form = mount({ name: "Atelier" });
+    const buttons = [...form.querySelectorAll<HTMLButtonElement>("[data-kind]")];
+    expect(form.querySelector("#f-kind-q")!.textContent).toBe(W.ui("uiKind"));
+    expect(buttons.map((b) => [b.textContent, b.getAttribute("aria-pressed")])).toEqual([[W.ui("uiKindSpace"), "true"], [W.ui("uiKindNetwork"), "false"]]);
+    expect(kindOf(form)).toBe("space");
+    expect(part("network").hidden && part("network").hasAttribute("inert")).toBe(true);
+    expect(part("space").hidden).toBe(false);
+    expect(form.querySelector('label[for="f-name"]')!.textContent).toContain(W.field("name").label);
+  });
+
+  it("the area is a select of the map's areas, named by the tree, with nothing picked at first", () => {
+    mount({ kind: "network", name: "Maakbib" });
+    expect([...area().options].map((o) => [o.value, o.textContent])).toEqual([
+      ["", W.field("area").placeholder], ["BE", "Belgium"], ["BE-VLG", "Flanders"], ["BE-WAL", "Wallonia"], ["BE-BRU", "Brussels"],
+    ]);
+    expect(area().value).toBe("");
+    expect(part("space").hidden).toBe(true);
+    expect(document.querySelector('label[for="f-name"]')!.textContent).toContain(W.ui("uiNameNetwork"));
+  });
+
+  it("picking the kind swaps the where and the name's label in place, and keeps what was typed", () => {
+    const form = mount({ name: "Atelier", city: "Gent" });
+    expect(setKind(form, "network")).toBe(true);
+    expect(setKind(form, "network")).toBe(false);
+    expect(part("space").hidden && !part("network").hidden).toBe(true);
+    expect(form.querySelector(".wb-field-name")!.textContent).toBe(W.ui("uiNameNetwork"));
+    setKind(form, "space");
+    expect((form.elements.namedItem("city") as HTMLInputElement).value).toBe("Gent");
+    expect(form.querySelector(".wb-field-name")!.textContent).toBe(W.field("name").label);
+  });
+
+  it("Tab from the name goes to the area, not to a hidden street", () => {
+    const form = mount({ kind: "network", name: "Maakbib" });
+    form.addEventListener("keydown", (e) => describeKeydown(form, e));
+    const e = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
+    document.querySelector<HTMLInputElement>("#f-name")!.dispatchEvent(e);
+    expect(e.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(area());
+  });
+
+  it("asks the geocoder for the area only, and pins at its centre with the country and fidelity it gives", async () => {
+    const fetch = vi.fn(async () => Response.json(VLAANDEREN));
+    vi.stubGlobal("fetch", fetch);
+    const form = mount({ kind: "network", name: "Maakbib" });
+    expect(missing(form)).toBe(area());
+    area().value = "BE-VLG";
+    expect(areaOf(form)).toBe("BE-VLG");
+    await locate(form, W, () => syncCta(form));
+    expect(JSON.parse((fetch.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)).toEqual({ area: "BE-VLG" });
+    expect(cta().disabled).toBe(false);
+    expect(missing(form)).toBeNull();
+    expect(document.querySelector(".wb-pin-note")!.textContent).toBe(W.ui("uiPinArea", { area: "Flanders" }));
+    const draft: Record<string, unknown> = { street: "old", city: "old" };
+    readDescribeForm(form, draft);
+    expect(draft).toEqual({
+      kind: "network", name: "Maakbib", areaServed: ["BE-VLG"], country: "BE", lat: "51.0378", lon: "4.2406",
+      fidelity: "region", place: "Vlaanderen, België / Belgique / Belgien",
+    });
+  });
+
+  it("areas picked one after another (arrow keys on the select): only the last is asked for", async () => {
+    const fetch = vi.fn(async () => Response.json(VLAANDEREN));
+    vi.stubGlobal("fetch", fetch);
+    const form = mount({ kind: "network", name: "Maakbib" });
+    area().value = "BE";
+    const first = locate(form, W);
+    area().value = "BE-VLG";
+    await Promise.all([first, locate(form, W)]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse((fetch.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)).toEqual({ area: "BE-VLG" });
+  });
+
+  it("the geocoder can't place it: the centre by hand, the country and fidelity from the area", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ ...VLAANDEREN, lat: null, lon: null, display_name: null })));
+    const form = mount({ kind: "network", name: "Maakbib" });
+    area().value = "BE";
+    await locate(form, W, () => syncCta(form));
+    expect(document.querySelector("#f-pin")!.textContent).toBe(W.ui("uiNoResultArea"));
+    expect(document.querySelector<HTMLElement>('[data-manual="country"]')!.hidden).toBe(true);
+    expect(document.querySelector<HTMLElement>('[data-manual="coords"]')!.hidden).toBe(false);
+    (form.elements.namedItem("lat") as HTMLInputElement).value = "50.64";
+    (form.elements.namedItem("lon") as HTMLInputElement).value = "4.67";
+    syncCta(form);
+    expect(cta().disabled).toBe(false);
+    const draft: Record<string, unknown> = {};
+    readDescribeForm(form, draft);
+    expect(draft).toMatchObject({ kind: "network", areaServed: ["BE"], country: "BE", fidelity: "country" });
+  });
+
+  it("a space's draft carries no kind, area or fidelity", () => {
+    const form = mount({ name: "Atelier", city: "Gent" });
+    const draft: Record<string, unknown> = { kind: "network", areaServed: ["BE"], fidelity: "region" };
+    readDescribeForm(form, draft);
+    expect(draft).toEqual({ name: "Atelier", city: "Gent" });
+  });
+
+  it("a network read from the pod opens on its kind and area, the card on", () => {
+    const form = mount({ kind: "network", name: "Maakbib", areaServed: ["BE-VLG"], lat: "51.0378", lon: "4.2406", country: "BE", fidelity: "region" });
+    expect(kindOf(form)).toBe("network");
+    expect(area().value).toBe("BE-VLG");
+    expect(cta().disabled).toBe(false);
+    expect(document.querySelector<HTMLElement>('[data-beat="rest"]')!.classList.contains("open")).toBe(true);
+  });
+
+  it("the card says 'Your network' until named, and the area it serves instead of a town", () => {
+    const { previewWords } = describeModule;
+    const pw = previewWords(W);
+    expect(renderPreview("mapcard", { kind: "network" }, pw)).toContain(W.ui("uiYourNetwork"));
+    const card = renderPreview("mapcard", { kind: "network", name: "Maakbib", areaServed: ["BE-VLG"] }, pw);
+    expect(card).toContain(W.ui("uiServes", { area: "Flanders" }));
+    expect(card).not.toContain("Where you are");
+    expect(renderPreview("kept", { kind: "network", name: "Maakbib", areaServed: ["BE-VLG"] }, pw)).toContain("Anyone looking in Flanders");
   });
 });

@@ -1,0 +1,13 @@
+@prefix schema: <https://schema.org/> .
+@prefix mom: <https://mapsofmaking.org/ns/mom#> .
+
+<#space> a mom:Network, schema:Organization ;
+  schema:name "Maakbib" ;
+  schema:description "MaakBib helpt bibliotheken en jeugdwerkingen met kennis en een netwerk om een maakplaats of fablab uit te bouwen en te runnen." ;
+  schema:url <https://maakbib.be/> ;
+  schema:logo <https://maakbib.be/wp-content/uploads/2026/08/logo-maakbib-kleur.svg> ;
+  schema:email "info@decreatievestem.be" ;
+  schema:areaServed "BE-VLG" ;
+  schema:geo [ a schema:GeoCoordinates ;
+    schema:latitude 51.0378 ; schema:longitude 4.2406 ] ;
+  mom:geolocationFidelity "region" .

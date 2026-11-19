@@ -8,6 +8,17 @@ Kit-level decisions (Solid, ACLs, sign-in) are ADRs in the kit repo; this file o
 
 ## 2026-11-19
 
+- **Tile A describes a space or a network** (Nicolas, 2026-11-19; the map's side is maps_of_making #79). The first
+  choice on the form is "A space or a network?"; a space is the default, so its form, file and checks are as
+  before. A network has an **area**, not an address: `schema:areaServed`, one ISO 3166 code per statement
+  (`BE`, `BE-VLG`), picked from the areas the map names (Belgium and its three regions for now; a select, so
+  nothing the geocoder or the map can't read gets typed). Its node is typed `mom:Network, schema:Organization`
+  (the subject stays `<#space>`), and its pin sits at the area's centre, as the map's geocode proxy gives it,
+  with `mom:geolocationFidelity` (`region`, `country`) saying how coarse it is. No `schema:address`: the
+  map derives the country from the areas. The SpaceAPI JSON says the same in a `mom` block. Pinned to the
+  map's `maakbib.{ttl,json}`. Left for later: the Type Index entry still says `mom:Space` for both kinds, and
+  the map's pin read-back has no area yet, so the live card under tile B shows no "Serves" line.
+
 - **The self-host door downloads SpaceAPI JSON, converted from the same draft as `space.ttl`** (Nicolas, 2026-11-19).
   Self-hosters know JSON and the map already reads it; Turtle stays the pod path. One draft, two writers, the
   same required parts and the same refusal of unsafe addresses; pinned to the map's fixture.

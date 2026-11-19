@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { draftFromTurtle, iri, literal, matrixLink, sameStatements, spaceFile, SpaceFileError, statements } from "./spacefile";
+import { draftFromStore, draftFromTurtle, iri, literal, matrixLink, sameStatements, spaceFile, SpaceFileError, statements } from "./spacefile";
 
 /** Pinned to maps_of_making 12bb32a (test/fixtures/README.md): the file as the map reads it. */
 const fixture = readFileSync(join(__dirname, "../../test/fixtures/atelier-du-canal.ttl"), "utf8");
@@ -140,5 +140,103 @@ describe("draftFromTurtle: the file in the pod back to tile A's draft (#11)", ()
 
   it("throws on a file that isn't Turtle", () => {
     expect(() => draftFromTurtle("<html> nope", base)).toThrow();
+  });
+});
+
+describe("a network (2026-11-19): it serves an area, it has no address", () => {
+  /** Pinned to maps_of_making 51ba3ad (test/fixtures/README.md): Maakbib as the map reads it. */
+  const maakbib = readFileSync(join(__dirname, "../../test/fixtures/maakbib.ttl"), "utf8");
+  const base = "https://maakbib.pod.example/space.ttl";
+  const network = {
+    kind: "network" as const,
+    name: "Maakbib",
+    description: "MaakBib helpt bibliotheken en jeugdwerkingen met kennis en een netwerk om een maakplaats of fablab uit te bouwen en te runnen.",
+    website: "https://maakbib.be/",
+    logo: "https://maakbib.be/wp-content/uploads/2026/08/logo-maakbib-kleur.svg",
+    email: "info@decreatievestem.be",
+    areaServed: ["BE-VLG"],
+    lat: "51.0378",
+    lon: "4.2406",
+    fidelity: "region",
+  };
+
+  it("says exactly the statements of the map's fixture for the same values", () => {
+    const { turtle, dropped } = spaceFile(network);
+    expect(dropped).toEqual([]);
+    expect(statements(turtle)).toEqual(statements(maakbib));
+  });
+
+  it("types the node a network and an organisation, at <#space>, with no address", () => {
+    const { turtle } = spaceFile(network);
+    expect(turtle).toContain("<#space> a mom:Network, schema:Organization ;");
+    expect(turtle).not.toContain("mom:Space");
+    expect(turtle).not.toContain("schema:address");
+    expect(turtle).not.toContain("PostalAddress");
+  });
+
+  it("reads the fixture back into the draft, and writes the same statements again (the round trip)", () => {
+    const read = draftFromTurtle(maakbib, base)!;
+    expect(read).toEqual({ ...network, country: "BE" });
+    expect(sameStatements(spaceFile(read).turtle, maakbib)).toBe(true);
+  });
+
+  it("does not read a stray address on a network: the country stays the one its areas share (review of #67)", () => {
+    const stray = maakbib.replace(/\.\s*$/, ` ;\n  schema:address [ schema:addressLocality "Paris" ; schema:addressCountry "FR" ] .\n`);
+    const read = draftFromTurtle(stray, base)!;
+    expect(read.country).toBe("BE");
+    expect(read.city).toBeUndefined();
+  });
+
+  it("writes one statement per area, upper case, sorted, valid codes only; the street and town typed before are not written", () => {
+    const { turtle } = spaceFile({ ...network, areaServed: ["be-vlg", "BE-BRU", "Flanders", "BE-VLG"], street: "Rue 1", city: "Gent", country: "BE" });
+    const areas = statements(turtle).filter((s) => s.includes("schema.org/areaServed"));
+    expect(areas).toEqual([
+      `<https://pod.example/space.ttl#space> https://schema.org/areaServed "BE-BRU"^^http://www.w3.org/2001/XMLSchema#string`,
+      `<https://pod.example/space.ttl#space> https://schema.org/areaServed "BE-VLG"^^http://www.w3.org/2001/XMLSchema#string`,
+    ]);
+    expect(turtle).not.toContain("Gent");
+    expect(turtle).not.toContain("Rue 1");
+  });
+
+  it("requires a name, an area and a pin, and names what is missing", () => {
+    const missing = (d: object) => {
+      try {
+        spaceFile(d);
+        return [];
+      } catch (e) {
+        return (e as SpaceFileError).missing;
+      }
+    };
+    expect(missing({ kind: "network" })).toEqual(["name", "area", "pin"]);
+    expect(missing({ ...network, areaServed: ["Vlaanderen"] })).toEqual(["area"]);
+    expect(missing({ ...network, lat: "north" })).toEqual(["pin"]);
+  });
+
+  it("writes a fidelity the map reads, else the one the area's shape gives; never anything else", () => {
+    const fidelity = (d: object) => statements(spaceFile({ ...network, ...d }).turtle).find((s) => s.includes("geolocationFidelity"));
+    expect(fidelity({ fidelity: "street" })).toContain('"region"');
+    expect(fidelity({ fidelity: undefined, areaServed: ["BE"] })).toContain('"country"');
+    expect(fidelity({ fidelity: "Country" })).toContain('"country"');
+  });
+
+  it("reads a space's file as before: no kind, no area, no fidelity", () => {
+    const read = draftFromTurtle(fixture, base)!;
+    expect(read.kind).toBeUndefined();
+    expect(read.areaServed).toBeUndefined();
+    expect(read.fidelity).toBeUndefined();
+    expect(spaceFile(draft).turtle).not.toContain("geolocationFidelity");
+  });
+});
+
+describe("draftFromStore: the draft kept in this browser, read back", () => {
+  it("keeps text fields and a network's areas, cleaned; drops anything else", () => {
+    expect(draftFromStore({ kind: "network", name: "Maakbib", areaServed: ["be-vlg", 3, "nope"], lat: 51, event: {} })).toEqual({
+      kind: "network", name: "Maakbib", areaServed: ["BE-VLG"],
+    });
+    expect(draftFromStore({ kind: "garden", name: "Atelier", city: "Gent" })).toEqual({ name: "Atelier", city: "Gent" });
+    // A string where the list should be: dropped, never passed on to cleanAreas (review of #67).
+    expect(draftFromStore({ kind: "network", name: "Maakbib", areaServed: "BE-VLG" })).toEqual({ kind: "network", name: "Maakbib" });
+    expect(draftFromStore(null)).toEqual({});
+    expect(draftFromStore(["x"])).toEqual({});
   });
 });

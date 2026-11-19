@@ -31,6 +31,7 @@ import { changeHomeSettings, ensureSettingsReadme, readHomeSettings, type HomeSe
 import { forgetReads } from "./lib/read";
 import { readDone } from "./tiles/done";
 import { makeDraftStore } from "./lib/draft";
+import { draftFromStore } from "./lib/spacefile";
 import { hasForwarded, readForwarded } from "./lib/forwarded";
 import { clearPodMade, peekPodMade, takePodMade, type PodMade } from "./lib/handoff";
 import { putOnMap, readPublished, type OnMap, rereadOnMap } from "./lib/onmap";
@@ -83,13 +84,9 @@ const done = new Set<string>(
 const DRAFT_DAYS = 30;
 const drafts = makeDraftStore<Draft>("mom-home:draft", DRAFT_DAYS * 24 * 60 * 60 * 1000);
 const DRAFT_ID = "space";
-/** A stored draft is read as text fields only: an older or damaged entry costs the draft, never the page. */
+/** A stored draft, checked (spacefile.ts `draftFromStore`): an older or damaged entry costs the draft, never the page. */
 function loadDraft(): Draft {
-  const raw: unknown = drafts.load(DRAFT_ID);
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
-  const out: Record<string, string> = {};
-  for (const [k, v] of Object.entries(raw)) if (typeof v === "string") out[k] = v;
-  return out as Draft;
+  return draftFromStore(drafts.load(DRAFT_ID));
 }
 const draft: Draft = loadDraft();
 const keepDraft = (d: Draft) => (Object.keys(d).length ? drafts.save(DRAFT_ID, d) : drafts.clear(DRAFT_ID));

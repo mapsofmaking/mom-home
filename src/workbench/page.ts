@@ -51,8 +51,10 @@ import {
   describeKeydown,
   describeNormalise,
   fillExample,
+  kindOf,
   missing,
   readDescribeForm,
+  setKind,
   syncCta,
 } from "./describe";
 import { locate, pinByHand, pinned, unpin } from "./where";
@@ -399,7 +401,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     clearTimeout(podTimer);
     // Published in this tab: tile C's card is the one the map gave back then.
     if (!hours.onMap && publish.onMap) hours = { ...hours, onMap: publish.onMap };
-    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, carded, words, offers, door, selfDone, selfFailed, pod, podReady: podReady?.pod ?? null, prior: opts.priorPod ?? null, makeAnother, publish: opts.publishSpace ? publish : null, hours: opts.saveHours ? hours : null, tool: toolOpen, logo: opts.uploadLogo && opts.draft.hours?.trim() ? logo : null, move: opts.moveSpace && opts.draft.hours?.trim() ? move : null });
+    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, carded, words, offers, door, selfDone, selfFailed, pod, podReady: podReady?.pod ?? null, prior: opts.priorPod ?? null, makeAnother, publish: opts.publishSpace ? publish : null, hours: opts.saveHours ? hours : null, tool: toolOpen, logo: opts.uploadLogo && opts.draft.hours?.trim() ? logo : null, move: opts.moveSpace && opts.draft.hours?.trim() && opts.draft.kind !== "network" ? move : null });
     step.scrollTop = 0;
     if (tile.act === "hours" && toolOpen) placeTool(tile);
     if (tile.act === "threshold" && !offersAsked) askOffers();
@@ -585,7 +587,9 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   };
   // A draft with a town and no pin (forwarded from genjson, 14.8; or left before the answer came) asks now.
   const resumed = step.querySelector<HTMLFormElement>("#f-describe");
-  if (resumed && !workbench && resumed.querySelector<HTMLInputElement>("#f-city")?.value.trim() && !pinned(resumed)) {
+  const resumedWhere = (form: HTMLFormElement) =>
+    kindOf(form) === "network" ? !!form.querySelector<HTMLSelectElement>("#f-area")?.value : !!form.querySelector<HTMLInputElement>("#f-city")?.value.trim();
+  if (resumed && !workbench && resumedWhere(resumed) && !pinned(resumed)) {
     void locate(resumed, words, located(resumed));
   }
   step.addEventListener("keydown", (event) => {
@@ -606,6 +610,12 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     const form = describeForm(event);
     if (!form) return;
     const target = event.target as HTMLInputElement;
+    // A network's area, picked: the old pin goes, the new area's centre is asked for at once (no field to leave).
+    if (target.name === "area") {
+      unpin(form);
+      describeCommit(form, target);
+      void locate(form, words, located(form));
+    }
     if (target.name === "country") target.value = target.value.toUpperCase();
     if (target.name === "street" || target.name === "city") unpin(form);
     if (target.name === "lat" || target.name === "lon") pinByHand(form, words);
@@ -633,6 +643,16 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
       if (next) select(next.id);
       else draw();
       step.querySelector<HTMLElement>(".wb-step-title")?.focus();
+      return;
+    }
+    if (target.dataset.kind) {
+      // A space or a network: picked in place, nothing redrawn, so what is typed stays where it is.
+      const form = step.querySelector<HTMLFormElement>("#f-describe");
+      if (!form || !setKind(form, target.dataset.kind === "network" ? "network" : "space")) return;
+      unpin(form);
+      syncCta(form);
+      keep(form);
+      void locate(form, words, located(form));
       return;
     }
     if (target.id === "example") {
@@ -790,7 +810,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     publishing = true;
     // Each failure is said in the words of the step that failed (AC5).
     const say = (e: PublishError, stepName: "file" | "pub" | "map") => {
-      const missing = e.missing.map((m) => ui(({ name: "uiMissingName", town: "uiMissingTown", country: "uiMissingCountry", pin: "uiMissingPin" } as const)[m]));
+      const missing = e.missing.map((m) => ui(({ name: "uiMissingName", town: "uiMissingTown", country: "uiMissingCountry", pin: "uiMissingPin", area: "uiMissingArea" } as const)[m]));
       const status = String(e.status ?? "no status");
       // The map's own failures: its silence is not the pod's.
       if (stepName === "map") return ui(e.code === "map-refused" ? "uiMapRefused" : "uiMapDown");

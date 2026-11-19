@@ -278,6 +278,37 @@ beginning `zz-`. "Create it". Note whether the pod's page asks for the passphras
 
 Throwaway accounts made here are removed by the wipe before launch.
 
+## 13 · Network from tile A (Maakbib)
+
+A network serves an area and has no address (decisions.md, 2026-11-19). Run it on production with a
+throwaway pod (`zz-` address), at 1541×751 and on a phone.
+
+**Do:** open `https://home.mapsofmaking.org` signed out. In tile A press "A network". Type the name
+"Maakbib (test)", pick "Flanders" as the area served, add a description, the website
+`maakbib.be` and the email. "Show me my card", then "Publish it", the pod door, create the pod, sign in,
+"Put it on the map". Then open the map from the threshold.
+
+**Expect:**
+- After "A network" the name's label says "Network name", the street and city are gone, and the area
+  field is there; "A space" brings street and city back with what was typed in them.
+- Picking Flanders asks the geocoder once and drops the pin at the centre of the area; the line under it
+  says the network sits at the centre of Flanders. The pin line names Vlaanderen (not West-Vlaanderen:
+  that is the map's bug, fixed there, and home does not work around it).
+- The card says "Maakbib (test)" and "Serves Flanders"; with no name yet it says "Your network".
+- `space.ttl` in the pod reads `a mom:Network, schema:Organization`, one `schema:areaServed "BE-VLG"`,
+  the geo and `mom:geolocationFidelity "region"`, and no `schema:address`.
+- On the map the network's card says "Serves Flanders", and the threshold says "Anyone looking for a
+  workshop in Flanders can find you now."
+- Signed out and in again: tile A is done, the form reopens on "A network" with Flanders picked.
+- Tile C on a network: hours and logo work; the profile tool shows no address field; no "move" panel.
+
+**Then, the self-host door:** in a fresh private tab, describe the same network, "Show me my card",
+"Publish it", "Take the file". The downloaded `maakbib-test.json` has `location` with `country_code`,
+`lat` and `lon` and no `address`, and `"mom": {"kind": "network", "areaServed": ["BE-VLG"],
+"geolocationFidelity": "region"}`.
+
+**Observed:**
+
 ---
 
 ## UX review

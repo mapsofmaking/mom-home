@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { spaceApiFilename, spaceApiJson } from "./spaceapi";
-import { draftFromTurtle, SpaceFileError } from "./spacefile";
+import { draftFromTurtle, sameStatements, spaceFile, SpaceFileError } from "./spacefile";
 
 /** Pinned to maps_of_making c349f22 (test/fixtures/README.md): the space as the map reads it, in both formats. */
 const fixture = (ext: string) => readFileSync(join(__dirname, "../../test/fixtures/atelier-du-canal." + ext), "utf8");
@@ -57,5 +57,30 @@ describe("the SpaceAPI file is the file the map reads", () => {
     expect(spaceApiFilename(draft)).toBe("atelier-du-canal.json");
     expect(spaceApiFilename({ name: "Café  Réparation!" })).toBe("cafe-reparation.json");
     expect(spaceApiFilename({})).toBe("space.json");
+  });
+});
+
+describe("a network's SpaceAPI file (2026-11-19)", () => {
+  /** Pinned to maps_of_making 51ba3ad (test/fixtures/README.md): Maakbib as the map reads it, in both formats. */
+  const maakbib = (ext: string) => readFileSync(join(__dirname, "../../test/fixtures/maakbib." + ext), "utf8");
+  const network = draftFromTurtle(maakbib("ttl"), "https://maakbib.pod.example/space.ttl")!;
+
+  it("turns the fixture's Turtle into the fixture's JSON, and back into the same statements", () => {
+    const { json, dropped } = spaceApiJson(network);
+    expect(dropped).toEqual([]);
+    expect(JSON.parse(json)).toEqual(JSON.parse(maakbib("json")));
+    expect(Object.keys(JSON.parse(json))).toEqual(Object.keys(JSON.parse(maakbib("json"))));
+    expect(sameStatements(spaceFile(network).turtle, maakbib("ttl"))).toBe(true);
+  });
+
+  it("has no address; the country is the one its areas share, and none when they span several", () => {
+    expect(JSON.parse(spaceApiJson(network).json).location).toEqual({ country_code: "BE", lat: 51.0378, lon: 4.2406 });
+    const two = JSON.parse(spaceApiJson({ ...network, areaServed: ["BE-VLG", "NL"] }).json);
+    expect(two.location).toEqual({ lat: 51.0378, lon: 4.2406 });
+    expect(two.mom.areaServed).toEqual(["BE-VLG", "NL"]);
+  });
+
+  it("refuses a network with no area, as the Turtle does", () => {
+    expect(() => spaceApiJson({ ...network, areaServed: [] })).toThrow(SpaceFileError);
   });
 });

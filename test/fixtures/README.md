@@ -13,3 +13,9 @@ home's reader to it with the same handles the map's test expects (`tests/test_sp
 
 Both `atelier-du-canal` files were checked again against maps_of_making `c349f22` (`mom-vps`): unchanged since
 `12bb32a`, and `handles.ttl` too. `src/lib/spaceapi.test.ts` holds home's SpaceAPI writer to the JSON one.
+
+`maakbib.ttl` and `maakbib.json` are copied from the same folder at commit `51ba3ad` (`mom-vps`, the merge of
+maps_of_making #79, "networks-area"): a network as the map reads it, in both formats (it serves an area, has no
+address, sits at the area's centre with its fidelity). `src/lib/spacefile.test.ts` holds home's Turtle writer
+and reader to the `.ttl`, `src/lib/spaceapi.test.ts` the SpaceAPI writer to the `.json`: the Turtle read back
+into a draft writes the same statements and the same JSON.
