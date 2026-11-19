@@ -34,6 +34,9 @@ export interface StepContext {
   /** Tile B (14.3): what the pod server offers (null: being asked), and the door chosen. */
   offers?: OffersState;
   door?: Door | null;
+  /** Tile B's self-host door: the file was downloaded, or the draft could not make one. */
+  selfDone?: boolean;
+  selfFailed?: boolean;
   /** The pod form's address and email, kept by the page across redraws. */
   pod?: PodFormState | null;
   /** Back from the sign-in that followed creating the pod (14.3 AC6): its address, once. */
@@ -147,7 +150,7 @@ function openStep(tile: Tile, state: TileState, ctx: StepContext): string {
     </div>${renderPublish(tile, ctx.publish, ctx.draft.city ?? "", ctx.tiles.find((t) => t.id === "change"))}`;
   }
   if (tile.act === "threshold" && state !== "done") {
-    const t = { offers: ctx.offers ?? null, door: ctx.door ?? null, draft: ctx.draft, pod: ctx.pod ?? null, prior: ctx.prior ?? null, makeAnother: ctx.makeAnother ?? false };
+    const t = { offers: ctx.offers ?? null, door: ctx.door ?? null, draft: ctx.draft, pod: ctx.pod ?? null, prior: ctx.prior ?? null, makeAnother: ctx.makeAnother ?? false, selfDone: ctx.selfDone ?? false, selfFailed: ctx.selfFailed ?? false };
     // The pod form carries its own heading: the door's name (storyboard B2).
     return `
     <div class="wb-step-head">

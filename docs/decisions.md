@@ -6,6 +6,12 @@ itself is tracked in issues and on the `mapsofmaking` org project; older story f
 
 Kit-level decisions (Solid, ACLs, sign-in) are ADRs in the kit repo; this file only records home's own.
 
+## 2026-11-19
+
+- **The self-host door downloads SpaceAPI JSON, converted from the same draft as `space.ttl`** (Nicolas, 2026-11-19).
+  Self-hosters know JSON and the map already reads it; Turtle stays the pod path. One draft, two writers, the
+  same required parts and the same refusal of unsafe addresses; pinned to the map's fixture.
+
 ## 2026-11-04
 
 - **The "Work in progress" notice is gone** (Nicolas). A coordinator can now create an account, put their space on

@@ -214,7 +214,7 @@ describe("the other door, and what survives", () => {
     const { root } = await openForm();
     root.querySelector<HTMLElement>("#pod-other")!.click();
     expect(root.querySelector(".wb-doors")).not.toBeNull();
-    expect(root.querySelector("#reply")!.textContent).toContain(keep.ui.uiSelfSoon);
+    expect(root.querySelector("#reply")!.textContent).toContain(keep.ui.uiSelfPut);
   });
 
   it("an address and an email the coordinator typed come back; an untouched one follows the description", async () => {

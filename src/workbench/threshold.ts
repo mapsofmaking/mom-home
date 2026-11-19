@@ -20,6 +20,7 @@ import type { Tile } from "../tree/parse";
 import { bernard, esc } from "./html";
 import { renderPodForm, type PodFormState } from "./podform";
 import type { PodMade } from "../lib/handoff";
+import { spaceApiFilename, spaceApiJson } from "../lib/spaceapi";
 import type { Draft } from "./previews";
 import { tileUi } from "./tilewords";
 
@@ -31,7 +32,7 @@ export type OffersState = Offers | null;
 /** Every `onb:ui*` line this step shows: each needs to be in the tree (voice.test.ts). */
 export const THRESHOLD_UI_KEYS = [
   "uiDoorSelf", "uiDoorPod", "uiNotNow", "uiNotNowSaid", "uiDoorsAgain", "uiChecking",
-  "uiNoRegister", "uiProviderDown", "uiTryAgain", "uiSelfSoon", "uiSelfSoonLink",
+  "uiNoRegister", "uiProviderDown", "uiTryAgain", "uiSelfFormat", "uiSelfPut", "uiSelfDownload", "uiSelfFailed", "uiSelfMap",
   "uiDoorSelfDesc", "uiDoorPodDesc", "uiDoorSelfWhere", "uiDoorsNote",
   "uiPodAddress", "uiPodEmail", "uiPodEmailHint", "uiPodPass", "uiPodPassAgain", "uiPodPassExample",
   "uiPodPassHint", "uiPodShow", "uiPodHide", "uiPodShowLabel", "uiPodHideLabel", "uiPodCreate",
@@ -52,6 +53,17 @@ export interface ThresholdContext {
   /** A pod this tab already made and did not sign in to: offered before a form that would make a second account. */
   prior?: PodMade | null;
   makeAnother?: boolean;
+  /** Self-host door: the file was just downloaded (Bernard says what comes next), or could not be made. */
+  selfDone?: boolean;
+  selfFailed?: boolean;
+}
+
+/**
+ * The file the self-host door gives: SpaceAPI JSON from the draft, named after the space. Throws
+ * `SpaceFileError` when the draft is not enough for a file (tile B follows tile A, so it should not happen).
+ */
+export function selfHostFile(draft: Draft): { filename: string; json: string } {
+  return { filename: spaceApiFilename(draft), json: spaceApiJson(draft).json };
 }
 
 /** The pod form replaces the doors: only once the server has said it takes accounts. */
@@ -129,8 +141,13 @@ export function renderThreshold(tile: Tile, ctx: ThresholdContext): string {
 
   let reply = "";
   if (chosen === "self")
-    reply = `<p class="wb-aside">${esc(ui("uiSelfSoon"))}
-      <a class="inline-link" href="https://mapsofmaking.org" target="_blank" rel="noopener">${esc(ui("uiSelfSoonLink"))}</a></p>`;
+    reply = `<p class="wb-aside">${esc(ui("uiSelfFormat"))} ${esc(ui("uiSelfPut"))}</p>
+      <div class="wb-form-actions">
+        <button type="button" class="btn btn-primary wb-cta" id="self-download">${esc(ui("uiSelfDownload"))}</button>
+        <a class="inline-link" href="https://mapsofmaking.org" target="_blank" rel="noopener">${esc(ui("uiSelfMap"))}</a>
+      </div>
+      ${ctx.selfFailed ? `<p class="wb-aside" id="self-failed" role="alert">${esc(ui("uiSelfFailed"))}</p>` : ""}
+      ${ctx.selfDone ? bernard(tile.lines.saidDoneSelf) : ""}`;
   else if (chosen === "notnow") reply = `<p class="wb-aside">${esc(ui("uiNotNowSaid"))}</p>`;
 
   const way =
