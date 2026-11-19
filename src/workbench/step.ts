@@ -140,7 +140,7 @@ const tileAWords = (ctx: StepContext) => ctx.words ?? describeWords(ctx.tiles.fi
 
 /** Where "anyone looking in …" looks: the town for a space, the areas a network serves ("Flanders"). */
 const locality = (ctx: StepContext) =>
-  ctx.draft.kind === "network" ? areaNames(ctx.draft.areaServed, tileAWords(ctx)) : (ctx.draft.city ?? "");
+  ctx.draft.kind === "network" ? areaNames(ctx.draft.areaServed) : (ctx.draft.city ?? "");
 
 function openStep(tile: Tile, state: TileState, ctx: StepContext): string {
   if (tile.act === "describe") return describeStep(tile, state, ctx);

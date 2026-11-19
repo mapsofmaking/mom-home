@@ -74,7 +74,9 @@ export function spaceApiJson(draft: Draft): SpaceApi {
   if (hours) out.opening_hours = hours;
 
   out.state = { open: null };
-  if (network) out.mom = { kind: "network", areaServed: network.areas, geolocationFidelity: network.fidelity };
+  // Each area as `{code, name}`, in that order; a name not known (read from a #67 file) is left out, as in the Turtle.
+  const areas = network?.areas.map((a) => (a.name ? { code: a.code, name: a.name } : { code: a.code }));
+  if (network) out.mom = { kind: "network", areaServed: areas, geolocationFidelity: network.fidelity };
   return { json: JSON.stringify(out, null, 2) + "\n", dropped };
 }
 

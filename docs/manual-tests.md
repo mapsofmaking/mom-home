@@ -284,18 +284,22 @@ A network serves an area and has no address (decisions.md, 2026-11-19). Run it o
 throwaway pod (`zz-` address), at 1541×751 and on a phone.
 
 **Do:** open `https://home.mapsofmaking.org` signed out. In tile A press "A network". Type the name
-"Maakbib (test)", pick "Flanders" as the area served, add a description, the website
+"Maakbib (test)", type "Flanders" as the area served and pick "Flanders, Belgium", add a description, the website
 `maakbib.be` and the email. "Show me my card", then "Publish it", the pod door, create the pod, sign in,
 "Put it on the map". Then open the map from the threshold.
 
 **Expect:**
+- The picked kind is plain to see: ink fill and a check mark, in light, dark and high contrast.
 - After "A network" the name's label says "Network name", the street and city are gone, and the area
-  field is there; "A space" brings street and city back with what was typed in them.
-- Picking Flanders asks the geocoder once and drops the pin at the centre of the area; the line under it
-  says the network sits at the centre of Flanders. The pin line names Vlaanderen (not West-Vlaanderen:
+  box is there; "A space" brings street and city back with what was typed in them.
+- Typing "Flanders" asks the geocoder once the typing pauses and offers a short list under the box, no
+  pop-up and no added scroll at 1541×751; Tab or arrow down reaches it, Enter picks. Picking drops the pin
+  at the centre of the area with no second ask; the line under it says the network sits at the centre of
+  Flanders. Typing again drops the pick and the pin. "Île-de-France" and "France" are offered too. The pin line names Vlaanderen (not West-Vlaanderen:
   that is the map's bug, fixed there, and home does not work around it).
 - The card says "Maakbib (test)" and "Serves Flanders"; with no name yet it says "Your network".
-- `space.ttl` in the pod reads `a mom:Network, schema:Organization`, one `schema:areaServed "BE-VLG"`,
+- `space.ttl` in the pod reads `a mom:Network, schema:Organization`, one `schema:areaServed [ a
+  schema:AdministrativeArea ; schema:identifier "BE-VLG" ; schema:name "Flanders" ]`,
   the geo and `mom:geolocationFidelity "region"`, and no `schema:address`.
 - On the map the network's card says "Serves Flanders", and the threshold says "Anyone looking for a
   workshop in Flanders can find you now."
@@ -304,7 +308,7 @@ throwaway pod (`zz-` address), at 1541×751 and on a phone.
 
 **Then, the self-host door:** in a fresh private tab, describe the same network, "Show me my card",
 "Publish it", "Take the file". The downloaded `maakbib-test.json` has `location` with `country_code`,
-`lat` and `lon` and no `address`, and `"mom": {"kind": "network", "areaServed": ["BE-VLG"],
+`lat` and `lon` and no `address`, and `"mom": {"kind": "network", "areaServed": [{"code": "BE-VLG", "name": "Flanders"}],
 "geolocationFidelity": "region"}`.
 
 **Observed:**

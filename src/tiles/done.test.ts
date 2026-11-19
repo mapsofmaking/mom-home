@@ -13,7 +13,7 @@ describe("done is read from the space's file (#11)", () => {
   });
 
   it("describe, for a network (2026-11-19): a name, an area and a pin; no town", async () => {
-    const network = { kind: "network" as const, name: "Maakbib", areaServed: ["BE-VLG"], lat: "51.0378", lon: "4.2406" };
+    const network = { kind: "network" as const, name: "Maakbib", areaServed: [{ code: "BE-VLG", name: "Flanders" }], lat: "51.0378", lon: "4.2406" };
     expect(await DONE_CHECKS.describe({ ...base, space, spaceData: network })).toBe(true);
     expect(await DONE_CHECKS.describe({ ...base, space, spaceData: { ...network, areaServed: [] } })).toBe(false);
   });

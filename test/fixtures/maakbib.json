@@ -11,5 +11,5 @@
   "description": "MaakBib helpt bibliotheken en jeugdwerkingen met kennis en een netwerk om een maakplaats of fablab uit te bouwen en te runnen.",
   "contact": { "email": "info@decreatievestem.be" },
   "state": { "open": null },
-  "mom": { "kind": "network", "areaServed": ["BE-VLG"], "geolocationFidelity": "region" }
+  "mom": { "kind": "network", "areaServed": [{"code": "BE-VLG", "name": "Flanders"}], "geolocationFidelity": "region" }
 }

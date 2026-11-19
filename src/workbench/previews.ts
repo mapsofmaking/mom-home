@@ -13,6 +13,7 @@
  */
 import { esc } from "./html";
 import { miniMapSlot } from "./minimap";
+import type { Area } from "../lib/spacefile";
 
 /** What the coordinator has typed so far. Signed out it lives in memory (AC4). */
 export interface Draft {
@@ -21,8 +22,8 @@ export interface Draft {
    * and has no address). Absent is a space, so every draft from before reads as it did.
    */
   kind?: "space" | "network";
-  /** A network's areas, ISO 3166 codes (`BE`, `BE-VLG`); a space has none. */
-  areaServed?: string[];
+  /** A network's areas: an ISO 3166 code (`BE`, `BE-VLG`) and its name ("Flanders"), searched by name; a space has none. */
+  areaServed?: Area[];
   /** How coarse the pin is (`region`, `country` for a network at its area's centre); the geocoder says it. */
   fidelity?: string;
   name?: string;

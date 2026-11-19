@@ -19,3 +19,9 @@ maps_of_making #79, "networks-area"): a network as the map reads it, in both for
 address, sits at the area's centre with its fidelity). `src/lib/spacefile.test.ts` holds home's Turtle writer
 and reader to the `.ttl`, `src/lib/spaceapi.test.ts` the SpaceAPI writer to the `.json`: the Turtle read back
 into a draft writes the same statements and the same JSON.
+
+Both `maakbib` files then changed in step with the map (Nicolas, 2026-11-19): an area served is a node with its
+code and its name (`schema:areaServed [ a schema:AdministrativeArea ; schema:identifier "BE-VLG" ; schema:name
+"Flanders" ]`; in the JSON `{"code": "BE-VLG", "name": "Flanders"}`), since a network anywhere searches its area
+by name. Only that line changed in each. The map's fixtures change to the same in its area-search PR: move the
+pin to that commit once it is merged.

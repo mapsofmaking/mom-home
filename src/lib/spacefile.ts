@@ -16,7 +16,8 @@
  *
  * A network (2026-11-19, the map's "A network" section of the same reference) has no address: it serves an
  * area. Its node is typed `mom:Network, schema:Organization` (the subject stays `<#space>`), says each area in
- * a `schema:areaServed` of its own, and sits at the area's centre with `mom:geolocationFidelity` saying how
+ * a `schema:areaServed` node of its own (`schema:AdministrativeArea`, its ISO code as `schema:identifier` and
+ * its name), and sits at the area's centre with `mom:geolocationFidelity` saying how
  * coarse that pin is. Required for a network: a name, an area, a pin. `test/fixtures/maakbib.ttl` holds it.
  */
 import { Parser, type Quad, type Term } from "n3";
@@ -108,15 +109,73 @@ export const AREA_CODE = /^[A-Z]{2}(-[A-Z0-9]{1,3})?$/;
 export const FIDELITIES = ["exact", "approximate", "city", "region", "country"] as const;
 const MAX_AREAS = 10;
 
-/** Areas as the map keeps them: upper case, valid codes only, once each, sorted, ten at most. */
-export function cleanAreas(areas: readonly string[] | undefined): string[] {
-  const codes = (areas ?? []).map((a) => a.trim().toUpperCase()).filter((a) => AREA_CODE.test(a));
-  return [...new Set(codes)].sort().slice(0, MAX_AREAS);
+/** An area a network serves (2026-11-19): its ISO code, and its name as the geocoder gave it ("" when unknown). */
+export interface Area {
+  code: string;
+  name: string;
+}
+
+/** The longest name an area keeps (the map's MAX_AREA_NAME): a longer one is cut there, as the map cuts it. */
+const MAX_AREA_NAME = 200;
+
+/**
+ * An area's name as the map cleans it (maps_of_making `scripts/spaceapi_extract/area.py` `clean_area_name`):
+ * control characters out, whitespace runs to one space, trimmed, cut at 200 characters; "" when none. It comes
+ * from the geocoder, not from a person, so cutting loses no authored copy.
+ */
+export function cleanAreaName(value: unknown): string {
+  if (typeof value !== "string") return "";
+  // eslint-disable-next-line no-control-regex
+  const line = value.replace(/[\u0000-\u001f\u007f]/g, " ").split(/\s+/).filter(Boolean).join(" ");
+  // Cut by character (Python slices code points), not by UTF-16 unit.
+  return Array.from(line).slice(0, MAX_AREA_NAME).join("");
+}
+
+/**
+ * Areas as the map keeps them (`clean_areas`): valid codes only (upper case), once each, sorted by code, ten at
+ * most. Takes `{code, name}` and a bare code string (a draft or file from #67, name ""); anything else is
+ * dropped. Two of one code: a name beats none, then the smaller name, so the same file always reads the same.
+ */
+export function cleanAreas(areas: readonly unknown[] | undefined): Area[] {
+  const best = new Map<string, string>();
+  for (const a of Array.isArray(areas) ? areas : []) {
+    const raw = typeof a === "string" ? { code: a, name: "" } : a && typeof a === "object" ? (a as Record<string, unknown>) : null;
+    if (!raw || typeof raw.code !== "string") continue;
+    const code = raw.code.trim().toUpperCase();
+    if (!AREA_CODE.test(code)) continue;
+    const name = cleanAreaName(raw.name);
+    const had = best.get(code);
+    if (had === undefined || (name && (!had || name < had))) best.set(code, name);
+  }
+  return [...best.keys()].sort().slice(0, MAX_AREAS).map((code) => ({ code, name: best.get(code)! }));
+}
+
+/**
+ * The subdivisions the map names when a file doesn't (maps_of_making web/app.js `AREA_NAMES`): kept in step
+ * with the map's fallback, so a nameless area from a #67 file reads the same on both sides.
+ */
+const AREA_NAMES: Readonly<Record<string, string>> = { "BE-VLG": "Flanders", "BE-WAL": "Wallonia", "BE-BRU": "Brussels" };
+
+/**
+ * An area as people read it, as the map labels it: its name; without one, the map's name for a subdivision it
+ * knows, the country's English name for a country code, else the code.
+ */
+export function areaLabel(area: Area): string {
+  if (area.name) return area.name;
+  if (AREA_NAMES[area.code]) return AREA_NAMES[area.code];
+  if (/^[A-Z]{2}$/.test(area.code)) {
+    try {
+      return new Intl.DisplayNames(["en"], { type: "region" }).of(area.code) ?? area.code;
+    } catch {
+      return area.code;
+    }
+  }
+  return area.code;
 }
 
 /** The one country all the areas are in (`BE-VLG`, `BE-BRU` → `BE`); null when they span several, or none. */
-export function areasCountry(areas: readonly string[]): string | null {
-  const countries = new Set(areas.map((a) => a.slice(0, 2)));
+export function areasCountry(areas: readonly Area[]): string | null {
+  const countries = new Set(areas.map((a) => a.code.slice(0, 2)));
   return countries.size === 1 ? [...countries][0] : null;
 }
 
@@ -143,8 +202,9 @@ export function draftFromStore(raw: unknown): Draft {
   // cleanAreas maps over it, and a throw there would break tile A on every load (review of #67).
   delete out.areaServed;
   const areas = (raw as { areaServed?: unknown }).areaServed;
+  // `{code, name}` entries, and the bare codes a #67 draft kept (named ""); anything else is dropped.
   if (Array.isArray(areas)) {
-    const clean = cleanAreas(areas.filter((a): a is string => typeof a === "string"));
+    const clean = cleanAreas(areas);
     if (clean.length) out.areaServed = clean;
   }
   if (out.kind !== "network") delete out.kind;
@@ -165,7 +225,7 @@ export function networkParts(draft: Draft) {
   if (!areas.length) missing.push("area");
   if (!DECIMAL.test(lat) || !DECIMAL.test(lon)) missing.push("pin");
   if (missing.length) throw new SpaceFileError(missing);
-  const fidelity = cleanFidelity(draft.fidelity) ?? areaFidelity(areas[0]);
+  const fidelity = cleanFidelity(draft.fidelity) ?? areaFidelity(areas[0].code);
   return { name, areas, country: areasCountry(areas), lat, lon, fidelity };
 }
 
@@ -200,8 +260,11 @@ export function spaceFile(draft: Draft): SpaceFile {
   if (description) add("schema:description", literal(description));
 
   if (parts) {
-    // A network: no address, one statement per area served.
-    for (const area of parts.areas) add("schema:areaServed", literal(area));
+    // A network: no address, one node per area served, its code and its name (an unknown name is left out).
+    for (const area of parts.areas) {
+      const named = area.name ? ` ; schema:name ${literal(area.name)}` : "";
+      add("schema:areaServed", `[ a schema:AdministrativeArea ; schema:identifier ${literal(area.code)}${named} ]`);
+    }
   } else {
     const { town, country } = space!;
     const address = [`a schema:PostalAddress`];
@@ -286,7 +349,7 @@ export const SPACE_TYPES: readonly string[] = [MOM + "Space", MOM_NETWORK];
  * here. Reads what `spaceFile` writes, and any file that says the same with other
  * prefixes, order or blank-node labels. null when the document holds no
  * `mom:Space` and no `mom:Network`. A value the form can't hold (a non-decimal
- * coordinate, an area that isn't an ISO code, a fidelity the map doesn't read) is
+ * coordinate, an area whose identifier isn't an ISO code, a fidelity the map doesn't read) is
  * left out, never guessed. A network's country is the one its areas share.
  */
 export function draftFromTurtle(turtle: string, base: string): Draft | null {
@@ -308,7 +371,12 @@ export function draftFromTurtle(turtle: string, base: string): Draft | null {
   };
   set("name", one(subject, "name"));
   if (network) {
-    const areas = cleanAreas(objects(subject, "areaServed").filter((o) => o.termType === "Literal").map((o) => o.value));
+    // A node (identifier and name), or the bare code #67 wrote (no name).
+    const areas = cleanAreas(
+      objects(subject, "areaServed").map((o) =>
+        o.termType === "Literal" ? o.value : { code: one(o, "identifier") ?? "", name: one(o, "name") ?? "" }
+      )
+    );
     if (areas.length) draft.areaServed = areas;
     set("country", areasCountry(areas) ?? undefined);
     const fidelity = quads.find((q) => q.subject.equals(subject) && q.predicate.value === MOM + "geolocationFidelity")?.object.value;

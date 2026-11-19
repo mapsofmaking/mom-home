@@ -8,11 +8,24 @@ Kit-level decisions (Solid, ACLs, sign-in) are ADRs in the kit repo; this file o
 
 ## 2026-11-19
 
+- **A network's area is searched by name, anywhere; the file carries its code and its name** (Nicolas,
+  2026-11-19, after testing tile A live; amends the entry below). The Belgium-only select is gone: one box,
+  "Area served", where the coordinator types "Flanders", "Île-de-France" or "France"; after a pause the map's
+  geocoder (`POST /api/geocode {"area_search", "lang": "en"}`) offers up to five areas and one is picked. The
+  pick sets the area and its pin at the area's centre (lat, lon, fidelity from the offer, no second ask);
+  typing again drops both. Each area is now a node, `schema:areaServed [ a schema:AdministrativeArea ;
+  schema:identifier "BE-VLG" ; schema:name "Flanders" ]`, and `{"code", "name"}` in the SpaceAPI `mom` block;
+  the bare `"BE-VLG"` #67 wrote is still read (no name). Nothing to pick (no match, the geocoder busy or away):
+  the line says so and the card waits. There are no coordinates by hand for a network any more, since the
+  area is what the map reads and only the geocoder names one. The "A space / A network" toggle shows the
+  picked one in ink with a check mark. `maakbib.{ttl,json}` changed with the map's area-search PR.
+
 - **Tile A describes a space or a network** (Nicolas, 2026-11-19; the map's side is maps_of_making #79). The first
   choice on the form is "A space or a network?"; a space is the default, so its form, file and checks are as
   before. A network has an **area**, not an address: `schema:areaServed`, one ISO 3166 code per statement
   (`BE`, `BE-VLG`), picked from the areas the map names (Belgium and its three regions for now; a select, so
-  nothing the geocoder or the map can't read gets typed). Its node is typed `mom:Network, schema:Organization`
+  nothing the geocoder or the map can't read gets typed; both replaced the same day, see above). Its node is
+  typed `mom:Network, schema:Organization`
   (the subject stays `<#space>`), and its pin sits at the area's centre, as the map's geocode proxy gives it,
   with `mom:geolocationFidelity` (`region`, `country`) saying how coarse it is. No `schema:address`: the
   map derives the country from the areas. The SpaceAPI JSON says the same in a `mom` block. Pinned to the

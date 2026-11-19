@@ -61,7 +61,7 @@ describe("the SpaceAPI file is the file the map reads", () => {
 });
 
 describe("a network's SpaceAPI file (2026-11-19)", () => {
-  /** Pinned to maps_of_making 51ba3ad (test/fixtures/README.md): Maakbib as the map reads it, in both formats. */
+  /** Maakbib as the map reads it (test/fixtures/README.md: 51ba3ad, areas as nodes since the area search), in both formats. */
   const maakbib = (ext: string) => readFileSync(join(__dirname, "../../test/fixtures/maakbib." + ext), "utf8");
   const network = draftFromTurtle(maakbib("ttl"), "https://maakbib.pod.example/space.ttl")!;
 
@@ -75,9 +75,11 @@ describe("a network's SpaceAPI file (2026-11-19)", () => {
 
   it("has no address; the country is the one its areas share, and none when they span several", () => {
     expect(JSON.parse(spaceApiJson(network).json).location).toEqual({ country_code: "BE", lat: 51.0378, lon: 4.2406 });
-    const two = JSON.parse(spaceApiJson({ ...network, areaServed: ["BE-VLG", "NL"] }).json);
+    const two = JSON.parse(spaceApiJson({ ...network, areaServed: [{ code: "BE-VLG", name: "Flanders" }, { code: "NL", name: "" }] }).json);
     expect(two.location).toEqual({ lat: 51.0378, lon: 4.2406 });
-    expect(two.mom.areaServed).toEqual(["BE-VLG", "NL"]);
+    // Code then name; a name not known is left out, as in the Turtle.
+    expect(two.mom.areaServed).toEqual([{ code: "BE-VLG", name: "Flanders" }, { code: "NL" }]);
+    expect(Object.keys(two.mom.areaServed[0])).toEqual(["code", "name"]);
   });
 
   it("refuses a network with no area, as the Turtle does", () => {
