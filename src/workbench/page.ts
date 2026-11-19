@@ -43,6 +43,7 @@ import { logoIdle, logoWords, renderLogoPanel, type LogoState } from "./logo";
 import { DEFAULT_IDENTIFIER } from "../config";
 import type { Tree } from "../tree/parse";
 import {
+  areaPicked,
   askStartOver,
   describeWords,
   showMore,
@@ -57,7 +58,7 @@ import {
   setKind,
   syncCta,
 } from "./describe";
-import { locate, pinByHand, pinned, unpin } from "./where";
+import { locate, pickArea, pinByHand, pinned, unpin } from "./where";
 import { esc } from "./html";
 import { renderHexRow } from "./hexrow";
 import { renderHexView } from "./hexview";
@@ -588,13 +589,19 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   // A draft with a town and no pin (forwarded from genjson, 14.8; or left before the answer came) asks now.
   const resumed = step.querySelector<HTMLFormElement>("#f-describe");
   const resumedWhere = (form: HTMLFormElement) =>
-    kindOf(form) === "network" ? !!form.querySelector<HTMLSelectElement>("#f-area")?.value : !!form.querySelector<HTMLInputElement>("#f-city")?.value.trim();
+    kindOf(form) === "network" ? !!form.querySelector<HTMLInputElement>("#f-area")?.value.trim() : !!form.querySelector<HTMLInputElement>("#f-city")?.value.trim();
   if (resumed && !workbench && resumedWhere(resumed) && !pinned(resumed)) {
     void locate(resumed, words, located(resumed));
   }
   step.addEventListener("keydown", (event) => {
     const form = describeForm(event);
-    if (form) describeKeydown(form, event);
+    if (!form) return;
+    describeKeydown(form, event);
+    // Enter in a network's area box asks at once, and again after the geocoder was busy or away.
+    const target = event.target as HTMLInputElement;
+    if (event.key === "Enter" && target.name === "areaSearch" && !form.querySelector(".wb-area-option")) {
+      void locate(form, words, located(form), true);
+    }
   });
   // Leaving street or city asks the geocoder (where.ts); typing in them drops the old pin.
   const where = new Set(["street", "city", "country"]);
@@ -610,10 +617,9 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     const form = describeForm(event);
     if (!form) return;
     const target = event.target as HTMLInputElement;
-    // A network's area, picked: the old pin goes, the new area's centre is asked for at once (no field to leave).
-    if (target.name === "area") {
+    // A network's area, typed: the pick and its pin go, and the geocoder is asked once the typing pauses.
+    if (target.name === "areaSearch") {
       unpin(form);
-      describeCommit(form, target);
       void locate(form, words, located(form));
     }
     if (target.name === "country") target.value = target.value.toUpperCase();
@@ -643,6 +649,16 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
       if (next) select(next.id);
       else draw();
       step.querySelector<HTMLElement>(".wb-step-title")?.focus();
+      return;
+    }
+    if (target.dataset.areaCode) {
+      // An area offered, picked: the area, its pin and the pin line in one go, from the offer.
+      const form = step.querySelector<HTMLFormElement>("#f-describe");
+      if (!form) return;
+      pickArea(form, target, words);
+      areaPicked(form);
+      syncCta(form);
+      keep(form);
       return;
     }
     if (target.dataset.kind) {

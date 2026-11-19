@@ -73,11 +73,13 @@
 /* Tile A's first choice, a space or a network (2026-11-19): two buttons, the picked one pressed. */
 .wb-kind .wf-label { margin: 0 0 var(--space-6); }
 .wb-kind-options { display: flex; flex-wrap: wrap; gap: var(--space-6); }
-.wb-kind-option[aria-pressed="true"] { border-color: var(--ink); background: var(--surface-white); font-weight: 600; }
-/* A network's area: a select, drawn like the inputs beside it. */
-.wb-field select { font: 400 14px/1.4 var(--font-display); padding: var(--space-10) var(--space-12); border: var(--stroke-rule) solid var(--rule);
-  border-radius: var(--radius); background: var(--surface-white); color: var(--ink); min-width: 0; }
-@media (max-width: 560px) { .wb-field select { font-size: 16px; } }
+/* Pressed reads as picked, not hovered (Nicolas, 2026-11-19): the ink fill of .seg, .chip and .btn-primary,
+   and a check mark, so the choice doesn't rest on colour alone. The mark is decoration: aria-pressed says it. */
+.wb-kind-option[aria-pressed="true"], .wb-kind-option[aria-pressed="true"]:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); font-weight: 600; }
+.wb-kind-option[aria-pressed="true"]::before { content: "✓ "; content: "✓ " / ""; }
+/* A network's area: what the geocoder offers for the text typed, small buttons under the box (five at most). */
+.wb-area-list { list-style: none; margin: var(--space-6) 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-6); }
+.wb-area-option { text-align: left; }
 /* A fallback closed stays closed, whatever layout class it carries (.wb-doors is a grid). */
 .wb-form [hidden] { display: none !important; }
 .wb-pin-note { display: block; color: var(--muted); }

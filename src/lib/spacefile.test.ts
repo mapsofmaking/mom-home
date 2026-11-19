@@ -144,7 +144,7 @@ describe("draftFromTurtle: the file in the pod back to tile A's draft (#11)", ()
 });
 
 describe("a network (2026-11-19): it serves an area, it has no address", () => {
-  /** Pinned to maps_of_making 51ba3ad (test/fixtures/README.md): Maakbib as the map reads it. */
+  /** Maakbib as the map reads it (test/fixtures/README.md: 51ba3ad, areas as nodes since the area search). */
   const maakbib = readFileSync(join(__dirname, "../../test/fixtures/maakbib.ttl"), "utf8");
   const base = "https://maakbib.pod.example/space.ttl";
   const network = {
@@ -154,7 +154,7 @@ describe("a network (2026-11-19): it serves an area, it has no address", () => {
     website: "https://maakbib.be/",
     logo: "https://maakbib.be/wp-content/uploads/2026/08/logo-maakbib-kleur.svg",
     email: "info@decreatievestem.be",
-    areaServed: ["BE-VLG"],
+    areaServed: [{ code: "BE-VLG", name: "Flanders" }],
     lat: "51.0378",
     lon: "4.2406",
     fidelity: "region",
@@ -187,15 +187,34 @@ describe("a network (2026-11-19): it serves an area, it has no address", () => {
     expect(read.city).toBeUndefined();
   });
 
-  it("writes one statement per area, upper case, sorted, valid codes only; the street and town typed before are not written", () => {
-    const { turtle } = spaceFile({ ...network, areaServed: ["be-vlg", "BE-BRU", "Flanders", "BE-VLG"], street: "Rue 1", city: "Gent", country: "BE" });
-    const areas = statements(turtle).filter((s) => s.includes("schema.org/areaServed"));
-    expect(areas).toEqual([
-      `<https://pod.example/space.ttl#space> https://schema.org/areaServed "BE-BRU"^^http://www.w3.org/2001/XMLSchema#string`,
-      `<https://pod.example/space.ttl#space> https://schema.org/areaServed "BE-VLG"^^http://www.w3.org/2001/XMLSchema#string`,
-    ]);
+  it("writes one node per area (code and name), upper case, sorted by code, valid codes only; the street and town typed before are not written", () => {
+    const areaServed = [
+      { code: "be-vlg", name: " Flanders " }, { code: "BE-BRU", name: "Brussels" }, { code: "Flanders", name: "Flanders" }, { code: "BE-VLG", name: "Twice" },
+    ];
+    const { turtle } = spaceFile({ ...network, areaServed, street: "Rue 1", city: "Gent", country: "BE" });
+    expect(turtle).toContain(
+      `schema:areaServed [ a schema:AdministrativeArea ; schema:identifier "BE-BRU" ; schema:name "Brussels" ] ;\n` +
+      `  schema:areaServed [ a schema:AdministrativeArea ; schema:identifier "BE-VLG" ; schema:name "Flanders" ] ;`
+    );
+    expect(turtle).not.toContain("Twice");
     expect(turtle).not.toContain("Gent");
     expect(turtle).not.toContain("Rue 1");
+  });
+
+  it("escapes an area's name, drops one over 200 characters (the area stays), and writes no name it doesn't know", () => {
+    const named = (name: string) => spaceFile({ ...network, areaServed: [{ code: "FR-IDF", name }] }).turtle;
+    expect(named('Île "de" France')).toContain(`schema:identifier "FR-IDF" ; schema:name "Île \\"de\\" France" ]`);
+    expect(named("x".repeat(201))).toContain(`[ a schema:AdministrativeArea ; schema:identifier "FR-IDF" ]`);
+    expect(named("")).not.toContain("schema:name \"\"");
+    expect(sameStatements(named('Île "de" France'), named('Île "de" France'))).toBe(true);
+  });
+
+  it("still reads the bare code a file from #67 wrote, with no name", () => {
+    const old = maakbib.replace(/schema:areaServed \[[^\]]*\]/, `schema:areaServed "BE-VLG"`);
+    expect(old).toContain(`schema:areaServed "BE-VLG" ;`);
+    const read = draftFromTurtle(old, base)!;
+    expect(read.areaServed).toEqual([{ code: "BE-VLG", name: "" }]);
+    expect(read.country).toBe("BE");
   });
 
   it("requires a name, an area and a pin, and names what is missing", () => {
@@ -208,14 +227,14 @@ describe("a network (2026-11-19): it serves an area, it has no address", () => {
       }
     };
     expect(missing({ kind: "network" })).toEqual(["name", "area", "pin"]);
-    expect(missing({ ...network, areaServed: ["Vlaanderen"] })).toEqual(["area"]);
+    expect(missing({ ...network, areaServed: [{ code: "Vlaanderen", name: "Vlaanderen" }] })).toEqual(["area"]);
     expect(missing({ ...network, lat: "north" })).toEqual(["pin"]);
   });
 
   it("writes a fidelity the map reads, else the one the area's shape gives; never anything else", () => {
     const fidelity = (d: object) => statements(spaceFile({ ...network, ...d }).turtle).find((s) => s.includes("geolocationFidelity"));
     expect(fidelity({ fidelity: "street" })).toContain('"region"');
-    expect(fidelity({ fidelity: undefined, areaServed: ["BE"] })).toContain('"country"');
+    expect(fidelity({ fidelity: undefined, areaServed: [{ code: "BE", name: "Belgium" }] })).toContain('"country"');
     expect(fidelity({ fidelity: "Country" })).toContain('"country"');
   });
 
@@ -230,9 +249,11 @@ describe("a network (2026-11-19): it serves an area, it has no address", () => {
 
 describe("draftFromStore: the draft kept in this browser, read back", () => {
   it("keeps text fields and a network's areas, cleaned; drops anything else", () => {
-    expect(draftFromStore({ kind: "network", name: "Maakbib", areaServed: ["be-vlg", 3, "nope"], lat: 51, event: {} })).toEqual({
-      kind: "network", name: "Maakbib", areaServed: ["BE-VLG"],
-    });
+    expect(
+      draftFromStore({ kind: "network", name: "Maakbib", areaServed: [{ code: "fr-idf", name: "Île-de-France" }, 3, "nope", { name: "x" }], lat: 51, event: {} })
+    ).toEqual({ kind: "network", name: "Maakbib", areaServed: [{ code: "FR-IDF", name: "Île-de-France" }] });
+    // A draft kept by #67 holds bare codes: read as areas with no name.
+    expect(draftFromStore({ kind: "network", areaServed: ["be-vlg"] })).toEqual({ kind: "network", areaServed: [{ code: "BE-VLG", name: "" }] });
     expect(draftFromStore({ kind: "garden", name: "Atelier", city: "Gent" })).toEqual({ name: "Atelier", city: "Gent" });
     // A string where the list should be: dropped, never passed on to cleanAreas (review of #67).
     expect(draftFromStore({ kind: "network", name: "Maakbib", areaServed: "BE-VLG" })).toEqual({ kind: "network", name: "Maakbib" });

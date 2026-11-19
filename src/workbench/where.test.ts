@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { findArea, findPlace, timing } from "./where";
+import { candidateLabel, findPlace, searchAreas, timing } from "./where";
 
 const answer = (lat: number | null, over = {}) =>
   new Response(JSON.stringify({ lat, lon: lat === null ? null : 4.38, country_code: "be", postcode: "1050", display_name: "Ixelles", ...over }));
@@ -34,25 +34,44 @@ describe("the geocoder, asked as tile A asks it (findPlace; tile A's pin, tile C
   });
 });
 
-describe("the geocoder, asked for a network's area (findArea, 2026-11-19)", () => {
+describe("the geocoder, asked for the areas a name could be (searchAreas, 2026-11-19)", () => {
   afterEach(() => vi.restoreAllMocks());
+  const VLG = { code: "BE-VLG", name: "Flanders", display_name: "Vlaanderen, België / Belgique / Belgien", lat: 51.0377778, lon: 4.2405556, fidelity: "region" };
+  const reply = (candidates: unknown) => new Response(JSON.stringify({ candidates }));
 
-  it("sends the area code only, and gives the centre back", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ lat: 51.0378, lon: 4.2406, country_code: "be", postcode: null, display_name: "Vlaanderen", fidelity: "region", area: "BE-VLG" }))
-    );
-    expect(await findArea("BE-VLG")).toMatchObject({ answer: { lat: 51.0378, lon: 4.2406, fidelity: "region" } });
+  it("sends the text and the language only, and gives the candidates back", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(reply([VLG]));
+    expect(await searchAreas("Flanders")).toEqual([VLG]);
     const [url, init] = fetchSpy.mock.calls[0];
     expect(url).toBe("/api/geocode");
-    expect(JSON.parse(init!.body as string)).toEqual({ area: "BE-VLG" });
+    expect(init!.method).toBe("POST");
+    expect(JSON.parse(init!.body as string)).toEqual({ area_search: "Flanders", lang: "en" });
   });
 
-  it("nothing found, too many asks, no answer: said as such", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ lat: null, lon: null, area: "BE-VLG" })));
-    expect(await findArea("BE-VLG")).toBe("none");
+  it("offers five at most, and only what can be picked: a code the map reads, a name, a centre on the globe", async () => {
+    const more = ["FR", "FR-IDF", "DE", "NL", "PT", "ES"].map((code) => ({ ...VLG, code, name: code }));
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      reply([{ ...VLG, code: "Vlaanderen" }, { ...VLG, name: "" }, { ...VLG, lat: null }, { ...VLG, lon: 200 }, "x", { ...VLG, code: "be-vlg", fidelity: "street" }, VLG, ...more])
+    );
+    const found = await searchAreas("Fl");
+    expect(Array.isArray(found) && found.map((c) => c.code)).toEqual(["BE-VLG", "FR", "FR-IDF", "DE", "NL"]);
+    // A fidelity the map doesn't read gives way to the code's shape.
+    expect(Array.isArray(found) && found[0].fidelity).toBe("region");
+  });
+
+  it("no candidate, too many asks, no answer: said as such", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(reply([]));
+    expect(await searchAreas("Atlantis")).toBe("none");
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", { status: 429 }));
-    expect(await findArea("BE-VLG")).toBe("rate");
+    expect(await searchAreas("Flanders")).toBe("rate");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", { status: 502 }));
+    expect(await searchAreas("Flanders")).toBe("unavailable");
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("offline"));
-    expect(await findArea("BE-VLG")).toBe("unavailable");
+    expect(await searchAreas("Flanders")).toBe("unavailable");
+  });
+
+  it("names a region with its country, a country alone", () => {
+    expect(candidateLabel({ code: "BE-VLG", name: "Flanders" })).toBe("Flanders, Belgium");
+    expect(candidateLabel({ code: "FR", name: "France" })).toBe("France");
   });
 });

@@ -50,19 +50,16 @@
   onb:uiAddedScheme "Added https://. Change it if that's wrong."@en ;
   onb:uiAddedRoom "Added # for a room. Change it to + if it's a community."@en ;
   # A space or a network (2026-11-19): the first choice. A network serves an area instead of sitting at an
-  # address; the code holds the area codes (the map's), the names are here.
+  # address, searched by name anywhere and picked from what the geocoder offers (its code and name go in the file).
   onb:uiKind "A space or a network?"@en ;
   onb:uiKindSpace "A space"@en ;
   onb:uiKindNetwork "A network"@en ;
   onb:uiNameNetwork "Network name"@en ;
-  onb:uiAreaBE "Belgium"@en ;
-  onb:uiAreaBEVLG "Flanders"@en ;
-  onb:uiAreaBEWAL "Wallonia"@en ;
-  onb:uiAreaBEBRU "Brussels"@en ;
+  onb:uiAreaFound "Areas found: {n}. Arrow down to pick one."@en ;
   onb:uiPinArea "A network sits at the centre of the area it serves: {area}."@en ;
-  onb:uiNoResultArea "The geocoder (OpenStreetMap) can't place that area. Enter the coordinates of its centre below."@en ;
-  onb:uiUnavailableArea "The geocoder isn't answering right now. Enter the coordinates below, or pick the area again in a moment."@en ;
-  onb:uiRateArea "Too many requests to the geocoder. Enter the coordinates below, or pick the area again in a moment."@en ;
+  onb:uiNoResultArea "No area by that name. Try another spelling, or the country. The card waits until an area is picked."@en ;
+  onb:uiUnavailableArea "The geocoder isn't answering right now. Press Enter in a moment to ask again."@en ;
+  onb:uiRateArea "Too many requests to the geocoder. Press Enter in a moment to ask again."@en ;
   onb:uiYourNetwork "Your network"@en ;
   onb:uiServes "Serves {area}"@en ;
   # The form's fields, in no order (the code orders them). onb:example fills "Fill in an
@@ -74,8 +71,8 @@
     [ onb:key "street" ; onb:label "Street address"@en ; onb:placeholder "e.g. Rue du Canal 12"@en ;
       onb:hint "Optional. Without it, the pin sits in the town's centre."@en ; onb:example "Rue de l'Étincelle 12" ] ,
     [ onb:key "city" ; onb:label "City"@en ; onb:hint "The town or municipality."@en ; onb:example "Marolles, Bruxelles" ] ,
-    [ onb:key "area" ; onb:label "Area served"@en ; onb:placeholder "Pick an area"@en ;
-      onb:hint "Where the network works. Its pin sits at the centre of that area."@en ; onb:example "BE-VLG" ] ,
+    [ onb:key "area" ; onb:label "Area served"@en ; onb:placeholder "Type a region or a country"@en ;
+      onb:hint "e.g. Flanders, Île-de-France. Then pick it from the list that appears."@en ; onb:example "Flanders" ] ,
     [ onb:key "description" ; onb:label "Description"@en ; onb:placeholder "One or two sentences. What kind of space is this?"@en ;
       onb:example "Metal shop with two welding stations. Gloves provided, sparks included."@en ] ,
     [ onb:key "email" ; onb:label "Contact email"@en ; onb:placeholder "hello@example.org"@en ;

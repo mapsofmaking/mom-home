@@ -131,7 +131,8 @@ describe("tile A (14.2)", () => {
 
   it("asks name, then where, then the optional rest; keeps what was typed", () => {
     const s = html(renderStep(byId.describe, ctx([])));
-    const typed = [...s.querySelectorAll<HTMLInputElement>("input:not([type=hidden])")].filter((i) => !i.closest("[data-manual]"));
+    // A network's area box is drawn too, hidden and inert for a space (its own test is below).
+    const typed = [...s.querySelectorAll<HTMLInputElement>("input:not([type=hidden])")].filter((i) => !i.closest("[data-manual]") && !i.closest("[inert]:not([data-beat])"));
     expect(typed.map((i) => i.name)).toEqual([
       "name", "street", "city", "description", "email", "matrix", "website", "logo",
     ]);
@@ -599,19 +600,29 @@ describe("tile A's words come from the tree (14.2 AC8)", () => {
 });
 
 describe("tile A, a network (2026-11-19)", async () => {
-  const { areaOf, describeKeydown, kindOf, missing, readDescribeForm, renderDescribeForm, setKind, syncCta } = await import("./describe");
-  const { locate, timing } = await import("./where");
+  const { areaOf, areaPicked, describeKeydown, kindOf, missing, readDescribeForm, renderDescribeForm, setKind, syncCta } = await import("./describe");
+  const { locate, pickArea, timing, unpin } = await import("./where");
   timing.minWait = 0;
   timing.tick = 0;
   timing.areaGap = 0;
-  const VLAANDEREN = { lat: 51.0378, lon: 4.2406, country_code: "be", postcode: null, display_name: "Vlaanderen, België / Belgique / Belgien", fidelity: "region", area: "BE-VLG" };
+  timing.retryGap = 0;
+  const VLAANDEREN = { code: "BE-VLG", name: "Flanders", display_name: "Vlaanderen, België / Belgique / Belgien", lat: 51.0378, lon: 4.2406, fidelity: "region" };
+  const WEST = { code: "BE-VWV", name: "West Flanders", display_name: "West-Vlaanderen, België", lat: 51.04, lon: 3.1, fidelity: "region" };
+  const offered = (...candidates: object[]) => vi.fn(async () => Response.json({ candidates }));
   afterEach(() => vi.unstubAllGlobals());
   const mount = (draft = {}) => {
     document.body.innerHTML = renderDescribeForm(draft, W);
     return document.querySelector<HTMLFormElement>("#f-describe")!;
   };
   const part = (kind: string) => document.querySelector<HTMLElement>(`[data-kind-part="${kind}"]`)!;
-  const area = () => document.querySelector<HTMLSelectElement>("#f-area")!;
+  const area = () => document.querySelector<HTMLInputElement>("#f-area")!;
+  const options = () => [...document.querySelectorAll<HTMLButtonElement>(".wb-area-option")];
+  /** Types in the box as a person would: the pick goes, then the geocoder is asked (page.ts does the same). */
+  const type = (form: HTMLFormElement, text: string) => {
+    area().value = text;
+    unpin(form);
+    return locate(form, W, () => syncCta(form));
+  };
   const cta = () => document.querySelector<HTMLButtonElement>(".wb-cta")!;
 
   it("asks a space or a network first; a space unless a network is picked, with the space's form as before", () => {
@@ -625,12 +636,12 @@ describe("tile A, a network (2026-11-19)", async () => {
     expect(form.querySelector('label[for="f-name"]')!.textContent).toContain(W.field("name").label);
   });
 
-  it("the area is a select of the map's areas, named by the tree, with nothing picked at first", () => {
+  it("the area is one search box, empty, with nothing picked and nothing offered at first", () => {
     mount({ kind: "network", name: "Maakbib" });
-    expect([...area().options].map((o) => [o.value, o.textContent])).toEqual([
-      ["", W.field("area").placeholder], ["BE", "Belgium"], ["BE-VLG", "Flanders"], ["BE-WAL", "Wallonia"], ["BE-BRU", "Brussels"],
-    ]);
+    expect(area().type).toBe("text");
+    expect(area().placeholder).toBe(W.field("area").placeholder);
     expect(area().value).toBe("");
+    expect(document.querySelector<HTMLElement>("#f-area-list")!.hidden).toBe(true);
     expect(part("space").hidden).toBe(true);
     expect(document.querySelector('label[for="f-name"]')!.textContent).toContain(W.ui("uiNameNetwork"));
   });
@@ -655,66 +666,126 @@ describe("tile A, a network (2026-11-19)", async () => {
     expect(document.activeElement).toBe(area());
   });
 
-  it("asks the geocoder for the area only, and pins at its centre with the country and fidelity it gives", async () => {
-    const fetch = vi.fn(async () => Response.json(VLAANDEREN));
+  it("asks the geocoder for what is typed, offers what it finds, and a pick sets the area and its pin in one go", async () => {
+    const fetch = offered(VLAANDEREN, WEST);
     vi.stubGlobal("fetch", fetch);
     const form = mount({ kind: "network", name: "Maakbib" });
     expect(missing(form)).toBe(area());
-    area().value = "BE-VLG";
+    await type(form, "Flanders");
+    expect(JSON.parse((fetch.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)).toEqual({ area_search: "Flanders", lang: "en" });
+    expect(options().map((o) => o.textContent)).toEqual(["Flanders, Belgium", "West Flanders, Belgium"]);
+    // Typed is not picked: no area, no card.
+    expect(areaOf(form)).toBe("");
+    expect(cta().disabled).toBe(true);
+    pickArea(form, options()[0], W);
+    areaPicked(form);
+    syncCta(form);
+    expect(fetch).toHaveBeenCalledTimes(1); // the pin came with the offer
     expect(areaOf(form)).toBe("BE-VLG");
-    await locate(form, W, () => syncCta(form));
-    expect(JSON.parse((fetch.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)).toEqual({ area: "BE-VLG" });
+    expect(area().value).toBe("Flanders");
+    expect(options()).toEqual([]);
+    expect(document.activeElement).toBe(area());
     expect(cta().disabled).toBe(false);
     expect(missing(form)).toBeNull();
     expect(document.querySelector(".wb-pin-note")!.textContent).toBe(W.ui("uiPinArea", { area: "Flanders" }));
     const draft: Record<string, unknown> = { street: "old", city: "old" };
     readDescribeForm(form, draft);
     expect(draft).toEqual({
-      kind: "network", name: "Maakbib", areaServed: ["BE-VLG"], country: "BE", lat: "51.0378", lon: "4.2406",
+      kind: "network", name: "Maakbib", areaServed: [{ code: "BE-VLG", name: "Flanders" }], country: "BE", lat: "51.0378", lon: "4.2406",
       fidelity: "region", place: "Vlaanderen, België / Belgique / Belgien",
     });
   });
 
-  it("areas picked one after another (arrow keys on the select): only the last is asked for", async () => {
-    const fetch = vi.fn(async () => Response.json(VLAANDEREN));
-    vi.stubGlobal("fetch", fetch);
-    const form = mount({ kind: "network", name: "Maakbib" });
-    area().value = "BE";
-    const first = locate(form, W);
-    area().value = "BE-VLG";
-    await Promise.all([first, locate(form, W)]);
-    expect(fetch).toHaveBeenCalledTimes(1);
-    expect(JSON.parse((fetch.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)).toEqual({ area: "BE-VLG" });
+  it("an area with no name (a #67 draft) picked again gets the name; the other areas stay", async () => {
+    vi.stubGlobal("fetch", offered(VLAANDEREN));
+    const areaServed = [{ code: "BE-VLG", name: "" }, { code: "NL", name: "Netherlands" }];
+    const draft: Record<string, unknown> = { kind: "network", name: "Maakbib", areaServed, lat: "51", lon: "4", country: "BE", fidelity: "region" };
+    const form = mount(draft);
+    expect(area().value).toBe("BE-VLG");
+    await type(form, "Flanders");
+    pickArea(form, options()[0], W);
+    readDescribeForm(form, draft);
+    expect(draft.areaServed).toEqual([{ code: "BE-VLG", name: "Flanders" }, { code: "NL", name: "Netherlands" }]);
   });
 
-  it("the geocoder can't place it: the centre by hand, the country and fidelity from the area", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ ...VLAANDEREN, lat: null, lon: null, display_name: null })));
+  it("typing again drops the pick and its pin; under two letters nothing is asked", async () => {
+    const fetch = offered(VLAANDEREN);
+    vi.stubGlobal("fetch", fetch);
     const form = mount({ kind: "network", name: "Maakbib" });
-    area().value = "BE";
-    await locate(form, W, () => syncCta(form));
-    expect(document.querySelector("#f-pin")!.textContent).toBe(W.ui("uiNoResultArea"));
-    expect(document.querySelector<HTMLElement>('[data-manual="country"]')!.hidden).toBe(true);
-    expect(document.querySelector<HTMLElement>('[data-manual="coords"]')!.hidden).toBe(false);
-    (form.elements.namedItem("lat") as HTMLInputElement).value = "50.64";
-    (form.elements.namedItem("lon") as HTMLInputElement).value = "4.67";
+    await type(form, "Flanders");
+    pickArea(form, options()[0], W);
+    await type(form, "F");
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(areaOf(form)).toBe("");
+    expect((form.elements.namedItem("lat") as HTMLInputElement).value).toBe("");
     syncCta(form);
-    expect(cta().disabled).toBe(false);
+    expect(cta().disabled).toBe(true);
     const draft: Record<string, unknown> = {};
     readDescribeForm(form, draft);
-    expect(draft).toMatchObject({ kind: "network", areaServed: ["BE"], country: "BE", fidelity: "country" });
+    expect(draft.areaServed).toBeUndefined();
+  });
+
+  it("only the text the typing paused on is asked for", async () => {
+    const fetch = offered(VLAANDEREN);
+    vi.stubGlobal("fetch", fetch);
+    const form = mount({ kind: "network", name: "Maakbib" });
+    const first = type(form, "Fla");
+    await Promise.all([first, type(form, "Flanders")]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse((fetch.mock.calls[0] as unknown as [string, RequestInit])[1].body as string).area_search).toBe("Flanders");
+  });
+
+  it("arrows move through the offers and back to the box; Enter on one is a button's click", async () => {
+    vi.stubGlobal("fetch", offered(VLAANDEREN, WEST));
+    const form = mount({ kind: "network", name: "Maakbib" });
+    form.addEventListener("keydown", (e) => describeKeydown(form, e));
+    await type(form, "Flanders");
+    const key = (el: Element, k: string) => {
+      const e = new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true });
+      el.dispatchEvent(e);
+      return e;
+    };
+    expect(key(area(), "Enter").defaultPrevented).toBe(true); // never submits from the box
+    key(area(), "ArrowDown");
+    expect(document.activeElement).toBe(options()[0]);
+    key(options()[0], "ArrowDown");
+    expect(document.activeElement).toBe(options()[1]);
+    key(options()[1], "ArrowUp");
+    key(options()[0], "ArrowUp");
+    expect(document.activeElement).toBe(area());
+    expect(options().every((o) => o.type === "button")).toBe(true);
+  });
+
+  it("nothing to pick: said, no coordinates by hand, no card; asked again at once on demand", async () => {
+    const form = mount({ kind: "network", name: "Maakbib" });
+    for (const [status, line] of [[0, "uiNoResultArea"], [429, "uiRateArea"], [503, "uiUnavailableArea"]] as const) {
+      vi.stubGlobal("fetch", vi.fn(async () => (status ? new Response("", { status }) : Response.json({ candidates: [] }))));
+      await type(form, "Atlantis");
+      expect(document.querySelector("#f-pin")!.textContent).toBe(W.ui(line));
+      expect(document.querySelector<HTMLElement>('[data-manual="coords"]')!.hidden).toBe(true);
+      expect(document.querySelector<HTMLElement>('[data-manual="country"]')!.hidden).toBe(true);
+      expect(cta().disabled).toBe(true);
+    }
+    const fetch = offered(VLAANDEREN);
+    vi.stubGlobal("fetch", fetch);
+    await locate(form, W, () => {}, true); // Enter in the box: the same text, asked again
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(options()).toHaveLength(1);
   });
 
   it("a space's draft carries no kind, area or fidelity", () => {
     const form = mount({ name: "Atelier", city: "Gent" });
-    const draft: Record<string, unknown> = { kind: "network", areaServed: ["BE"], fidelity: "region" };
+    const draft: Record<string, unknown> = { kind: "network", areaServed: [{ code: "BE", name: "Belgium" }], fidelity: "region" };
     readDescribeForm(form, draft);
     expect(draft).toEqual({ name: "Atelier", city: "Gent" });
   });
 
-  it("a network read from the pod opens on its kind and area, the card on", () => {
-    const form = mount({ kind: "network", name: "Maakbib", areaServed: ["BE-VLG"], lat: "51.0378", lon: "4.2406", country: "BE", fidelity: "region" });
+  it("a network read from the pod opens on its kind and area, picked, the card on", () => {
+    const form = mount({ kind: "network", name: "Maakbib", areaServed: [{ code: "BE-VLG", name: "Flanders" }], lat: "51.0378", lon: "4.2406", country: "BE", fidelity: "region" });
     expect(kindOf(form)).toBe("network");
-    expect(area().value).toBe("BE-VLG");
+    expect(area().value).toBe("Flanders");
+    expect(areaOf(form)).toBe("BE-VLG");
+    expect(document.querySelector<HTMLElement>('[data-manual="coords"]')!.hidden).toBe(true);
     expect(cta().disabled).toBe(false);
     expect(document.querySelector<HTMLElement>('[data-beat="rest"]')!.classList.contains("open")).toBe(true);
   });
@@ -723,9 +794,12 @@ describe("tile A, a network (2026-11-19)", async () => {
     const { previewWords } = describeModule;
     const pw = previewWords(W);
     expect(renderPreview("mapcard", { kind: "network" }, pw)).toContain(W.ui("uiYourNetwork"));
-    const card = renderPreview("mapcard", { kind: "network", name: "Maakbib", areaServed: ["BE-VLG"] }, pw);
+    const card = renderPreview("mapcard", { kind: "network", name: "Maakbib", areaServed: [{ code: "BE-VLG", name: "Flanders" }] }, pw);
     expect(card).toContain(W.ui("uiServes", { area: "Flanders" }));
     expect(card).not.toContain("Where you are");
-    expect(renderPreview("kept", { kind: "network", name: "Maakbib", areaServed: ["BE-VLG"] }, pw)).toContain("Anyone looking in Flanders");
+    expect(renderPreview("kept", { kind: "network", name: "Maakbib", areaServed: [{ code: "BE-VLG", name: "Flanders" }] }, pw)).toContain("Anyone looking in Flanders");
+    // An area with no name (a #67 file): a country by its English name, a region by its code.
+    expect(renderPreview("mapcard", { kind: "network", areaServed: [{ code: "FR", name: "" }] }, pw)).toContain(W.ui("uiServes", { area: "France" }));
+    expect(renderPreview("mapcard", { kind: "network", areaServed: [{ code: "BE-VLG", name: "" }] }, pw)).toContain(W.ui("uiServes", { area: "BE-VLG" }));
   });
 });
