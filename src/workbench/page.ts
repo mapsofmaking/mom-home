@@ -78,7 +78,8 @@ import {
   togglePassphrase,
   type PodFormState,
 } from "./podform";
-import { showsPodForm, thresholdWords, type Door, type OffersState } from "./threshold";
+import { SpaceFileError } from "../lib/spacefile";
+import { selfHostFile, showsPodForm, thresholdWords, type Door, type OffersState } from "./threshold";
 import { metWords, renderWords } from "./words";
 import { swapBrokenLogos } from "./popup";
 import { moveIdle, moveWords, renderMovePanel, type MoveState } from "./move";
@@ -229,6 +230,9 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   let offers: OffersState = null;
   let offersAsked = false;
   let door: Door | null = null;
+  /** Self-host door: the file was downloaded, or the draft could not make one. */
+  let selfDone = false;
+  let selfFailed = false;
   /** The pod form's address and email, kept across redraws; the passphrase is never kept (podform.ts). */
   let pod: PodFormState | null = null;
   let podTimer: ReturnType<typeof setTimeout> | undefined;
@@ -395,7 +399,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     clearTimeout(podTimer);
     // Published in this tab: tile C's card is the one the map gave back then.
     if (!hours.onMap && publish.onMap) hours = { ...hours, onMap: publish.onMap };
-    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, carded, words, offers, door, pod, podReady: podReady?.pod ?? null, prior: opts.priorPod ?? null, makeAnother, publish: opts.publishSpace ? publish : null, hours: opts.saveHours ? hours : null, tool: toolOpen, logo: opts.uploadLogo && opts.draft.hours?.trim() ? logo : null, move: opts.moveSpace && opts.draft.hours?.trim() ? move : null });
+    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, carded, words, offers, door, selfDone, selfFailed, pod, podReady: podReady?.pod ?? null, prior: opts.priorPod ?? null, makeAnother, publish: opts.publishSpace ? publish : null, hours: opts.saveHours ? hours : null, tool: toolOpen, logo: opts.uploadLogo && opts.draft.hours?.trim() ? logo : null, move: opts.moveSpace && opts.draft.hours?.trim() ? move : null });
     step.scrollTop = 0;
     if (tile.act === "hours" && toolOpen) placeTool(tile);
     if (tile.act === "threshold" && !offersAsked) askOffers();
@@ -676,6 +680,25 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
       step.querySelector<HTMLInputElement>("#p-name")?.focus();
     } else if (target.id === "pod-show") {
       togglePassphrase(step.querySelector<HTMLFormElement>("#f-pod")!, thresholdWords(tree.tiles.find((t) => t.act === "threshold")));
+    } else if (target.id === "self-download") {
+      try {
+        const { filename, json } = selfHostFile(opts.draft);
+        const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        selfDone = true;
+        selfFailed = false;
+      } catch (e) {
+        if (!(e instanceof SpaceFileError)) throw e;
+        selfFailed = true;
+      }
+      draw();
+      step.querySelector<HTMLElement>("#self-download")?.focus();
+      const said = step.querySelector<HTMLElement>(selfFailed ? "#self-failed" : "#reply .bernard-voice");
+      if (said) announce(said.textContent?.replace(/\s+/g, " ").trim() ?? "");
     } else if (target.dataset.door || target.id === "not-now" || target.id === "doors-again" || target.id === "offers-retry" || target.id === "pod-other") {
       if (target.id === "offers-retry") {
         askOffers();
@@ -683,6 +706,8 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
         step.querySelector<HTMLElement>("#offers-retry, [data-door]")?.focus();
         return;
       }
+      selfDone = false;
+      selfFailed = false;
       door =
         target.id === "not-now" ? "notnow" : target.id === "doors-again" ? null : target.id === "pod-other" ? "self" : (target.dataset.door as Door);
       draw();

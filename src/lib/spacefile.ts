@@ -59,6 +59,12 @@ export function literal(value: string): string {
  * one this file will carry.
  */
 export function iri(value: string | undefined): string | null {
+  const href = plainIri(value);
+  return href ? `<${href}>` : null;
+}
+
+/** The same check as `iri`, without the angle brackets: the address itself (the SpaceAPI writer uses it). */
+export function plainIri(value: string | undefined): string | null {
   const text = (value ?? "").trim();
   if (!text) return null;
   let url: URL;
@@ -70,7 +76,7 @@ export function iri(value: string | undefined): string | null {
   if (url.protocol !== "https:" && url.protocol !== "http:") return null;
   // eslint-disable-next-line no-control-regex
   if (/[<>"{}|\\^`\s\u0000-\u001f\u007f]/.test(url.href)) return null;
-  return `<${url.href}>`;
+  return url.href;
 }
 
 /** `#room:server` as the link the map shows: matrix.to with the leading symbol encoded, colons kept. */
@@ -82,9 +88,17 @@ export function matrixLink(value: string | undefined): string | null {
   return iri(`https://matrix.to/#/${encodeURIComponent(text).replace(/%3A/gi, ":")}`);
 }
 
+/** `https://matrix.to/#/<room>` back to the room as typed (`#room:server`); null for any other address. */
+export function matrixRoom(value: string | undefined): string | null {
+  const link = matrixLink(value);
+  const room = link ? /^<https:\/\/matrix\.to\/#\/(.+)>$/.exec(link)?.[1] : undefined;
+  return room ? decodeURIComponent(room) : null;
+}
+
 const DECIMAL = /^-?\d+(\.\d+)?$/;
 
-export function spaceFile(draft: Draft): SpaceFile {
+/** What a card cannot do without, checked and trimmed; throws `SpaceFileError` naming what is missing. */
+export function requiredParts(draft: Draft) {
   const name = (draft.name ?? "").trim();
   const town = (draft.city ?? "").trim();
   const country = (draft.country ?? "").trim().toUpperCase();
@@ -96,7 +110,11 @@ export function spaceFile(draft: Draft): SpaceFile {
   if (!/^[A-Z]{2}$/.test(country)) missing.push("country");
   if (!DECIMAL.test(lat) || !DECIMAL.test(lon)) missing.push("pin");
   if (missing.length) throw new SpaceFileError(missing);
+  return { name, town, country, lat, lon };
+}
 
+export function spaceFile(draft: Draft): SpaceFile {
+  const { name, town, country, lat, lon } = requiredParts(draft);
   const dropped: SpaceFile["dropped"] = [];
   const lines: string[] = [];
   const add = (predicate: string, object: string) => lines.push(`  ${predicate} ${object}`);

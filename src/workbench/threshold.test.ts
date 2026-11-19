@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Offers } from "../lib/provider";
 import { parseTree } from "../tree/parse";
 import { renderPage, type PageOptions } from "./page";
-import { renderThreshold, type Door } from "./threshold";
+import { renderThreshold, selfHostFile, type Door } from "./threshold";
 
 const tree = parseTree(readFileSync(join(__dirname, "../../public/onboarding.ttl"), "utf8"));
 const keep = tree.tiles.find((t) => t.id === "keep")!;
@@ -97,9 +97,26 @@ describe("tile B's threshold (14.3 AC1, AC4)", () => {
     }
   });
 
-  it("the self-host door is honest that it opens soon", () => {
+  it("the self-host door says what to do with the file, and offers it to download", () => {
     const d = html(renderThreshold(keep, ctx({ offers: "open", door: "self" })));
-    expect(d.querySelector("#reply")!.textContent).toContain(keep.ui.uiSelfSoon);
+    const reply = d.querySelector("#reply")!;
+    expect(reply.textContent).toContain(keep.ui.uiSelfFormat);
+    expect(reply.textContent).toContain(keep.ui.uiSelfPut);
+    expect(reply.querySelector("#self-download")!.textContent).toBe(keep.ui.uiSelfDownload);
+    expect(reply.querySelector("a")!.textContent).toBe(keep.ui.uiSelfMap);
+    // Bernard's "now it needs an address" waits for the download.
+    expect(reply.textContent).not.toContain(keep.lines.saidDoneSelf);
+    const done = html(renderThreshold(keep, { ...ctx({ offers: "open", door: "self" }), selfDone: true }));
+    expect(done.querySelector("#reply")!.textContent).toContain(keep.lines.saidDoneSelf);
+  });
+
+  it("the file it gives is SpaceAPI JSON of the draft, named after the space", () => {
+    const { filename, json } = selfHostFile({ name: "Atelier du Canal", city: "Anderlecht", country: "BE", lat: "50.8391", lon: "4.3297" });
+    expect(filename).toBe("atelier-du-canal.json");
+    const file = JSON.parse(json);
+    expect(file.space).toBe("Atelier du Canal");
+    expect(file.location).toMatchObject({ address: "Anderlecht, BE", lat: 50.8391, lon: 4.3297 });
+    expect(() => selfHostFile({ name: "Atelier" })).toThrow();
   });
 });
 
@@ -146,6 +163,15 @@ describe("tile B in the page", () => {
     press(root, "#doors-again");
     expect(root.querySelector("#reply")).toBeNull();
     expect(root.querySelector('[data-door="self"]')!.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("downloading from a draft too thin for a file shows the error line, not a broken file", async () => {
+    const root = open(async () => "open");
+    await settle();
+    press(root, '[data-door="self"]');
+    press(root, "#self-download");
+    expect(root.querySelector("#self-failed")!.textContent).toBe(keep.ui.uiSelfFailed);
+    expect(root.querySelector("#reply")!.textContent).not.toContain(keep.lines.saidDoneSelf);
   });
 
   it("'try again' asks the server a second time", async () => {

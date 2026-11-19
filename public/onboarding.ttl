@@ -97,8 +97,11 @@
   onb:uiNoRegister "This pod server isn't taking new accounts right now. You can still look after the file yourself."@en ;
   onb:uiProviderDown "I can't reach the pod server just now. Nothing was sent. Try again in a moment, or look after the file yourself."@en ;
   onb:uiTryAgain "Try again"@en ;
-  onb:uiSelfSoon "Looking after the file yourself opens soon. If you already host a space file, you can add it on the map."@en ;
-  onb:uiSelfSoonLink "Go to the map ↗"@en ;
+  onb:uiSelfFormat "This is a SpaceAPI file (JSON), the format hackerspaces already publish."@en ;
+  onb:uiSelfPut "Put it at a public address, then give the map that address."@en ;
+  onb:uiSelfDownload "Download"@en ;
+  onb:uiSelfFailed "The description isn't complete enough for a file yet. Check the first tile."@en ;
+  onb:uiSelfMap "Add it on the map ↗"@en ;
   # The doors' own lines (storyboard B1), and the pod form (B2; S2 of 14.3). The form says "passphrase" everywhere (14.0).
   onb:uiDoorSelfDesc "Put it anywhere public: your website, or a Git repo. The map reads it from there. You change it by editing the file as you see fit."@en ;
   onb:uiDoorPodDesc "Kept at Maps of Making under your space's name. You get tools that help you run your space."@en ;

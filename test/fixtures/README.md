@@ -10,3 +10,6 @@ reading changes, copy the new files and move this pin.
 of contact handle home writes, two of one kind, blank and named contact points. `src/lib/contacts.test.ts` holds
 home's reader to it with the same handles the map's test expects (`tests/test_space_turtle.py`
 `test_every_handle_home_writes_reaches_the_card`). Change it there first, then copy it here and move this pin.
+
+Both `atelier-du-canal` files were checked again against maps_of_making `c349f22` (`mom-vps`): unchanged since
+`12bb32a`, and `handles.ttl` too. `src/lib/spaceapi.test.ts` holds home's SpaceAPI writer to the JSON one.
