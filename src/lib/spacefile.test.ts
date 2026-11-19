@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { draftFromStore, draftFromTurtle, iri, literal, matrixLink, sameStatements, spaceFile, SpaceFileError, statements } from "./spacefile";
+import { areaLabel, cleanAreaName, cleanAreas, draftFromStore, draftFromTurtle, iri, literal, matrixLink, sameStatements, spaceFile, SpaceFileError, statements } from "./spacefile";
 
 /** Pinned to maps_of_making 12bb32a (test/fixtures/README.md): the file as the map reads it. */
 const fixture = readFileSync(join(__dirname, "../../test/fixtures/atelier-du-canal.ttl"), "utf8");
@@ -201,12 +201,35 @@ describe("a network (2026-11-19): it serves an area, it has no address", () => {
     expect(turtle).not.toContain("Rue 1");
   });
 
-  it("escapes an area's name, drops one over 200 characters (the area stays), and writes no name it doesn't know", () => {
+  it("escapes an area's name, cuts one over 200 characters as the map does, and writes no name it doesn't know", () => {
     const named = (name: string) => spaceFile({ ...network, areaServed: [{ code: "FR-IDF", name }] }).turtle;
     expect(named('Île "de" France')).toContain(`schema:identifier "FR-IDF" ; schema:name "Île \\"de\\" France" ]`);
-    expect(named("x".repeat(201))).toContain(`[ a schema:AdministrativeArea ; schema:identifier "FR-IDF" ]`);
+    expect(named("x".repeat(201))).toContain(`schema:identifier "FR-IDF" ; schema:name "${"x".repeat(200)}" ]`);
     expect(named("")).not.toContain("schema:name \"\"");
     expect(sameStatements(named('Île "de" France'), named('Île "de" France'))).toBe(true);
+  });
+
+  it("keeps one area per code as the map's clean_areas does: a name beats none, then the smaller name", () => {
+    expect(cleanAreas(["BE-VLG", { code: "be-vlg", name: "Vlaanderen" }, { code: "BE-VLG", name: "Flanders" }, { code: "BE-BRU", name: "Brussels" }])).toEqual([
+      { code: "BE-BRU", name: "Brussels" }, { code: "BE-VLG", name: "Flanders" },
+    ]);
+    expect(cleanAreas([{ code: "BE-VLG", name: "Flanders" }, "BE-VLG"])).toEqual([{ code: "BE-VLG", name: "Flanders" }]);
+    // A file holding both shapes (a bare code and the node) reads the named one, whatever the order.
+    const both = maakbib.replace("schema:areaServed [", `schema:areaServed "BE-VLG" ;\n  schema:areaServed [`);
+    expect(draftFromTurtle(both, base)!.areaServed).toEqual([{ code: "BE-VLG", name: "Flanders" }]);
+  });
+
+  it("cleans an area's name as the map's clean_area_name does: no control characters, one space, trimmed, cut at 200", () => {
+    expect(cleanAreaName("  Île-de-\nFrance\t\u0007 (FR)  ")).toBe("Île-de- France (FR)");
+    expect(cleanAreaName(3)).toBe("");
+    expect(cleanAreaName(`${"é".repeat(199)}🙂🙂`)).toBe(`${"é".repeat(199)}🙂`);
+  });
+
+  it("labels a nameless area as the map does: its subdivisions by name, a country by its English name, else the code", () => {
+    expect(areaLabel({ code: "BE-VLG", name: "" })).toBe("Flanders");
+    expect(areaLabel({ code: "BE-BRU", name: "" })).toBe("Brussels");
+    expect(areaLabel({ code: "FR", name: "" })).toBe("France");
+    expect(areaLabel({ code: "FR-IDF", name: "" })).toBe("FR-IDF");
   });
 
   it("still reads the bare code a file from #67 wrote, with no name", () => {

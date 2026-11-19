@@ -115,30 +115,54 @@ export interface Area {
   name: string;
 }
 
-/** An area's name is the geocoder's, not typed: still capped, and a longer one is dropped, never cut. */
+/** The longest name an area keeps (the map's MAX_AREA_NAME): a longer one is cut there, as the map cuts it. */
 const MAX_AREA_NAME = 200;
 
 /**
- * Areas as the map keeps them: valid codes only (upper case), once each (the first name wins), sorted by code,
- * ten at most. Takes `{code, name}` and a bare code string (a draft or file from #67, name ""); anything else
- * is dropped. A name is trimmed; one over 200 characters is dropped (the area stays, named by its code).
+ * An area's name as the map cleans it (maps_of_making `scripts/spaceapi_extract/area.py` `clean_area_name`):
+ * control characters out, whitespace runs to one space, trimmed, cut at 200 characters; "" when none. It comes
+ * from the geocoder, not from a person, so cutting loses no authored copy.
+ */
+export function cleanAreaName(value: unknown): string {
+  if (typeof value !== "string") return "";
+  // eslint-disable-next-line no-control-regex
+  const line = value.replace(/[\u0000-\u001f\u007f]/g, " ").split(/\s+/).filter(Boolean).join(" ");
+  // Cut by character (Python slices code points), not by UTF-16 unit.
+  return Array.from(line).slice(0, MAX_AREA_NAME).join("");
+}
+
+/**
+ * Areas as the map keeps them (`clean_areas`): valid codes only (upper case), once each, sorted by code, ten at
+ * most. Takes `{code, name}` and a bare code string (a draft or file from #67, name ""); anything else is
+ * dropped. Two of one code: a name beats none, then the smaller name, so the same file always reads the same.
  */
 export function cleanAreas(areas: readonly unknown[] | undefined): Area[] {
-  const out = new Map<string, Area>();
+  const best = new Map<string, string>();
   for (const a of Array.isArray(areas) ? areas : []) {
     const raw = typeof a === "string" ? { code: a, name: "" } : a && typeof a === "object" ? (a as Record<string, unknown>) : null;
     if (!raw || typeof raw.code !== "string") continue;
     const code = raw.code.trim().toUpperCase();
-    if (!AREA_CODE.test(code) || out.has(code)) continue;
-    const name = typeof raw.name === "string" ? raw.name.trim() : "";
-    out.set(code, { code, name: name.length > MAX_AREA_NAME ? "" : name });
+    if (!AREA_CODE.test(code)) continue;
+    const name = cleanAreaName(raw.name);
+    const had = best.get(code);
+    if (had === undefined || (name && (!had || name < had))) best.set(code, name);
   }
-  return [...out.values()].sort((x, y) => (x.code < y.code ? -1 : x.code > y.code ? 1 : 0)).slice(0, MAX_AREAS);
+  return [...best.keys()].sort().slice(0, MAX_AREAS).map((code) => ({ code, name: best.get(code)! }));
 }
 
-/** An area as people read it: its name; without one, the country's English name for a country code, else the code. */
+/**
+ * The subdivisions the map names when a file doesn't (maps_of_making web/app.js `AREA_NAMES`): kept in step
+ * with the map's fallback, so a nameless area from a #67 file reads the same on both sides.
+ */
+const AREA_NAMES: Readonly<Record<string, string>> = { "BE-VLG": "Flanders", "BE-WAL": "Wallonia", "BE-BRU": "Brussels" };
+
+/**
+ * An area as people read it, as the map labels it: its name; without one, the map's name for a subdivision it
+ * knows, the country's English name for a country code, else the code.
+ */
 export function areaLabel(area: Area): string {
   if (area.name) return area.name;
+  if (AREA_NAMES[area.code]) return AREA_NAMES[area.code];
   if (/^[A-Z]{2}$/.test(area.code)) {
     try {
       return new Intl.DisplayNames(["en"], { type: "region" }).of(area.code) ?? area.code;

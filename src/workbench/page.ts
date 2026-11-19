@@ -597,9 +597,10 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
     const form = describeForm(event);
     if (!form) return;
     describeKeydown(form, event);
-    // Enter in a network's area box asks at once, and again after the geocoder was busy or away.
+    // Enter in a network's area box asks at once, and again after the geocoder was busy or away; the same
+    // text already asked, or offered, is not asked twice (where.ts).
     const target = event.target as HTMLInputElement;
-    if (event.key === "Enter" && target.name === "areaSearch" && !form.querySelector(".wb-area-option")) {
+    if (event.key === "Enter" && target.name === "areaSearch") {
       void locate(form, words, located(form), true);
     }
   });

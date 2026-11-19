@@ -45,11 +45,12 @@ interface Answer {
 type Outcome = Answer | "unavailable" | "rate";
 
 async function ask(street: string, city: string, country: string): Promise<Outcome> {
-  return post<Answer>({ address: street, city, postcode: "", country_code: country });
+  const answer = await post<Answer>({ address: street, city, postcode: "", country_code: country });
+  return answer === "invalid" ? "unavailable" : answer;
 }
 
 /** The one request to the map's geocode proxy (an address or an area search); leaves nothing anywhere. */
-async function post<T>(body: object): Promise<T | "unavailable" | "rate"> {
+async function post<T>(body: object): Promise<T | "unavailable" | "rate" | "invalid"> {
   try {
     const res = await fetch("/api/geocode", {
       method: "POST",
@@ -57,6 +58,8 @@ async function post<T>(body: object): Promise<T | "unavailable" | "rate"> {
       body: JSON.stringify(body),
     });
     if (res.status === 429) return "rate";
+    // The proxy refused what was sent (422): asking again with the same text can't help.
+    if (res.status === 422) return "invalid";
     if (!res.ok) return "unavailable";
     return (await res.json()) as T;
   } catch {
@@ -107,6 +110,8 @@ export const MAX_CANDIDATES = 5;
 export async function searchAreas(text: string): Promise<FoundAreas> {
   const answer = await post<{ candidates?: unknown } | null>({ area_search: text, lang: "en" });
   if (answer === "rate" || answer === "unavailable") return answer;
+  // Text the proxy won't search (422): said as no match, so nobody is told to retry the same thing.
+  if (answer === "invalid") return "none";
   const list = answer?.candidates;
   const out: Candidate[] = [];
   for (const c of Array.isArray(list) ? list : []) {
@@ -216,8 +221,9 @@ export function pinned(form: HTMLFormElement): boolean {
   const lat = Number(value(form, "lat"));
   const lon = Number(value(form, "lon"));
   return (
-    (!isNetwork(form) || !!areaIn(form)) &&
-    /^[A-Z]{2}$/.test(value(form, "country")) &&
+    // A network needs its area, not a country: one serving areas in several countries has none (the writers
+    // then leave the country out, and the map derives one only when all areas share it).
+    (isNetwork(form) ? !!areaIn(form) : /^[A-Z]{2}$/.test(value(form, "country"))) &&
     value(form, "lat") !== "" && value(form, "lon") !== "" &&
     Math.abs(lat) <= 90 && Math.abs(lon) <= 180
   );
@@ -228,9 +234,9 @@ export function unpin(form: HTMLFormElement): void {
   for (const name of ["lat", "lon", "postcode", "place", "fidelity", "area", "areaName"]) set(form, name, "");
   if (form.querySelector<HTMLElement>('[data-manual="country"]')?.hidden) set(form, "country", "");
   delete form.dataset.located;
-  // A search on its way is moot too (the kind switched, or the text changed); the offers go with the pin.
-  delete form.dataset.asked;
-  offer(form, []);
+  // A search on its way is moot too (the kind switched, or the text changed). The offers stay until the next
+  // answer replaces them (or the text gets too short): no flicker while typing.
+  searches.delete(form);
   say(form, "");
 }
 
@@ -298,15 +304,48 @@ export async function locate(form: HTMLFormElement, w: DescribeWords, done: () =
   done();
 }
 
-/** When the last search went out: the proxy takes one a second, so the next waits for the rest of it. */
+/**
+ * The proxy takes one request a second: every search waits its turn in one queue (so two forms, or two calls
+ * at once, can't both slip through), a second after the one before, and is dropped at its turn when its text
+ * is no longer the one in the box.
+ */
+let queue: Promise<unknown> = Promise.resolve();
 let lastAsk = 0;
 
-const areaList = (form: HTMLFormElement) => form.querySelector<HTMLElement>("#f-area-list");
+function spaced<T>(still: () => boolean, run: () => Promise<T>): Promise<T | null> {
+  const turn = queue.then(async () => {
+    if (!still()) return null;
+    await wait(Math.max(0, lastAsk + timing.retryGap - Date.now()));
+    if (!still()) return null;
+    lastAsk = Date.now();
+    return run();
+  });
+  queue = turn.catch(() => null);
+  return turn;
+}
 
-/** The areas offered, as buttons under the box (each carries what a pick sets); none hides the list. */
+/** The one search a form has going: its text, where it is, and (while it pauses) the way to stop pausing. */
+interface Search {
+  key: string;
+  phase: "pausing" | "asking" | "offered" | "nothing";
+  wake?: () => void;
+}
+const searches = new WeakMap<HTMLFormElement, Search>();
+
+const areaList = (form: HTMLFormElement) => form.querySelector<HTMLElement>("#f-area-list");
+/** What the offers are, to tell the same list from a new one. */
+const signature = (candidates: readonly Candidate[]) => JSON.stringify(candidates.map((c) => [c.code, c.name, c.lat, c.lon, c.fidelity]));
+
+/**
+ * The areas offered, as buttons under the box (each carries what a pick sets); none hides the list. The same
+ * offers again leave the list as it is, so focus and the arrow keys' place in it hold.
+ */
 function offer(form: HTMLFormElement, candidates: readonly Candidate[]): void {
   const list = areaList(form);
   if (!list) return;
+  const sig = signature(candidates);
+  if (list.dataset.offers === sig) return;
+  list.dataset.offers = sig;
   list.textContent = "";
   for (const c of candidates) {
     const item = document.createElement("li");
@@ -327,33 +366,52 @@ function offer(form: HTMLFormElement, candidates: readonly Candidate[]): void {
 /**
  * A network's where: asks the geocoder for the areas the box's text could be, once the typing pauses (or at
  * once, `now`: Enter). Two letters at least. A newer text, a pick or a redraw makes an older answer moot.
+ * The same text again never asks twice: Enter during the pause ends the pause, Enter while it asks or once
+ * its offers show does nothing; only after nothing came back does Enter ask again.
  */
 async function searchArea(form: HTMLFormElement, w: DescribeWords, done: () => void, now: boolean): Promise<void> {
   if (areaIn(form)) return; // picked: the pin came with it
   const text = value(form, "areaSearch");
   const key = `search|${text}`;
-  if (!now && form.dataset.asked === key) return;
-  form.dataset.asked = key;
-  offer(form, []);
+  const going = searches.get(form);
+  if (going?.key === key) {
+    if (going.phase === "pausing" && now) going.wake?.();
+    if (going.phase !== "nothing" || !now) return;
+  }
   if (text.length < 2) {
+    searches.delete(form);
+    offer(form, []);
     say(form, "");
     return;
   }
-  await wait(now ? 0 : timing.areaGap);
-  if (form.dataset.asked !== key) return;
-  await wait(Math.max(0, lastAsk + timing.retryGap - Date.now()));
-  if (form.dataset.asked !== key || !form.isConnected) return;
-  lastAsk = Date.now();
-  say(form, w.ui("uiPinWorking"), "working");
-  const found = await searchAreas(text);
-  if (form.dataset.asked !== key || !form.isConnected || areaIn(form)) return; // typed again, picked or redrawn
+  const search: Search = { key, phase: "pausing" };
+  searches.set(form, search);
+  const current = () => searches.get(form) === search && form.isConnected && !areaIn(form);
+  if (!now) {
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, timing.areaGap);
+      search.wake = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+    });
+  }
+  search.wake = undefined;
+  if (!current()) return;
+  search.phase = "asking";
+  const found = await spaced(current, () => {
+    say(form, w.ui("uiPinWorking"), "working");
+    return searchAreas(text);
+  });
+  if (found === null || !current()) return; // typed again, picked or redrawn
   if (typeof found !== "object") {
+    search.phase = "nothing";
+    offer(form, []);
     say(form, w.ui(found === "rate" ? "uiRateArea" : found === "unavailable" ? "uiUnavailableArea" : "uiNoResultArea"), "error");
-    // Asked again by typing, or by Enter in the box.
-    delete form.dataset.asked;
     done();
     return;
   }
+  search.phase = "offered";
   say(form, "");
   offer(form, found);
   announce(w.ui("uiAreaFound", { n: String(found.length) }));
@@ -380,7 +438,7 @@ export function pickArea(form: HTMLFormElement, option: HTMLElement, w: Describe
   show(form, "country", false);
   show(form, "coords", false);
   form.dataset.located = `area|${area.code}`;
-  delete form.dataset.asked; // the next search, whatever its text, is a new one
+  searches.delete(form); // the next search, whatever its text, is a new one
   offer(form, []);
   const line = pinLine({ lat: d.lat, lon: d.lon, place: d.place, country: area.code.slice(0, 2) }, w);
   say(form, line, "ok", w.ui("uiPinArea", { area: areaLabel(area) }));

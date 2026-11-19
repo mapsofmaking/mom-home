@@ -29,7 +29,7 @@ import { esc } from "./html";
 import { tileUi } from "./tilewords";
 import type { Draft, PreviewWords } from "./previews";
 import { pinLine, pinned } from "./where";
-import { areaLabel, cleanAreas, type Area } from "../lib/spacefile";
+import { areaLabel, areasCountry, cleanAreas, type Area } from "../lib/spacefile";
 
 type Key = "name" | "street" | "city" | "description" | "email" | "matrix" | "website" | "logo";
 
@@ -168,7 +168,7 @@ function areaField(draft: Draft, w: DescribeWords): string {
   const current = cleanAreas(draft.areaServed)[0];
   const picked = current && draft.lat && draft.lon ? current : null;
   return `<label class="wb-field" for="f-area">${esc(label)}
-        <input id="f-area" name="areaSearch" type="text" value="${esc(current ? areaLabel(current) : "")}" autocomplete="off"
+        <input id="f-area" name="areaSearch" type="text" value="${esc(current ? areaLabel(current) : "")}" autocomplete="off" maxlength="100"
           spellcheck="false" enterkeyhint="search" aria-controls="f-area-list"
           ${placeholder ? `placeholder="${esc(placeholder)}"` : ""}
           ${hint ? `aria-describedby="f-area-hint"` : ""} />
@@ -235,7 +235,8 @@ export function renderDescribeForm(draft: Draft, w: DescribeWords): string {
   const kind: Kind = network ? "network" : "space";
   // Where is the city for a space, the area for a network.
   const where = network ? !!cleanAreas(draft.areaServed).length : !!draft.city;
-  const ready = !!(draft.name && where && draft.lat && draft.lon && draft.country);
+  // A network serving areas in several countries has no country: its area is what it needs.
+  const ready = !!(draft.name && where && draft.lat && draft.lon && (network || draft.country));
   const located = locatedKey(draft);
   const typed = FIELDS.some((f) => draft[f.key]) || (network && where);
   // Anything optional already typed keeps the fold open: nothing typed hides behind it.
@@ -290,6 +291,10 @@ export function readDescribeForm(form: HTMLFormElement, draft: Draft): void {
     else if (kept[0]?.code !== picked) draft.areaServed = cleanAreas([{ code: picked, name }]);
     // The same area picked again names it (one read from a #67 file had no name); the others stay as they are.
     else if (name && kept[0].name !== name) draft.areaServed = cleanAreas([{ code: picked, name }, ...kept.slice(1)]);
+    // The country is the one all its areas share, or none (the form's holds the first area's only).
+    const country = draft.areaServed ? areasCountry(draft.areaServed) : null;
+    if (country) draft.country = country;
+    else delete draft.country;
     const fidelity = String(data.get("fidelity") ?? "").trim();
     if (fidelity) draft.fidelity = fidelity;
     else delete draft.fidelity;

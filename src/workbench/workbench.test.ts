@@ -701,11 +701,98 @@ describe("tile A, a network (2026-11-19)", async () => {
     const areaServed = [{ code: "BE-VLG", name: "" }, { code: "NL", name: "Netherlands" }];
     const draft: Record<string, unknown> = { kind: "network", name: "Maakbib", areaServed, lat: "51", lon: "4", country: "BE", fidelity: "region" };
     const form = mount(draft);
-    expect(area().value).toBe("BE-VLG");
+    expect(area().value).toBe("Flanders"); // the map's name for a nameless BE-VLG
     await type(form, "Flanders");
     pickArea(form, options()[0], W);
     readDescribeForm(form, draft);
     expect(draft.areaServed).toEqual([{ code: "BE-VLG", name: "Flanders" }, { code: "NL", name: "Netherlands" }]);
+  });
+
+  it("the box takes 100 characters at most", () => {
+    mount({ kind: "network", name: "Maakbib" });
+    expect(area().maxLength).toBe(100);
+  });
+
+  it("Enter during the pause asks once, at once; Enter once the offers show leaves them as they are", async () => {
+    const fetch = offered(VLAANDEREN, WEST);
+    vi.stubGlobal("fetch", fetch);
+    timing.areaGap = 60_000; // a pause that only Enter ends
+    try {
+      const form = mount({ kind: "network", name: "Maakbib" });
+      area().value = "Flanders";
+      const paused = locate(form, W);
+      const entered = locate(form, W, () => {}, true);
+      await Promise.all([paused, entered]);
+      expect(fetch).toHaveBeenCalledTimes(1);
+      const shown = options();
+      expect(shown).toHaveLength(2);
+      shown[1].focus();
+      await locate(form, W, () => {}, true);
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(options()[1]).toBe(shown[1]); // the same buttons, not rebuilt
+      expect(document.activeElement).toBe(shown[1]);
+    } finally {
+      timing.areaGap = 0;
+    }
+  });
+
+  it("the same offers for a new text keep the list as it is", async () => {
+    vi.stubGlobal("fetch", offered(VLAANDEREN));
+    const form = mount({ kind: "network", name: "Maakbib" });
+    await type(form, "Flanders");
+    const first = options()[0];
+    await type(form, "Flanders ");
+    expect(options()[0]).toBe(first);
+  });
+
+  it("text the proxy refuses (422) is said as no match, not as 'ask again'", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 422 })));
+    const form = mount({ kind: "network", name: "Maakbib" });
+    await type(form, "x".repeat(100));
+    expect(document.querySelector("#f-pin")!.textContent).toBe(W.ui("uiNoResultArea"));
+  });
+
+  it("searches wait their turn in one queue, a gap apart, and one no longer typed is dropped", async () => {
+    const fetch = offered(VLAANDEREN);
+    vi.stubGlobal("fetch", fetch);
+    timing.retryGap = 30;
+    try {
+      document.body.innerHTML = renderDescribeForm({ kind: "network", name: "A" }, W) + renderDescribeForm({ kind: "network", name: "B" }, W);
+      const [a, b] = [...document.querySelectorAll<HTMLFormElement>("form")];
+      const box = (f: HTMLFormElement) => f.querySelector<HTMLInputElement>('[name="areaSearch"]')!;
+      box(a).value = "Flanders";
+      box(b).value = "Wallonia";
+      const started = Date.now();
+      const both = Promise.all([locate(a, W, () => {}, true), locate(b, W, () => {}, true)]);
+      box(a).value = "Gone"; // a's text changes before its turn: a's queued ask is dropped once it is moot
+      unpin(a);
+      await both;
+      expect(fetch.mock.calls.map((c) => JSON.parse((c as unknown as [string, RequestInit])[1].body as string).area_search)).toEqual(["Wallonia"]);
+      expect(Date.now() - started).toBeLessThan(1000);
+    } finally {
+      timing.retryGap = 0;
+    }
+  });
+
+  it("a network read from the pod serving areas in several countries has no country, and its card is on", async () => {
+    const { draftFromTurtle } = await import("../lib/spacefile");
+    const ttl = readFileSync(join(__dirname, "../../test/fixtures/maakbib.ttl"), "utf8").replace(
+      "schema:areaServed [",
+      `schema:areaServed [ a schema:AdministrativeArea ; schema:identifier "NL" ; schema:name "Netherlands" ] ;\n  schema:areaServed [`
+    );
+    const read = draftFromTurtle(ttl, "https://maakbib.pod.example/space.ttl")!;
+    expect(read.areaServed!.map((x) => x.code)).toEqual(["BE-VLG", "NL"]);
+    expect(read.country).toBeUndefined();
+    const form = mount(read);
+    expect(cta().disabled).toBe(false);
+    syncCta(form);
+    expect(cta().disabled).toBe(false);
+    expect(missing(form)).toBeNull();
+    // Read back, it keeps both areas and still no country.
+    const draft: Record<string, unknown> = { ...read };
+    readDescribeForm(form, draft);
+    expect(draft.areaServed).toEqual(read.areaServed);
+    expect(draft.country).toBeUndefined();
   });
 
   it("typing again drops the pick and its pin; under two letters nothing is asked", async () => {
@@ -798,8 +885,9 @@ describe("tile A, a network (2026-11-19)", async () => {
     expect(card).toContain(W.ui("uiServes", { area: "Flanders" }));
     expect(card).not.toContain("Where you are");
     expect(renderPreview("kept", { kind: "network", name: "Maakbib", areaServed: [{ code: "BE-VLG", name: "Flanders" }] }, pw)).toContain("Anyone looking in Flanders");
-    // An area with no name (a #67 file): a country by its English name, a region by its code.
+    // An area with no name (a #67 file): a country by its English name, a subdivision the map names by that name, else its code.
     expect(renderPreview("mapcard", { kind: "network", areaServed: [{ code: "FR", name: "" }] }, pw)).toContain(W.ui("uiServes", { area: "France" }));
-    expect(renderPreview("mapcard", { kind: "network", areaServed: [{ code: "BE-VLG", name: "" }] }, pw)).toContain(W.ui("uiServes", { area: "BE-VLG" }));
+    expect(renderPreview("mapcard", { kind: "network", areaServed: [{ code: "BE-VLG", name: "" }] }, pw)).toContain(W.ui("uiServes", { area: "Flanders" }));
+    expect(renderPreview("mapcard", { kind: "network", areaServed: [{ code: "FR-IDF", name: "" }] }, pw)).toContain(W.ui("uiServes", { area: "FR-IDF" }));
   });
 });
