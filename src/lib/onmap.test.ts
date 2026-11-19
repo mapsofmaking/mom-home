@@ -26,6 +26,16 @@ describe("on the map (14.4 S3, #13)", () => {
   it("takes the map's id from its answer, and nothing else", () => {
     expect(idFromSpaceUri("urn:mak:space/weld-done")).toBe("weld-done");
     for (const bad of ["urn:mak:canary/mother-sands", "urn:mak:space/../x", "weld-done", 42, null]) expect(idFromSpaceUri(bad)).toBeNull();
+    // A network (map M1): its own prefix, its id `network_<slug>`.
+    expect(idFromSpaceUri("urn:mak:network/maakbib")).toBe("network_maakbib");
+    expect(idFromSpaceUri("urn:mak:network/../x")).toBeNull();
+  });
+
+  it("prefers the id the map answers with, and falls back to the IRI's", async () => {
+    const answer = (body: object) => fakeMap({ register: () => new Response(JSON.stringify(body), { status: 200 }) }).fetchImpl;
+    expect(await registerOnMap(FILE, answer({ id: "network_maakbib", space_uri: "urn:mak:network/maakbib" }))).toBe("network_maakbib");
+    expect(await registerOnMap(FILE, answer({ space_uri: "urn:mak:network/maakbib" }))).toBe("network_maakbib");
+    expect(await registerOnMap(FILE, answer({ id: "../x", space_uri: "urn:mak:space/weld-done" }))).toBe("weld-done");
     expect(mapLink("weld-done")).toBe("https://mapsofmaking.org/?space=weld-done");
   });
 
