@@ -57,11 +57,22 @@ async function ask(fetchImpl: Fetch, url: string, init: RequestInit, ms: number)
   }
 }
 
-/** The map's id from its answer: `urn:mak:space/<id>`. */
+/**
+ * The map's id from its answer's IRI: `urn:mak:space/<id>`, or a network's `urn:mak:network/<slug>`,
+ * whose id is `network_<slug>` (map M1, 2026-11-19).
+ */
 export function idFromSpaceUri(uri: unknown): string | null {
   if (typeof uri !== "string") return null;
-  const id = /^urn:mak:space\/([A-Za-z0-9_-]{1,64})$/.exec(uri)?.[1];
-  return id ?? null;
+  const space = /^urn:mak:space\/([A-Za-z0-9_-]{1,64})$/.exec(uri)?.[1];
+  if (space) return space;
+  const network = /^urn:mak:network\/([A-Za-z0-9-]{1,56})$/.exec(uri)?.[1];
+  return network ? `network_${network}` : null;
+}
+
+/** The id the map answers with (`id`, map M1); the IRI's when it gives none or one that isn't plain. */
+export function idFromAnswer(body: { id?: unknown; space_uri?: unknown }): string | null {
+  if (typeof body.id === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(body.id)) return body.id;
+  return idFromSpaceUri(body.space_uri);
 }
 
 /** Registers the file's address on the map. Throws `map-refused` (the map read the file and said no) or `map-down`. */
@@ -76,13 +87,13 @@ export async function registerOnMap(fileUrl: string, fetchImpl: Fetch = (u, i) =
     throw new PublishError("map-refused", `The map read the file and did not take it (422): ${await res.text().catch(() => "")}`, 422);
   }
   if (!res.ok) throw new PublishError("map-down", `The map's register answered ${res.status}.`, res.status);
-  let body: { space_uri?: unknown };
+  let body: { id?: unknown; space_uri?: unknown };
   try {
     body = await res.json();
   } catch {
     throw new PublishError("map-down", "The map's register answered something that isn't JSON.", res.status);
   }
-  const id = idFromSpaceUri(body.space_uri);
+  const id = idFromAnswer(body);
   if (!id) throw new PublishError("map-down", `The map's register gave no space id (${String(body.space_uri)}).`, res.status);
   return id;
 }
