@@ -73,7 +73,7 @@ export const UI_KEYS = [
   "uiKeepIt", "uiCleared", "uiFix", "uiChange", "uiNotOnPod", "uiPinWorking", "uiPinFound", "uiPinByHand",
   "uiStreetMissed", "uiNoResult", "uiUnavailable", "uiRate", "uiAddedScheme", "uiAddedRoom",
   "uiKind", "uiKindSpace", "uiKindNetwork", "uiNameNetwork", "uiAreaFound",
-  "uiPinArea", "uiNoResultArea", "uiUnavailableArea", "uiRateArea", "uiYourNetwork", "uiServes",
+  "uiPinArea", "uiNoResultArea", "uiUnavailableArea", "uiRateArea", "uiYourNetwork", "uiServes", "uiHoursFact",
 ] as const;
 export type UiKey = (typeof UI_KEYS)[number];
 
@@ -112,6 +112,7 @@ export const areaNames = (areas: readonly Area[] | undefined) => cleanAreas(area
 export function previewWords(w: Pick<DescribeWords, "ui">): PreviewWords {
   return {
     yourNetwork: w.ui("uiYourNetwork"),
+    hoursFact: w.ui("uiHoursFact"),
     areas: (d) => areaNames(d.areaServed),
     serves: (d) => {
       const areas = areaNames(d.areaServed);

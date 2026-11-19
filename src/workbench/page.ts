@@ -42,6 +42,7 @@ import type { LogoResult } from "../lib/logo";
 import { logoIdle, logoWords, renderLogoPanel, type LogoState } from "./logo";
 import { DEFAULT_IDENTIFIER } from "../config";
 import type { Tree } from "../tree/parse";
+import { forKind } from "../tree/kind";
 import {
   areaPicked,
   askStartOver,
@@ -217,7 +218,9 @@ function alignTips(row: HTMLElement): void {
   });
 }
 
-export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): PageHandle {
+export function renderPage(root: HTMLElement, base: Tree, opts: PageOptions): PageHandle {
+  /** The tree as the picked kind reads it (kind.ts): redrawn from `base` whenever the draft's kind has changed. */
+  let tree = forKind(base, opts.draft.kind);
   // Back from the sign-in after creating the pod: tile B speaks first (AC6).
   let selected: string | null = opts.podReady ? (tree.tiles.find((t) => t.act === "threshold")?.id ?? null) : null;
   let editing = false;
@@ -292,7 +295,7 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   const observers: ResizeObserver[] = [];
   const completable = completableIds(tree);
   /** Tile A's words, from the tree (14.2 AC8): one reader for the page, so a missing line warns once. */
-  const words = describeWords(tree.tiles.find((t) => t.act === "describe"));
+  let words = describeWords(tree.tiles.find((t) => t.act === "describe"));
 
   const who = workbench
     ? `<span>Signed in as <b>${esc(opts.who ?? "")}</b></span>
@@ -368,6 +371,11 @@ export function renderPage(root: HTMLElement, tree: Tree, opts: PageOptions): Pa
   };
 
   const draw = () => {
+    const kinded = forKind(base, opts.draft.kind);
+    if (kinded !== tree) {
+      tree = kinded;
+      words = describeWords(tree.tiles.find((t) => t.act === "describe"));
+    }
     // Signed in, a card drawn in this tab opens tile B (the way to put it on the pod) until S4 reads tile A's done
     // from the pod itself. Nothing is added to opts.done: the pod's own record stays untouched.
     const states = tileStates(tree.tiles, doneNow(), completable);

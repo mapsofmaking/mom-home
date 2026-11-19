@@ -52,6 +52,8 @@ export interface Draft {
 export interface PreviewWords {
   /** "Your network": a network's name until one is typed. */
   yourNetwork: string;
+  /** The hours row's name on a card: "Hours", and for a network "Contact hours" (the tree's, by kind). */
+  hoursFact: string;
   /** "Serves Flanders": the areas named; "" when none is picked yet. */
   serves(d: Draft): string;
   /** The areas named, joined ("Flanders, Brussels"). */
@@ -80,16 +82,16 @@ const PREVIEWS: Record<string, (d: Draft, w: W) => string> = {
         <div class="wb-popup-foot">Open on mapsofmaking.org ↗</div>
       </div>
     </div>
-    ${facts([["Description", d.description], ["Hours", d.hours], ["Next event", d.event && `${d.event.title} · ${d.event.date}`]])}`,
+    ${facts([["Description", d.description], [w?.hoursFact ?? "Hours", d.hours], ["Next event", d.event && `${d.event.title} · ${d.event.date}`]])}`,
   kept: (d, w) => `
     <div class="pv">
       <p class="pv-title">${name(d, w)}</p>
       <p class="pv-meta">On the map, read from your own file. Anyone looking in ${esc(where(d, w)) || "your town"} finds you.</p>
     </div>`,
-  readers: (d) => `
+  readers: (d, w) => `
     <div class="pv">
       <p class="pv-title">Who reads your file</p>
-      ${facts([["The map", "mapsofmaking.org"], ["Hours", d.hours]])}
+      ${facts([["The map", "mapsofmaking.org"], [w?.hoursFact ?? "Hours", d.hours]])}
       <p class="pv-meta">One edit, read by each of them. Nothing to retype.</p>
     </div>`,
   network: (d, w) => `

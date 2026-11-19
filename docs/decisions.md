@@ -8,6 +8,13 @@ Kit-level decisions (Solid, ACLs, sign-in) are ADRs in the kit repo; this file o
 
 ## 2026-11-19
 
+- **Tiles speak to the kind picked, and a network's hours are contact hours** (Nicolas, 2026-11-19). After tile A,
+  a network is no longer told "your space": a line that names the kind has a network variant in the tree, the
+  same predicate plus `ForNetwork` (`onb:uiDoorPodDescForNetwork`; not plain `Network`, which `uiKindNetwork`
+  already is), and `forKind` (`src/tree/kind.ts`) lays them over the space's lines when the draft is a network.
+  A line that fits both has no variant. Hours stay one field (`schema:openingHours`); for a network only the
+  words change: "Contact hours", when people can reach the network.
+
 - **A network's area is searched by name, anywhere; the file carries its code and its name** (Nicolas,
   2026-11-19, after testing tile A live; amends the entry below). The Belgium-only select is gone: one box,
   "Area served", where the coordinator types "Flanders", "Île-de-France" or "France"; after a pause the map's

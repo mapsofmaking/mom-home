@@ -39,11 +39,22 @@ function everyLine(): [string, string][] {
     add(`${t.id}.leadShort`, t.leadShort);
     for (const [k, v] of Object.entries(t.lines)) add(`${t.id}.${k}`, v);
     for (const [k, v] of Object.entries(t.ui)) add(`${t.id}.${k}`, v);
+    // The network's variants keep the same voice (2026-11-19).
+    const n = t.network;
+    add(`${t.id}.title.network`, n?.title);
+    add(`${t.id}.cue.network`, n?.cue);
+    add(`${t.id}.lead.network`, n?.lead);
+    add(`${t.id}.leadShort.network`, n?.leadShort);
+    for (const [k, v] of Object.entries(n?.lines ?? {})) add(`${t.id}.${k}.network`, v);
+    for (const [k, v] of Object.entries(n?.ui ?? {})) add(`${t.id}.${k}.network`, v);
     for (const [k, f] of Object.entries(t.fields)) {
       add(`${t.id}.field.${k}.label`, f.label);
       add(`${t.id}.field.${k}.hint`, f.hint);
       add(`${t.id}.field.${k}.placeholder`, f.placeholder);
     }
+  }
+  for (const x of [...tree.profile.sections, ...tree.profile.fields, ...tree.profile.contactTypes]) {
+    for (const [k, v] of Object.entries(x.network ?? {})) add(`profile.${"key" in x ? x.key : x.id}.${k}.network`, v);
   }
   for (const w of tree.words) add(`word.${w.id}`, w.meaning);
   return out;
@@ -68,6 +79,35 @@ describe("the tree's words (14.2 AC8)", () => {
     const keys: readonly string[] = [...HOURS_UI_KEYS, ...LOGO_UI_KEYS, ...MOVE_UI_KEYS, ...PROFILE_UI_KEYS];
     expect(keys.filter((k) => !(k in changeTile.ui))).toEqual([]);
     expect(Object.keys(changeTile.ui).filter((k) => !keys.includes(k))).toEqual([]);
+  });
+
+  // A network's variant is the space's line said differently: the key sets above lock the space's lines, and a
+  // variant is only ever a base key (derived, not listed), so a line nobody shows can't hide behind a suffix.
+  it("has a space line behind every network variant, and the same placeholders", () => {
+    const orphans: string[] = [];
+    const placeholders = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
+    const drifted: string[] = [];
+    for (const t of tree.tiles) {
+      const n = t.network;
+      if (!n) continue;
+      for (const [k, v] of Object.entries(n.lines)) {
+        if (!(k in t.lines)) orphans.push(`${t.id}.${k}`);
+        else if (placeholders(v).join() !== placeholders(t.lines[k]).join()) drifted.push(`${t.id}.${k}`);
+      }
+      for (const [k, v] of Object.entries(n.ui)) {
+        if (!(k in t.ui)) orphans.push(`${t.id}.${k}`);
+        else if (placeholders(v).join() !== placeholders(t.ui[k]).join()) drifted.push(`${t.id}.${k}`);
+      }
+      if (n.lead && !t.lead) orphans.push(`${t.id}.lead`);
+      if (n.leadShort && !t.leadShort) orphans.push(`${t.id}.leadShort`);
+    }
+    expect(orphans).toEqual([]);
+    expect(drifted).toEqual([]);
+  });
+
+  it("refuses a network variant with no space line", () => {
+    const turtle = readFileSync(join(__dirname, "../../public/onboarding.ttl"), "utf8");
+    expect(() => parseTree(turtle.replace("onb:uiDoorPodDescForNetwork", "onb:uiDoorNothingForNetwork"))).toThrow(/no onb:uiDoorNothing for a space/);
   });
 
   it("never judges, cheers or nudges", () => {

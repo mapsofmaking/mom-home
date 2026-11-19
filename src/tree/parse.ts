@@ -29,6 +29,31 @@ const RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
 /** Bernard's lines by local name: `say`, `saidDone`, `sayNext`, ... */
 export type Lines = Readonly<Record<string, string>>;
 
+/**
+ * A line that names the kind has a network variant: the same predicate plus this suffix (`onb:titleForNetwork`,
+ * `onb:uiDoorPodDescForNetwork`). The tree is read once; `forKind` (kind.ts) lays the variants over the space's
+ * lines when the draft is a network. A variant with no base line is refused: it would be a line nobody shows.
+ * (Not just "Network": `uiKindNetwork`, `uiNameNetwork` and `uiYourNetwork` already exist as lines of their own.)
+ */
+export const NETWORK_SUFFIX = "ForNetwork";
+
+/** What a network says instead of the space's words on a tile; absent keys fall back to the space's. */
+export interface TileNetwork {
+  title: string | null;
+  cue: string | null;
+  lead: string | null;
+  leadShort: string | null;
+  lines: Lines;
+  ui: Lines;
+}
+
+/** What a network says instead of a field's, section's or contact type's words. */
+export interface WordsNetwork {
+  label?: string;
+  hint?: string;
+  placeholder?: string;
+}
+
 export interface Tile {
   id: string;
   /** The tile's IRI in the tree, as settings/mom-home.ttl names it. */
@@ -59,6 +84,8 @@ export interface Tile {
   ui: Lines;
   /** The tile's form fields' words, by `onb:key`. */
   fields: Readonly<Record<string, FieldWords>>;
+  /** The network's variants of the words above (`*ForNetwork` in the tree). */
+  network?: TileNetwork;
   doneWhen: string | null;
 }
 
@@ -95,6 +122,7 @@ export interface ProfileField {
   required: boolean;
   /** The file this field lives in, from the pod root: `space.ttl` for now. */
   file: string;
+  network?: WordsNetwork;
 }
 
 /** How a contact handle is checked and turned into what the file holds: the code's. Which handles exist is the tree's. */
@@ -116,6 +144,7 @@ export interface ContactType {
   property: string | null;
   contactType: string | null;
   linkPrefix: string | null;
+  network?: WordsNetwork;
 }
 
 /** A group of profile fields: what the Finder groups its results by. */
@@ -123,6 +152,7 @@ export interface Section {
   id: string;
   label: string;
   prio: number;
+  network?: WordsNetwork;
 }
 
 export interface Word {
@@ -174,6 +204,35 @@ function lines(props: Props, prefix = /^(say|said)([A-Z]|$)/): Lines {
     if (value !== null) out[name] = value;
   }
   return out;
+}
+
+/**
+ * Splits a tile's lines into the space's and the network's (the `*ForNetwork` ones, under their base name).
+ * A variant whose base line is not on the same tile is refused.
+ */
+function splitNetwork(tile: string, all: Lines): { base: Lines; network: Lines } {
+  const base: Record<string, string> = {};
+  const network: Record<string, string> = {};
+  for (const [name, value] of Object.entries(all)) {
+    if (name.endsWith(NETWORK_SUFFIX)) network[name.slice(0, -NETWORK_SUFFIX.length)] = value;
+    else base[name] = value;
+  }
+  for (const name of Object.keys(network)) {
+    if (!(name in base)) throw new TreeError(`Tile "${tile}" has onb:${name}${NETWORK_SUFFIX} but no onb:${name} for a space.`);
+  }
+  return { base, network };
+}
+
+/** The `label`, `hint` and `placeholder` a network says differently, from `onb:labelForNetwork` and so on; null when none. */
+function wordsNetwork(kind: string, id: string, get: (name: string) => string | null, has: (name: string) => boolean): WordsNetwork | undefined {
+  const out: WordsNetwork = {};
+  for (const name of ["label", "hint", "placeholder"] as const) {
+    const value = get(name + NETWORK_SUFFIX);
+    if (value === null) continue;
+    if (!has(name)) throw new TreeError(`${kind} "${id}" has onb:${name}${NETWORK_SUFFIX} but no onb:${name} for a space.`);
+    out[name] = value;
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 /** A tile's `onb:field` nodes, by key. A field with no key or no label is refused: it would draw a blank. */
@@ -235,6 +294,14 @@ export function parseTree(turtle: string): Tree {
     };
 
     if (types.includes(ONB + "Tile")) {
+      const said = splitNetwork(id, lines(props));
+      const ui = splitNetwork(id, lines(props, /^ui[A-Z]/));
+      const net = (name: string): string | null => {
+        const value = get(name + NETWORK_SUFFIX);
+        if (value !== null && get(name) === null) throw new TreeError(`Tile "${id}" has onb:${name}${NETWORK_SUFFIX} but no onb:${name} for a space.`);
+        return value;
+      };
+      const network: TileNetwork = { title: net("title"), cue: net("cue"), lead: net("lead"), leadShort: net("leadShort"), lines: said.network, ui: ui.network };
       tiles.push({
         id,
         iri,
@@ -254,9 +321,10 @@ export function parseTree(turtle: string): Tree {
         lead: get("lead"),
         leadShort: get("leadShort"),
         unlocksWord: iris("unlocksWord")[0] ?? null,
-        lines: lines(props),
-        ui: lines(props, /^ui[A-Z]/),
+        lines: said.base,
+        ui: ui.base,
         fields: fieldsOf(id, props.get(ONB + "field") ?? [], subjects),
+        network,
         doneWhen: get("doneWhen"),
       });
     } else if (types.includes(ONB + "Word")) {
@@ -267,7 +335,7 @@ export function parseTree(turtle: string): Tree {
         prio: num("prio", "Word"),
       });
     } else if (types.includes(ONB + "Section")) {
-      sections.push({ id, label: need("label", "Section"), prio: num("prio", "Section") });
+      sections.push({ id, label: need("label", "Section"), prio: num("prio", "Section"), network: wordsNetwork("Section", id, get, (n) => get(n) !== null) });
     } else if (types.includes(ONB + "ProfileField")) {
       const kind = need("kind", "Field");
       if (!(KINDS as readonly string[]).includes(kind)) throw new TreeError(`Field "${id}": onb:kind "${kind}" is not one of ${KINDS.join(", ")}.`);
@@ -287,6 +355,7 @@ export function parseTree(turtle: string): Tree {
         placeholder: get("placeholder"),
         required: get("required") === "true",
         file: get("file") ?? "space.ttl",
+        network: wordsNetwork("Field", id, get, (n) => get(n) !== null),
       });
     } else if (types.includes(ONB + "ContactType")) {
       const shape = need("shape", "Contact type");
@@ -300,6 +369,7 @@ export function parseTree(turtle: string): Tree {
       contactTypes.push({
         key: need("key", "Contact type"), label: need("label", "Contact type"), placeholder: get("placeholder"), hint: get("hint"),
         prio: num("prio", "Contact type"), shape: shape as Shape, property, contactType, linkPrefix,
+        network: wordsNetwork("Contact type", id, get, (n) => get(n) !== null),
       });
     } else if (types.includes(ONB + "App")) {
       app = { lines: lines(props), ui: lines(props, /^ui[A-Z]/) };

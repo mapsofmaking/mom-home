@@ -62,6 +62,8 @@
   onb:uiRateArea "Too many requests to the geocoder. Press Enter in a moment to ask again."@en ;
   onb:uiYourNetwork "Your network"@en ;
   onb:uiServes "Serves {area}"@en ;
+  onb:uiHoursFact "Hours"@en ;
+  onb:uiHoursFactForNetwork "Contact hours"@en ;
   # The form's fields, in no order (the code orders them). onb:example fills "Fill in an
   # example": a space that doesn't exist, so nothing typed is mistaken for real. Its street
   # doesn't exist either: the pin falls back to the Marolles, and the pin line says so.
@@ -97,8 +99,10 @@
   onb:act "threshold" ; onb:preview "kept" ; onb:unlocksWord :pod ;
   onb:say "Your data needs a home online, a public place the map can read from. Two ways: do it yourself, or let us. Your choice."@en ;
   onb:saidDone "There you are. Anyone looking for a workshop in {locality} can find you now."@en ;
+  onb:saidDoneForNetwork "There you are. Anyone looking for a network in {locality} can find you now."@en ;
   onb:sayNext "That's the hard part done. But hours change, stuff happens: when something's different, update it once. Here, or later at home.mapsofmaking.org."@en ;
   onb:sayPod "Three things: a name for your Personal Online Datastore (pod), the space's mailbox and a passphrase to secure it."@en ;
+  onb:sayPodForNetwork "Three things: a name for your Personal Online Datastore (pod), the network's mailbox and a passphrase to secure it."@en ;
   onb:sayConsent "Your pod opens its own page now. If it asks for your passphrase, use the one you just made. Then press Authorize for home.mapsofmaking.org."@en ;
   onb:sayTaken "The pod server said that address is taken. Nothing you did wrong. Pick another one."@en ;
   onb:saidDoneSelf "You've got the file. Now it needs an address. Some use GitLab, it gives you one, free, in about five minutes."@en ;
@@ -120,11 +124,14 @@
   # The doors' own lines (storyboard B1), and the pod form (B2; S2 of 14.3). The form says "passphrase" everywhere (14.0).
   onb:uiDoorSelfDesc "Put it anywhere public: your website, or a Git repo. The map reads it from there. You change it by editing the file as you see fit."@en ;
   onb:uiDoorPodDesc "Kept at Maps of Making under your space's name. You get tools that help you run your space."@en ;
+  onb:uiDoorPodDescForNetwork "Kept at Maps of Making under your network's name. You get tools that help you run your network."@en ;
   onb:uiDoorSelfWhere "any public address"@en ;
   onb:uiDoorsNote "Your profile stays as you described it, nothing to retype. You can switch later: the map only needs to know where the data lives."@en ;
   onb:uiPodAddress "Your space's address"@en ;
+  onb:uiPodAddressForNetwork "Your network's address"@en ;
   onb:uiPodEmail "Email"@en ;
   onb:uiPodEmailHint "The space's mailbox, not yours. Whoever holds it can reset the passphrase, so the space can change hands."@en ;
+  onb:uiPodEmailHintForNetwork "The network's mailbox, not yours. Whoever holds it can reset the passphrase, so the network can change hands."@en ;
   onb:uiPodPass "Passphrase"@en ;
   onb:uiPodPassAgain "Same again"@en ;
   onb:uiPodPassExample "Rock-Paper-Scissors-Lizard-Spock"@en ;
@@ -158,8 +165,10 @@
   onb:uiPriorAnother "Make another one"@en ;
   # Signed in, with the pod made (Story 14.4): the steps of "Put it on the map", and what each says.
   onb:sayPublish "Your pod is ready. Press the button: your space's file goes in it, and anyone can read that one file. Nothing else in your pod is opened."@en ;
+  onb:sayPublishForNetwork "Your pod is ready. Press the button: your network's file goes in it, and anyone can read that one file. Nothing else in your pod is opened."@en ;
   onb:uiPublishGo "Put it on the map"@en ;
   onb:uiStepFile "Write your space's file in your pod"@en ;
+  onb:uiStepFileForNetwork "Write your network's file in your pod"@en ;
   onb:uiStepFileWorking "Writing it."@en ;
   onb:uiStepFileWritten "Written, and read back: {address}"@en ;
   onb:uiStepFileThere "It was already there and says the same. Left as it is."@en ;
@@ -172,6 +181,7 @@
   onb:uiOnMapLive "On the map, live"@en ;
   onb:uiPinLate "The map is still drawing your pin. It shows there in a minute."@en ;
   onb:uiFileAddress "Your space's file"@en ;
+  onb:uiFileAddressForNetwork "Your network's file"@en ;
   onb:uiCopy "Copy the address"@en ;
   onb:uiCopied "Copied."@en ;
   onb:uiSeeOnMap "See it on the map ↗"@en ;
@@ -204,6 +214,7 @@
   onb:uiHalfDone "Your account exists, but the pod isn't made yet. Press Create it again: it continues where it stopped."@en ;
   onb:uiProviderSaid "The pod server said no: {detail}. Nothing you did wrong. Try again, or take the other door."@en ;
   onb:uiAddrEmpty "Pick an address for your space."@en ;
+  onb:uiAddrEmptyForNetwork "Pick an address for your network."@en ;
   onb:uiAddrBad "Lower-case letters, numbers and dashes only, and no dash at the start or the end."@en ;
   onb:uiAddrLong "An address can be 63 characters at most. Shorter, please."@en ;
   onb:uiEmailBad "That doesn't look like an email address."@en ;
@@ -219,25 +230,32 @@
   onb:requiresAll :keep ;
   onb:act "hours" ; onb:preview "readers" ; onb:unlocksWord :endpoint ;
   onb:say "Hours change. Change them here. Once."@en ;
+  onb:sayForNetwork "Contact hours change. Change them here. Once."@en ;
   onb:saidDone "One edit, in your file. The map reads it from there: nothing to retype anywhere else."@en ;
   onb:sayTool "Your profile, as the map reads it. Change what's changed."@en ;
   onb:saidSaved "Saved once, in your file. The map picks it up from there."@en ;
   onb:uiHoursLabel "Opening hours"@en ;
+  onb:uiHoursLabelForNetwork "Contact hours"@en ;
   onb:uiHoursHint "Change anything. Winter hours, a holiday, a new evening. Only this line of your file changes."@en ;
+  onb:uiHoursHintForNetwork "Change anything. When people can reach you, a holiday, a new day. Only this line of your file changes."@en ;
   onb:uiHoursPlaceholder "Tu-Sa 10:00-18:00"@en ;
   onb:uiSave "Save the change"@en ;
   onb:uiHoursFirst "This first time, only the hours."@en ;
   onb:uiSaving "Writing it to your file."@en ;
   onb:uiHoursSame "That's what your file already says. Nothing was written."@en ;
   onb:uiHoursEmpty "Write the hours first: an empty line can't go in the file."@en ;
+  onb:uiHoursEmptyForNetwork "Write the contact hours first: an empty line can't go in the file."@en ;
   onb:uiHoursConflict "Your file changed since this page read it, maybe from the backoffice. Nothing was written. Press Save again: it reads the file afresh, and what you typed stays."@en ;
   onb:uiHoursExpired "Your session ended. Sign in again, then write the hours once more and press Save: nothing was written."@en ;
   onb:uiHoursGone "Your space's file isn't on the pod any more. Publish it again from the tile before this one."@en ;
+  onb:uiHoursGoneForNetwork "Your network's file isn't on the pod any more. Publish it again from the tile before this one."@en ;
   onb:uiHoursUnreachable "The pod isn't answering. Press Save again in a moment."@en ;
   onb:uiHoursRefused "Your pod said no. Press Save again; if it keeps saying no, the people who run the pod server can see why."@en ;
   onb:uiHoursUnreadable "The pod took the hours but the file doesn't say them back. Press Save again."@en ;
+  onb:uiHoursUnreadableForNetwork "The pod took the contact hours but the file doesn't say them back. Press Save again."@en ;
   onb:uiHoursWas "was {was}."@en ;
   onb:uiHoursNew "Your file had no opening hours. It has now."@en ;
+  onb:uiHoursNewForNetwork "Your file had no contact hours. It has now."@en ;
   onb:uiFileLabel "Your file"@en ;
   onb:uiFileFrom "read from your pod"@en ;
   onb:uiStepWritten "Written to your pod"@en ;
@@ -246,12 +264,15 @@
   onb:uiStepMapRead "The map read it"@en ;
   onb:uiStepMapLate "It took the file; the card catches up within a minute."@en ;
   onb:uiMapDidntRead "The map didn't answer. Your file has the hours; press the button to ask the map again."@en ;
+  onb:uiMapDidntReadForNetwork "The map didn't answer. Your file has the contact hours; press the button to ask the map again."@en ;
   onb:uiMapRefusedFile "The map read your file and didn't take it. Your file has the hours; the people who run the map can see why."@en ;
+  onb:uiMapRefusedFileForNetwork "The map read your file and didn't take it. Your file has the contact hours; the people who run the map can see why."@en ;
   onb:uiMapAgain "Ask the map again"@en ;
   onb:uiCardLabel "Your card on the map"@en ;
   onb:uiCardFacts "Open the profile, and it shows"@en ;
   onb:uiAddressFact "Address"@en ;
   onb:uiHoursFact "Hours"@en ;
+  onb:uiHoursFactForNetwork "Contact hours"@en ;
   onb:uiBackToTiles "Back to your tiles"@en ;
   onb:uiTileStays "This tile is done. It stays your shortcut for the next change."@en ;
   onb:uiReloadHint "Map open in another tab? Reload it to see the change."@en ;
@@ -259,6 +280,7 @@
   onb:uiLogoLabel "Logo"@en ;
   onb:uiLogoUpload "Upload a logo"@en ;
   onb:uiLogoHint "PNG, JPEG or WebP, up to 512 KB. It goes next to your space's file, and anyone can see it: it's on your card."@en ;
+  onb:uiLogoHintForNetwork "PNG, JPEG or WebP, up to 512 KB. It goes next to your network's file, and anyone can see it: it's on your card."@en ;
   onb:uiLogoOr "Or one already online:"@en ;
   onb:uiLogoPlaceholder "https://…"@en ;
   onb:uiLogoUseAddress "Use this address"@en ;
@@ -270,6 +292,7 @@
   onb:uiLogoNotImage "That isn't a PNG, JPEG or WebP image. Nothing was written."@en ;
   onb:uiLogoBadAddress "That isn't a web address. It starts with https://."@en ;
   onb:uiLogoTaken "A file called logo is already next to your space's file, and your space doesn't use it. Nothing was written. Rename it in the backoffice, then try again."@en ;
+  onb:uiLogoTakenForNetwork "A file called logo is already next to your network's file, and your network doesn't use it. Nothing was written. Rename it in the backoffice, then try again."@en ;
   onb:uiLogoNotPublic "The logo is on your pod, but a stranger can't read it yet, so your file doesn't point at it. Press again."@en ;
   onb:uiLogoExpired "Your session ended. Sign in again, then upload it once more."@en ;
   onb:uiLogoNoAccess "Your pod says this account can't write there. Signing in again won't help: check who can edit it in the backoffice."@en ;
@@ -309,8 +332,11 @@
   onb:uiMoveUnconfirmed "The move went to your file, but reading it back didn't work. Press again: if the file says it, nothing more is written."@en ;
   onb:uiHoursNoAccess "Your pod says this account can't change the file. Signing in again won't help: check who can edit space.ttl in the backoffice."@en ;
   onb:uiHoursUnconfirmed "The hours went to your file, but reading it back didn't work. Press Save again: if the file says them, nothing more is written."@en ;
+  onb:uiHoursUnconfirmedForNetwork "The contact hours went to your file, but reading it back didn't work. Press Save again: if the file says them, nothing more is written."@en ;
   onb:uiProfileTitle "Your space's file"@en ;
+  onb:uiProfileTitleForNetwork "Your network's file"@en ;
   onb:uiProfileLead "Everything the map shows about your space, from your file. Change what you want; it is written in one go."@en ;
+  onb:uiProfileLeadForNetwork "Everything the map shows about your network, from your file. Change what you want; it is written in one go."@en ;
   onb:uiProfileLoading "Reading your file."@en ;
   onb:uiProfileLoadFailed "Your file couldn't be read, so nothing can be changed from here. Reload to try again."@en ;
   onb:uiProfileFind "Find a field"@en ;
@@ -429,10 +455,12 @@
 :handover a onb:Tile ;
   onb:icon "key" ;
   onb:title "Hand over the space"@en ; onb:cue "When you move on, nothing breaks"@en ;
+  onb:titleForNetwork "Hand over the network"@en ;
   onb:q 1 ; onb:r 2 ; onb:prio 11 ;
   onb:requiresAll :keep ; onb:needsPod true ;
   onb:act "none" ; onb:preview "handover" ; onb:unlocksWord :account ;
   onb:say "Coordinators move on. The space stays. Give the role mailbox to whoever's next."@en ;
+  onb:sayForNetwork "Coordinators move on. The network stays. Give the role mailbox to whoever's next."@en ;
   onb:saidDone "Nothing breaks. The account follows the mailbox."@en ;
   onb:doneWhen """ASK { ?account mom:email ?roleMailbox }""" .
 
@@ -477,41 +505,51 @@
 :basics a onb:Section ; onb:label "Basics"@en ; onb:prio 1 .
 :place a onb:Section ; onb:label "Place"@en ; onb:prio 2 .
 :online a onb:Section ; onb:label "Online"@en ; onb:prio 3 .
-:times a onb:Section ; onb:label "Hours"@en ; onb:prio 4 .
+:times a onb:Section ; onb:label "Hours"@en ; onb:prio 4 ;
+  onb:labelForNetwork "Contact hours"@en .
 :contact a onb:Section ; onb:label "Contact"@en ; onb:prio 5 .
 
 :f-name a onb:ProfileField ; onb:key "name" ; onb:kind "text" ; onb:property schema:name ;
+  onb:labelForNetwork "Network name"@en ;
   onb:section :basics ; onb:prio 1 ; onb:required "true" ;
   onb:label "Space name"@en ; onb:hint "The name your community knows."@en .
 :f-description a onb:ProfileField ; onb:key "description" ; onb:kind "text" ; onb:property schema:description ;
+  onb:hintForNetwork "One or two sentences. What kind of network is this?"@en ;
   onb:section :basics ; onb:prio 3 ;
   onb:label "Description"@en ; onb:hint "One or two sentences. What kind of space is this?"@en .
 :f-address a onb:ProfileField ; onb:key "address" ; onb:kind "place" ;
   onb:section :place ; onb:prio 4 ; onb:required "true" ;
   onb:label "Where the space is"@en ; onb:hint "Street and town. The pin moves with the address."@en .
 :f-contacts a onb:ProfileField ; onb:key "contacts" ; onb:kind "contacts" ;
+  onb:hintForNetwork "How people reach the network: one handle or many. Not personal accounts."@en ;
   onb:section :contact ; onb:prio 7 ;
   onb:label "Contact"@en ; onb:hint "How people reach the space: one handle or many. Not personal accounts."@en .
 :f-website a onb:ProfileField ; onb:key "website" ; onb:kind "url" ; onb:property schema:url ;
+  onb:hintForNetwork "The network's main web page."@en ;
   onb:section :online ; onb:prio 5 ;
   onb:label "Website"@en ; onb:placeholder "example.org"@en ; onb:hint "The space's main web page."@en .
 :f-logo a onb:ProfileField ; onb:key "logo" ; onb:kind "image" ; onb:property schema:logo ;
   onb:section :basics ; onb:prio 2 ;
   onb:label "Logo"@en ; onb:placeholder "example.org/logo.png"@en ; onb:hint "Transparent PNG works best."@en .
 :f-hours a onb:ProfileField ; onb:key "hours" ; onb:kind "text" ; onb:property schema:openingHours ;
+  onb:labelForNetwork "Contact hours"@en ;
+  onb:hintForNetwork "Change anything. When people can reach you, a holiday, a new day."@en ;
   onb:section :times ; onb:prio 6 ;
   onb:label "Opening hours"@en ; onb:placeholder "Tu-Sa 10:00-18:00"@en ;
   onb:hint "Change anything. Winter hours, a holiday, a new evening."@en .
 
 :ct-email a onb:ContactType ; onb:key "email" ; onb:shape "email" ; onb:property schema:email ; onb:prio 1 ;
+  onb:hintForNetwork "Somewhere the network can be reached, not a personal inbox."@en ;
   onb:label "Email"@en ; onb:placeholder "hello@example.org"@en ; onb:hint "Somewhere the space can be reached, not a personal inbox."@en .
 :ct-phone a onb:ContactType ; onb:key "phone" ; onb:shape "phone" ; onb:property schema:telephone ; onb:prio 2 ;
   onb:label "Phone"@en ; onb:placeholder "+32 2 123 45 67"@en ; onb:hint "With the country code."@en .
 :ct-matrix a onb:ContactType ; onb:key "matrix" ; onb:shape "matrix" ; onb:contactType "Matrix" ; onb:prio 3 ;
+  onb:placeholderForNetwork "#yournetwork:matrix.org"@en ;
   onb:label "Matrix"@en ; onb:placeholder "#yourspace:matrix.org"@en ; onb:hint "A room or a space, not a personal account."@en .
 :ct-signal a onb:ContactType ; onb:key "signal" ; onb:shape "url" ; onb:contactType "Signal" ; onb:prio 4 ;
   onb:label "Signal"@en ; onb:placeholder "https://signal.group/#..."@en ; onb:hint "A group link."@en .
 :ct-telegram a onb:ContactType ; onb:key "telegram" ; onb:shape "at" ; onb:contactType "Telegram" ; onb:linkPrefix "https://t.me/" ; onb:prio 5 ;
+  onb:placeholderForNetwork "@yournetwork"@en ;
   onb:label "Telegram"@en ; onb:placeholder "@yourspace"@en ; onb:hint "A channel or a group."@en .
 :ct-discord a onb:ContactType ; onb:key "discord" ; onb:shape "url" ; onb:contactType "Discord" ; onb:prio 6 ;
   onb:label "Discord"@en ; onb:placeholder "https://discord.gg/..."@en ; onb:hint "An invite link that doesn't expire."@en .
