@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { parseTree } from "../tree/parse";
 import { renderPage, type PageOptions } from "./page";
+import type { Draft } from "./previews";
 
 const tree = parseTree(readFileSync(join(__dirname, "../../public/onboarding.ttl"), "utf8"));
 
@@ -246,14 +247,16 @@ describe("renderPage, review fixes (14.2)", () => {
 });
 
 describe("tile A starts from a file someone already has (#73)", () => {
-  const ingegno = () =>
-    ({ draft: { name: "Ingegno", city: "Gent", country: "BE", lat: "51.05", lon: "3.66", place: "Gent", memberOf: ["urn:mak:network/maakbib"] }, notCarried: ["state", "contact.facebook"] }) as const;
+  const ingegno = (): { draft: Draft; notCarried: string[] } => ({
+    draft: { name: "Ingegno", city: "Gent", country: "BE", lat: "51.05", lon: "3.66", place: "Gent", memberOf: ["urn:mak:network/maakbib"] },
+    notCarried: ["state", "contact.facebook"],
+  });
 
   it("reads the address given, fills the form, names what isn't carried over, and keeps the draft", async () => {
     const root = document.createElement("div");
     document.body.append(root);
     const kept: unknown[] = [];
-    const readFile = vi.fn(async () => ({ draft: { ...ingegno().draft, notCarried: [...ingegno().notCarried] }, notCarried: [...ingegno().notCarried] }));
+    const readFile = vi.fn(async (_url: string) => ({ draft: { ...ingegno().draft, notCarried: ingegno().notCarried }, notCarried: ingegno().notCarried }));
     const opts = { ...options("onboarding"), readFile, onDraft: (d: unknown) => kept.push(JSON.parse(JSON.stringify(d))) };
     renderPage(root, tree, opts);
     root.querySelector<HTMLButtonElement>("#import-open")!.click();
@@ -273,7 +276,7 @@ describe("tile A starts from a file someone already has (#73)", () => {
   it("Enter in the box reads the file, and never submits the form", async () => {
     const root = document.createElement("div");
     const done = new Set<string>();
-    const readFile = vi.fn(async () => ({ problem: "unread" as const, error: "HTTP 404" }));
+    const readFile = vi.fn(async (_url: string) => ({ problem: "unread" as const, error: "HTTP 404" }));
     renderPage(root, tree, { ...options("onboarding", done), readFile });
     root.querySelector<HTMLButtonElement>("#import-open")!.click();
     const box = root.querySelector<HTMLInputElement>("#f-import")!;
@@ -285,7 +288,7 @@ describe("tile A starts from a file someone already has (#73)", () => {
 
   it("opened with ?from= and nothing typed, reads it at once; with a draft of this browser's own, only fills the box", async () => {
     const empty = document.createElement("div");
-    const readFile = vi.fn(async () => ({ draft: { ...ingegno().draft }, notCarried: [] }));
+    const readFile = vi.fn(async (_url: string) => ingegno());
     renderPage(empty, tree, { ...options("onboarding"), readFile, importFrom: "https://x.example/f.json" });
     await vi.waitFor(() => expect(empty.querySelector<HTMLInputElement>("#f-name")!.value).toBe("Ingegno"));
 

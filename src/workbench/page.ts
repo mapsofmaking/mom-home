@@ -661,9 +661,8 @@ export function renderPage(root: HTMLElement, base: Tree, opts: PageOptions): Pa
     if ("problem" in out) {
       const el = status();
       const line =
-        out.problem === "rate" ? words.ui("uiImportRate")
-        : out.problem === "unavailable" ? words.ui("uiImportUnavailable")
-        : words.ui("uiImportNotRead", { error: out.error });
+        out.problem === "unread" ? words.ui("uiImportNotRead", { error: out.error })
+        : words.ui(out.problem === "rate" ? "uiImportRate" : "uiImportUnavailable");
       if (el) el.textContent = line;
       box.focus();
       return;
