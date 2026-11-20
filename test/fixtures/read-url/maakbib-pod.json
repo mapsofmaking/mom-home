@@ -1,0 +1,46 @@
+{
+  "validation": {
+    "reachable": true,
+    "status_code": 200,
+    "schema_valid": true,
+    "name_found": "maakbib",
+    "coords_found": true,
+    "lat": 51.0377778,
+    "lon": 4.2405556,
+    "kind": "network",
+    "subset": null,
+    "subset_score": null,
+    "missing_card_fields": [],
+    "unlock_message": null,
+    "next_subset": null,
+    "next_unlock": null,
+    "media_type": "text/turtle"
+  },
+  "record": {
+    "name": "maakbib",
+    "address": null,
+    "country_code": "BE",
+    "timezone": null,
+    "logo": null,
+    "url": "https://maakbib.be/",
+    "description": "Maakbib – Kennis- en netwerkorganisatie voor maakplaatsen",
+    "opening_hours": "NA",
+    "geolocationFidelity": "region",
+    "lat": 51.0377778,
+    "lon": 4.2405556,
+    "contact": {
+      "email": "contact@maakbib.example"
+    },
+    "memberOf": [],
+    "sdgs": [],
+    "knowsAbout": [],
+    "areaServed": [
+      {
+        "code": "BE-VLG",
+        "name": "Flanders"
+      }
+    ],
+    "kind": "network",
+    "unmapped": []
+  }
+}

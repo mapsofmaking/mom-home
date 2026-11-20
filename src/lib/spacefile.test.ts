@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { areaLabel, cleanAreaName, cleanAreas, draftFromStore, draftFromTurtle, iri, literal, matrixLink, sameStatements, spaceFile, SpaceFileError, statements } from "./spacefile";
+import { areaLabel, cleanAreaName, cleanAreas, cleanMemberOf, cleanSdgs, cleanTopics, memberIri, draftFromStore, draftFromTurtle, iri, literal, matrixLink, sameStatements, spaceFile, SpaceFileError, statements } from "./spacefile";
 
 /** Pinned to maps_of_making 12bb32a (test/fixtures/README.md): the file as the map reads it. */
 const fixture = readFileSync(join(__dirname, "../../test/fixtures/atelier-du-canal.ttl"), "utf8");
@@ -282,5 +282,31 @@ describe("draftFromStore: the draft kept in this browser, read back", () => {
     expect(draftFromStore({ kind: "network", name: "Maakbib", areaServed: "BE-VLG" })).toEqual({ kind: "network", name: "Maakbib" });
     expect(draftFromStore(null)).toEqual({});
     expect(draftFromStore(["x"])).toEqual({});
+  });
+});
+
+describe("the lists an import brings (#73)", () => {
+  it("keeps a network the map reads: urn:mak:network/<slug>, an http(s) IRI, a bare slug; nothing else", () => {
+    expect(cleanMemberOf(["Maakbib", "urn:mak:network/vulca", "https://pod.example/config.ttl#n", "javascript:x", "urn:mak:network/Bad Slug", 3, "maakbib"]))
+      .toEqual(["urn:mak:network/maakbib", "urn:mak:network/vulca", "https://pod.example/config.ttl#n"]);
+    expect(memberIri("https://x.example/a b")).toBeNull();
+  });
+
+  it("keeps goals 1 to 17 once each, sorted; topics as one line each, once", () => {
+    expect(cleanSdgs([17, "4", 0, 18, 3.5, "x", 4])).toEqual([4, 17]);
+    expect(cleanTopics(["  3D  printing ", "3D printing", 7, "", "a\nb"])).toEqual(["3D printing", "a b"]);
+  });
+
+  it("a stored draft keeps the lists cleaned, and never a string where a list belongs", () => {
+    expect(draftFromStore({ name: "A", memberOf: "urn:mak:network/x", sdgs: "4", knowsAbout: "y", notCarried: "state" })).toEqual({ name: "A" });
+    expect(draftFromStore({ name: "A", memberOf: ["maakbib"], sdgs: [9], knowsAbout: ["wood"], notCarried: ["state", 3] }))
+      .toEqual({ name: "A", memberOf: ["urn:mak:network/maakbib"], sdgs: [9], knowsAbout: ["wood"], notCarried: ["state"] });
+  });
+
+  it("escapes a topic in the Turtle, and reads a bare slug a hand-written file holds", () => {
+    const d = { name: "A", city: "Gent", country: "BE", lat: "51", lon: "3.7", knowsAbout: ['say "hi"'] };
+    expect(draftFromTurtle(spaceFile(d).turtle, "https://pod.example/space.ttl")!.knowsAbout).toEqual(['say "hi"']);
+    const hand = '@prefix mom: <https://mapsofmaking.org/ns/mom#> . @prefix schema: <https://schema.org/> . <#space> a mom:Space ; schema:name "A" ; mom:memberOf "Maakbib", <urn:mak:network/vulca> ; mom:sdgs 4, "x" .';
+    expect(draftFromTurtle(hand, "https://pod.example/space.ttl")).toMatchObject({ memberOf: ["urn:mak:network/maakbib", "urn:mak:network/vulca"], sdgs: [4] });
   });
 });

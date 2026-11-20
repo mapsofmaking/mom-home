@@ -64,6 +64,17 @@
   onb:uiServes "Serves {area}"@en ;
   onb:uiHoursFact "Hours"@en ;
   onb:uiHoursFactForNetwork "Contact hours"@en ;
+  # Start from a file someone already has (#73): the map reads it (POST /api/read-url), the form is filled, and
+  # whatever the form can't hold is named, never dropped silently.
+  onb:uiImport "Already have a SpaceAPI file? Start from it"@en ;
+  onb:uiImportUrl "Your file's web address"@en ;
+  onb:uiImportGo "Read it"@en ;
+  onb:uiImportReading "Reading your file."@en ;
+  onb:uiImportDone "Filled in from your file. Check each part before you go on."@en ;
+  onb:uiImportNotRead "That file can't be read: {error}"@en ;
+  onb:uiImportUnavailable "The map isn't answering right now. Try again in a moment."@en ;
+  onb:uiImportRate "Many files were read in the last minute. Try again in a moment."@en ;
+  onb:uiNotCarried "Not carried over from your file: {keys}"@en ;
   # The form's fields, in no order (the code orders them). onb:example fills "Fill in an
   # example": a space that doesn't exist, so nothing typed is mistaken for real. Its street
   # doesn't exist either: the pin falls back to the Marolles, and the pin line says so.

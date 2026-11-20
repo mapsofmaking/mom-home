@@ -8,6 +8,26 @@ Kit-level decisions (Solid, ACLs, sign-in) are ADRs in the kit repo; this file o
 
 ## 2026-11-20
 
+- **Tile A starts from a file someone already has** (#73, slice 2 of #72, `review`). Signed out, under the
+  kind: "Already have a SpaceAPI file? Start from it", a web address read by the map (`POST /api/read-url`,
+  maps_of_making #84, same origin). The form is filled (`src/lib/spaceapi-read.ts` `draftFromRecord`) and the
+  coordinator goes through every beat as when typing. Its parts:
+  - **Nothing is dropped silently.** "Not carried over from your file: …" names, on one line, the map's
+    `unmapped` keys and what the draft can't hold: contacts other than email and Matrix (`contact.facebook`),
+    a time zone, a country that isn't an ISO code (left empty, the form asks), a network the map wouldn't read.
+  - **The pin is the file's**, named by its town, so the geocoder isn't asked again unless street or town
+    change. The address string is split best-effort into street, postcode and town.
+  - **The writers carry `memberOf`, `sdgs` and `knowsAbout`** (`space.ttl`: `mom:memberOf <IRI>`,
+    `mom:sdgs`, `schema:knowsAbout`; JSON: `mom.memberOf`, `mom.sdgs`, `knowsAbout`), and the readers
+    (`draftFromTurtle`, the browser's draft) keep them, so importing Ingegno and publishing keeps its four
+    networks. A network is kept only as the map reads one: `urn:mak:network/<slug>` or an http(s) IRI.
+    `Draft.network` (a name nothing set) is gone: an IRI is not a name, so previews keep their generic words.
+  - **`?from=<url>`** puts the address in the box, and reads it at once only when this browser has no draft
+    of its own (what was typed here is newer); it leaves the address bar either way.
+  - **Not in this slice**: tile C showing the networks, goals and topics (read-only); contacts beyond email and
+    Matrix (named as not carried over); remembering the source address for the move (map #85 decides where
+    it lives: the signed-out draft is cleared at publish).
+
 - **The networks epic, decided with Nicolas** (plan of 2026-11-20, epic #72). **Import is a URL read through the
   map**: a space already on the map through a SpaceAPI-style JSON starts tile A from that file's address, read
   by the map's API (no paste, no upload). **Moving the record proves ownership with `mom.movedTo` in the old

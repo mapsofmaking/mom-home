@@ -107,6 +107,22 @@ function takeForwarded(): void {
   history.replaceState(null, "", location.pathname + location.search);
 }
 takeForwarded();
+/**
+ * `?from=<url>` (#73): a file to start tile A from, from the invitation a network sends ("claim your spot").
+ * Taken off the address at once, whatever it holds; tile A puts it in its import box, and reads it only when
+ * this browser has no draft of its own. Only http(s) addresses, and short: it is typed into a box, nothing more.
+ */
+function takeFrom(): string | null {
+  const params = new URLSearchParams(location.search);
+  const from = params.get("from");
+  if (from === null) return null;
+  params.delete("from");
+  const rest = params.toString();
+  history.replaceState(null, "", location.pathname + (rest ? `?${rest}` : "") + location.hash);
+  const url = from.trim().slice(0, 2000);
+  return /^https?:\/\/[^\s]+$/i.test(url) ? url : null;
+}
+const importFrom = takeFrom();
 /** The hex panel's fold, one state for the page (page.ts). Signed in, S6 keeps it in settings/mom-home.ttl. */
 const fold: FoldState = { folded: null };
 
@@ -126,6 +142,7 @@ function renderOnboardingView(): void {
     mode: "onboarding",
     done,
     draft,
+    importFrom,
     onDraft: keepDraft,
     fold,
     onSignIn: () => renderLoginView(),

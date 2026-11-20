@@ -56,6 +56,8 @@ export interface StepContext {
   move?: MoveState | null;
   /** Signed in with a pod: the welcome tile (#69) is mounted by the page into `#welcome-mount`. Absent: signed out. */
   welcome?: boolean;
+  /** Signed out: tile A offers to start from a file (#73), with this address in the box ("" none). null: not offered. */
+  importUrl?: string | null;
 }
 
 function waitsFor(tile: Tile, ctx: StepContext): string {
@@ -122,7 +124,7 @@ function describeStep(tile: Tile, state: TileState, ctx: StepContext): string {
     const lead = tile.lead
       ? `<p class="wb-lead">${words} <a class="inline-link" href="https://mapsofmaking.org" target="_blank" rel="noopener">${esc(w.ui("uiSeeMap"))}</a></p>`
       : "";
-    return head(tile, state) + lead + renderDescribeForm(ctx.draft, w);
+    return head(tile, state) + lead + renderDescribeForm(ctx.draft, w, ctx.importUrl ?? null);
   }
   const kept = ctx.states.get("keep") === "done";
   // The way on is the next tile, by its own name.

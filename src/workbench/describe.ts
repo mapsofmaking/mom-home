@@ -74,6 +74,8 @@ export const UI_KEYS = [
   "uiStreetMissed", "uiNoResult", "uiUnavailable", "uiRate", "uiAddedScheme", "uiAddedRoom",
   "uiKind", "uiKindSpace", "uiKindNetwork", "uiNameNetwork", "uiAreaFound",
   "uiPinArea", "uiNoResultArea", "uiUnavailableArea", "uiRateArea", "uiYourNetwork", "uiServes", "uiHoursFact",
+  "uiImport", "uiImportUrl", "uiImportGo", "uiImportReading", "uiImportDone", "uiImportNotRead", "uiImportUnavailable",
+  "uiImportRate", "uiNotCarried",
 ] as const;
 export type UiKey = (typeof UI_KEYS)[number];
 
@@ -230,7 +232,35 @@ function locatedKey(draft: Draft): string | null {
   return `${draft.street ?? ""}|${draft.city}|`;
 }
 
-export function renderDescribeForm(draft: Draft, w: DescribeWords): string {
+/**
+ * "Already have a SpaceAPI file? Start from it" (#73): one line under the kind; pressed, a web address and
+ * "Read it". Offered while nothing is typed (it replaces the draft), or when the page was opened with
+ * `?from=<url>` (the address is already in the box). Signed in, never: tile A is read from the pod there.
+ */
+function importLine(draft: Draft, w: DescribeWords, typed: boolean, importUrl: string | null): string {
+  if (importUrl === null) return "";
+  const open = !!importUrl;
+  const shown = open || !typed;
+  return `
+      <div class="wb-import" id="import"${shown ? "" : " hidden"}>
+        <button type="button" class="inline-link" id="import-open" aria-expanded="${open}" aria-controls="import-row"${open ? " hidden" : ""}>${esc(w.ui("uiImport"))}</button>
+        <div class="wb-import-row" id="import-row"${open ? "" : " hidden"}>
+          <label class="wb-field" for="f-import">${esc(w.ui("uiImportUrl"))}
+            <input id="f-import" name="importUrl" type="url" inputmode="url" autocomplete="url" spellcheck="false" enterkeyhint="go" value="${esc(importUrl)}" />
+          </label>
+          <button type="button" class="btn" id="import-go">${esc(w.ui("uiImportGo"))}</button>
+        </div>
+        <p class="wb-import-status" id="import-status" role="status"></p>
+      </div>${notCarriedLine(draft, w)}`;
+}
+
+/** What the file held and the draft can't: one line, every key named, never cut (nothing is dropped silently). */
+export function notCarriedLine(draft: Draft, w: DescribeWords): string {
+  const keys = draft.notCarried ?? [];
+  return keys.length ? `<p class="hint wb-not-carried" id="not-carried">${esc(w.ui("uiNotCarried", { keys: keys.join(", ") }))}</p>` : "";
+}
+
+export function renderDescribeForm(draft: Draft, w: DescribeWords, importUrl: string | null = null): string {
   const [name, street, city] = BEDROCK.map((f) => field(f, draft, w));
   const network = draft.kind === "network";
   const kind: Kind = network ? "network" : "space";
@@ -245,6 +275,7 @@ export function renderDescribeForm(draft: Draft, w: DescribeWords): string {
   return `
     <form id="f-describe" class="wb-form${more ? " more-open" : ""}" novalidate${located ? ` data-located="${esc(located)}"` : ""}>
       ${kindChoice(kind, w)}
+      ${importLine(draft, w, typed, importUrl)}
       ${name}
       ${beat("where", !!draft.name, `${part("space", !network, "wb-doors", `${street}${city}`)}${part("network", network, "", areaField(draft, w))}${whereOut(draft, w)}`)}
       ${beat(
@@ -385,6 +416,9 @@ export function syncCta(form: HTMLFormElement): void {
   if (cta) cta.disabled = !(filled(form, "name") && whereFilled(form) && pinned(form));
   // Nothing typed: the example. Something typed: the way back to nothing (AC7, the draft is kept).
   const typed = FIELDS.some((f) => filled(form, f.key)) || (kindOf(form) === "network" && !!areaBox(form)?.value.trim());
+  // The import line (#73) replaces the draft: offered while nothing is typed, or once its box is open.
+  const imp = form.querySelector<HTMLElement>("#import");
+  if (imp && form.querySelector<HTMLElement>("#import-row")?.hidden) imp.hidden = typed;
   const example = form.querySelector<HTMLElement>("#example");
   const over = form.querySelector<HTMLElement>("#start-over");
   if (example && over && example.hidden === !typed) {

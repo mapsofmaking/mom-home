@@ -244,3 +244,62 @@ describe("renderPage, review fixes (14.2)", () => {
     expect(draft.logo).toBe("https://welddone.example/logo.png");
   });
 });
+
+describe("tile A starts from a file someone already has (#73)", () => {
+  const ingegno = () =>
+    ({ draft: { name: "Ingegno", city: "Gent", country: "BE", lat: "51.05", lon: "3.66", place: "Gent", memberOf: ["urn:mak:network/maakbib"] }, notCarried: ["state", "contact.facebook"] }) as const;
+
+  it("reads the address given, fills the form, names what isn't carried over, and keeps the draft", async () => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    const kept: unknown[] = [];
+    const readFile = vi.fn(async () => ({ draft: { ...ingegno().draft, notCarried: [...ingegno().notCarried] }, notCarried: [...ingegno().notCarried] }));
+    const opts = { ...options("onboarding"), readFile, onDraft: (d: unknown) => kept.push(JSON.parse(JSON.stringify(d))) };
+    renderPage(root, tree, opts);
+    root.querySelector<HTMLButtonElement>("#import-open")!.click();
+    expect(root.querySelector<HTMLElement>("#import-row")!.hidden).toBe(false);
+    root.querySelector<HTMLInputElement>("#f-import")!.value = "gitlab.com/x/ingegno.json";
+    root.querySelector<HTMLButtonElement>("#import-go")!.click();
+    await vi.waitFor(() => expect(root.querySelector<HTMLInputElement>("#f-name")!.value).toBe("Ingegno"));
+    expect(readFile).toHaveBeenCalledWith("https://gitlab.com/x/ingegno.json");
+    expect(root.querySelector("#not-carried")!.textContent).toContain("state, contact.facebook");
+    expect(opts.draft.memberOf).toEqual(["urn:mak:network/maakbib"]);
+    expect(kept.length).toBeGreaterThan(0);
+    // The file's pin holds: the form has it, nothing asks the geocoder again.
+    expect((root.querySelector("form")!.elements.namedItem("lat") as HTMLInputElement).value).toBe("51.05");
+    root.remove();
+  });
+
+  it("Enter in the box reads the file, and never submits the form", async () => {
+    const root = document.createElement("div");
+    const done = new Set<string>();
+    const readFile = vi.fn(async () => ({ problem: "unread" as const, error: "HTTP 404" }));
+    renderPage(root, tree, { ...options("onboarding", done), readFile });
+    root.querySelector<HTMLButtonElement>("#import-open")!.click();
+    const box = root.querySelector<HTMLInputElement>("#f-import")!;
+    box.value = "https://x.example/f.json";
+    box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+    await vi.waitFor(() => expect(root.querySelector("#import-status")!.textContent).toContain("HTTP 404"));
+    expect(done.has("describe")).toBe(false);
+  });
+
+  it("opened with ?from= and nothing typed, reads it at once; with a draft of this browser's own, only fills the box", async () => {
+    const empty = document.createElement("div");
+    const readFile = vi.fn(async () => ({ draft: { ...ingegno().draft }, notCarried: [] }));
+    renderPage(empty, tree, { ...options("onboarding"), readFile, importFrom: "https://x.example/f.json" });
+    await vi.waitFor(() => expect(empty.querySelector<HTMLInputElement>("#f-name")!.value).toBe("Ingegno"));
+
+    const typed = document.createElement("div");
+    const read2 = vi.fn();
+    renderPage(typed, tree, { ...options("onboarding"), draft: { name: "Mine" }, readFile: read2, importFrom: "https://x.example/f.json" });
+    expect(read2).not.toHaveBeenCalled();
+    expect(typed.querySelector<HTMLInputElement>("#f-import")!.value).toBe("https://x.example/f.json");
+    expect(typed.querySelector<HTMLElement>("#import")!.hidden).toBe(false);
+  });
+
+  it("signed in, the form offers no import: tile A is the pod's", () => {
+    const root = document.createElement("div");
+    renderPage(root, tree, options("workbench"));
+    expect(root.querySelector("#import")).toBeNull();
+  });
+});

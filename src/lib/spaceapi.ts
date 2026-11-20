@@ -15,7 +15,7 @@
  * `test/fixtures/maakbib.json` holds it.
  */
 import type { Draft } from "../workbench/previews";
-import { isNetwork, matrixRoom, networkParts, plainIri, requiredParts, type SpaceFile } from "./spacefile";
+import { draftLists, isNetwork, matrixRoom, networkParts, plainIri, requiredParts, type SpaceFile } from "./spacefile";
 
 export interface SpaceApi {
   json: string;
@@ -73,10 +73,17 @@ export function spaceApiJson(draft: Draft): SpaceApi {
   const hours = (draft.hours ?? "").trim();
   if (hours) out.opening_hours = hours;
 
+  // What an import brought (#73): topics at the top (where the map reads `knowsAbout`), networks and goals in `mom`.
+  const lists = draftLists(draft);
+  if (lists.knowsAbout) out.knowsAbout = lists.knowsAbout;
+
   out.state = { open: null };
   // Each area as `{code, name}`, in that order; a name not known (read from a #67 file) is left out, as in the Turtle.
   const areas = network?.areas.map((a) => (a.name ? { code: a.code, name: a.name } : { code: a.code }));
-  if (network) out.mom = { kind: "network", areaServed: areas, geolocationFidelity: network.fidelity };
+  const mom: Record<string, unknown> = network ? { kind: "network", areaServed: areas, geolocationFidelity: network.fidelity } : {};
+  if (lists.memberOf) mom.memberOf = lists.memberOf;
+  if (lists.sdgs) mom.sdgs = lists.sdgs;
+  if (Object.keys(mom).length) out.mom = mom;
   return { json: JSON.stringify(out, null, 2) + "\n", dropped };
 }
 
