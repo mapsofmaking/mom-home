@@ -352,8 +352,11 @@ signed in as `zz-net`, accept the request.
 **Do:** sign in to home as Maakbib's account (its `config.ttl` names `members.ttl`, not `membres.ttl`). Open
 the welcome tile.
 
-**Expect:** the tile is done and shows Maakbib's invitation link. The network tab shows only GET and HEAD
-requests (`config.ttl`, `members.ttl`, `inbox/`): **no PUT, no PATCH**, nothing to `membres.ttl`.
+**Expect:** the tile is done and shows Maakbib's invitation link. The tile's requests are GET and HEAD only
+(`config.ttl`, `members.ttl`, `inbox/`): **no PUT and no PATCH** to `config.ttl`, `members.ttl`, `membres.ttl`,
+`inbox/`, `space.ttl` or any `.acl`, and `space.ttl` is not even read by the tile. One write is expected, once,
+and is not the tile's: the sign-in brings home's section of `settings/README.md` up to date, because the
+footprint list grew with this slice (and, if the space isn't in the public Type Index yet, it is listed there).
 
 **Observed:**
 

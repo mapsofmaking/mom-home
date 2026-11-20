@@ -243,9 +243,9 @@ export type CollectiveState =
   /** No `config.ttl` at the pod root (404): the network isn't a collective yet. */
   | { state: "none"; configUrl: string }
   /** `config.ttl` parses, and something it names is missing (404): a setup that stopped halfway. */
-  | { state: "incomplete"; configUrl: string; collective: Collective; missing: Part[] }
+  | { state: "incomplete"; configUrl: string; collective: Collective; missing: Part[]; seeAlso?: string[] }
   /** It parses, and its roster and inbox exist: the tile is done. */
-  | { state: "done"; configUrl: string; collective: Collective; link: string };
+  | { state: "done"; configUrl: string; collective: Collective; link: string; seeAlso?: string[] };
 
 const withRoot = (podRoot: string) => (podRoot.endsWith("/") ? podRoot : podRoot + "/");
 export const configUrlOf = (podRoot: string) => new URL("config.ttl", withRoot(podRoot)).href;
@@ -289,8 +289,12 @@ export async function readCollective(podRoot: string, fetchImpl: Fetch = signedI
   if (res.status === 404) return { state: "none", configUrl };
   if (!res.ok) throw readFailure(res, "Could not read config.ttl");
   let collective: Collective;
+  let seeAlso: string[];
   try {
-    collective = parseCollectiveConfig(await res.text(), configUrl);
+    const text = await res.text();
+    collective = parseCollectiveConfig(text, configUrl);
+    // Home's own, beside the copied parser: where the collective says its network's description is.
+    seeAlso = objectsOf(parse(text, configUrl), collective.group, RDFS_SEE_ALSO);
   } catch (err) {
     throw new PublishError("unreadable", (err as Error).message);
   }
@@ -299,8 +303,8 @@ export async function readCollective(podRoot: string, fetchImpl: Fetch = signedI
   }
   const [roster, inbox] = await Promise.all([exists(collective.roster, fetchImpl), exists(collective.inbox, fetchImpl)]);
   const missing: Part[] = [...(roster ? [] : ["roster" as const]), ...(inbox ? [] : ["inbox" as const])];
-  if (missing.length) return { state: "incomplete", configUrl, collective, missing };
-  return { state: "done", configUrl, collective, link: inviteLink(configUrl) };
+  if (missing.length) return { state: "incomplete", configUrl, collective, missing, seeAlso };
+  return { state: "done", configUrl, collective, link: inviteLink(configUrl), seeAlso };
 }
 
 /** What the coordinator gives: the network's name (from space.ttl), and the invitation's words. */
@@ -496,7 +500,15 @@ export async function setUpCollective(input: SetUpInput, deps: SetUpDeps = {}): 
   const d: Required<SetUpDeps> = { fetch: deps.fetch ?? signedIn, anonFetch: deps.anonFetch ?? ((u, i) => fetch(u, i)) };
   const root = withRoot(input.podRoot);
   const before = await readCollective(root, d.fetch);
-  if (before.state === "done") return before;
+  if (before.state === "done") {
+    // Done, and a run whose last step (the link back from space.ttl) failed is finished here. Only for a config that
+    // links to a description in this pod: Maakbib's hand-made one links to none, and nothing more is even read.
+    const ours = (before.seeAlso ?? []).filter((url) => inPod(url.split("#")[0], root));
+    if (!ours.length) return before;
+    const space = await readSpaceFile(input.spaceFile, d.fetch);
+    if (ours.includes(space.subject)) await linkSpace(input.spaceFile, before.collective.group, d.fetch);
+    return before;
+  }
   const fresh = before.state === "none";
   const name = input.name.trim();
   if (fresh && !name) throw new PublishError("incomplete", "The network's file has no name to give the collective.");
@@ -509,6 +521,8 @@ export async function setUpCollective(input: SetUpInput, deps: SetUpDeps = {}): 
   const inbox = fresh ? new URL("inbox/", root).href : before.collective.inbox;
   const missing: readonly Part[] = fresh ? ["inbox", "roster"] : before.missing;
 
+  // A config made by hand could name an inbox that isn't a folder: never made as a file.
+  if (missing.includes("inbox") && !inbox.endsWith("/")) throw new PublishError("unreadable", `${before.configUrl} names an inbox that isn't a folder (${inbox}): left alone.`);
   if (missing.includes("inbox")) await createInbox(inbox, input.webId, d.fetch);
   if (missing.includes("roster")) await writeRoster(roster, group, input.webId, fresh, d.fetch);
   // A config.ttl already there was read above and is never written; a public Read it lacks is added.

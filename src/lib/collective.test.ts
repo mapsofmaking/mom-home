@@ -91,6 +91,7 @@ describe("done is read from the pod (#69)", () => {
     // And the setup, pressed on a done collective, writes nothing either.
     await setUpCollective({ ...input, name: "MaakBib" }, { fetch: pod.fetch, anonFetch: pod.anonFetch });
     expect(pod.writes()).toEqual([]);
+    expect(pod.calls.map((c) => c.url)).not.toContain(SPACE_FILE);
   });
 
   it("reads the schema words under http:// (Maakbib) and https:// (what home writes)", () => {
@@ -213,6 +214,22 @@ describe("the setup (#69): only what is missing, in an order that never points a
     await setUpCollective(input, { fetch: racing, anonFetch: pod.anonFetch });
     expect(pod.docs.get(ROOT + "config.ttl")!.body).toContain("<#other>");
     expect(pod.docs.get(SPACE_FILE)!.body).toContain("config.ttl#other");
+  });
+
+  it("a run whose link back failed is finished on the next press, once (Maakbib's config links nowhere, so it never is)", async () => {
+    const ours = configTurtle({ slug: "zz-net", name: "ZZ Net", slogan: "", description: "", roster: ROOT + "membres.ttl", inbox: ROOT + "inbox/", space: SPACE_FILE + "#space", root: ROOT });
+    const pod = fakePod({ [SPACE_FILE]: SPACE, [ROOT + "config.ttl"]: ours, [ROOT + "membres.ttl"]: "", [ROOT + "inbox/"]: "" });
+    expect(await readCollective(ROOT, pod.fetch)).toMatchObject({ state: "done", seeAlso: [SPACE_FILE + "#space"] });
+    await setUpCollective(input, { fetch: pod.fetch, anonFetch: pod.anonFetch });
+    expect(pod.writes().map((c) => `${c.method} ${c.url}`)).toEqual([`PATCH ${SPACE_FILE}`]);
+    await setUpCollective(input, { fetch: pod.fetch, anonFetch: pod.anonFetch });
+    expect(pod.writes()).toHaveLength(1);
+  });
+
+  it("refuses to make an inbox a hand-made config names as a file", async () => {
+    const pod = fakePod({ [SPACE_FILE]: SPACE, [ROOT + "config.ttl"]: MAAKBIB.replace("<inbox/>", "<inbox>"), [ROOT + "members.ttl"]: "" });
+    await expect(setUpCollective(input, { fetch: pod.fetch, anonFetch: pod.anonFetch })).rejects.toMatchObject({ code: "unreadable" });
+    expect(pod.writes()).toEqual([]);
   });
 
   it("leaves space.ttl alone when it already links to the collective", async () => {
