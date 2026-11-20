@@ -690,7 +690,7 @@ export function renderPage(root: HTMLElement, base: Tree, opts: PageOptions): Pa
     importUrl = "";
     draw();
     const done = words.ui("uiImportDone");
-    const el = status();
+    const el = step.querySelector<HTMLElement>("#import-status");
     if (el) el.textContent = done;
     step.querySelector<HTMLInputElement>("#f-name")?.focus();
     announce(done);
