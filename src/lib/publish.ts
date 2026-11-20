@@ -214,7 +214,7 @@ async function inTime<T>(work: Promise<T>, what: string): Promise<T> {
  * An error from acl.ts in this file's terms. `reading` is true while the rules are being read and parsed:
  * a failure without a status there is rules this app can't read (an .acl that isn't Turtle).
  */
-function aclFailure(err: unknown, what: string, reading: boolean): PublishError {
+export function aclFailure(err: unknown, what: string, reading: boolean): PublishError {
   if (err instanceof PublishError) return err;
   const e = err as { status?: number; code?: string; message?: string };
   const message = e.message ?? String(err);

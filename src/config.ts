@@ -25,5 +25,12 @@ export const SESSION_ID = "mom-home";
  */
 export const DEFAULT_IDENTIFIER = "https://pod.mapsofmaking.org/";
 
+/**
+ * The backoffice a network's members are invited to (#69): Maps of Making's production one. The invitation is
+ * `${BACKOFFICE_URL}/?collective=<config.ttl>` (lib/collective.ts `inviteLink`), and requests to join are
+ * answered there. No trailing slash.
+ */
+export const BACKOFFICE_URL = "https://backoffice.mapsofmaking.org";
+
 /** The tile tree (Story 14.1 AC2): tiles, requirements, cues, words, every line Bernard speaks. */
 export const TREE_URL = "/onboarding.ttl";

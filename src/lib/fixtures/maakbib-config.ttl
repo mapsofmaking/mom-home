@@ -1,0 +1,11 @@
+@prefix sc:     <https://w3id.org/solid-collective/vocab#> .
+@prefix foaf:   <http://xmlns.com/foaf/0.1/> .
+@prefix ldp:    <http://www.w3.org/ns/ldp#> .
+@prefix schema: <http://schema.org/> .
+
+<#maakbib> a sc:Collective, foaf:Group ;
+    foaf:name "MaakBib" ;
+    sc:roster <members.ttl> ;
+    ldp:inbox <inbox/> ;
+    schema:slogan "Sluit aan bij het MaakBib-netwerk" ;
+    schema:description "MaakBib is een kennis- en netwerkorganisatie die bibliotheken en jeugdwerkingen helpt om een maakplaats of fablab uit te bouwen en te runnen. Dit collectief brengt de mensen samen die bij dat netwerk betrokken zijn. Lid worden betekent dat je in de ledenlijst van het collectief staat." .

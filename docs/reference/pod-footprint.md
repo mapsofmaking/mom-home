@@ -16,6 +16,10 @@ the README section is the declaration. Removing it all is
 | `space-file` | own | `space.ttl` | the space's file; tile A writes it, tile C changes the statements you edit in its tool (any field of the profile), with the address and the pin together when the space moves |
 | `space-acl` | own | the rules of `space.ttl` | anyone may read that one file |
 | `logo-file` | own | `logo` and its rules | the logo, readable by anyone; one address whatever its type |
+| `collective-inbox` | own | `inbox/` and its rules | a network's: where requests to join arrive; anyone signed in may append, only the owner reads; made only if missing |
+| `collective-roster` | own | `membres.ttl` (or the roster `config.ttl` names) and its rules | a network's members, empty at first; only the owner reads it, the backoffice adds each member it accepts |
+| `collective-config` | own | `config.ttl` and its rules | a network as a collective (name, invitation words, roster, inbox); anyone may read it; written only if missing, never rewritten |
+| `space-collective-link` | own | `space.ttl`, one line | `rdfs:seeAlso` the collective in `config.ttl`, added once by an insert-only patch |
 | `settings-file` | own | `settings/mom-home.ttl` | the fold, the tutorials seen |
 | `readme-section` | entry | `settings/README.md` | home's section, between its markers; the whole file if home made it |
 | `public-index-entry` | entry | `settings/publicTypeIndex.ttl#mom-space` | where the space file is |

@@ -13,6 +13,7 @@ const {
   setAgentAccess,
   setAccess,
   setPublicAccess,
+  setAuthenticatedAccess,
   removeOwnRules,
   presetOf,
   checkRawAcl,
@@ -350,5 +351,41 @@ describe("the technical rules, edited by hand (C6)", () => {
     mockFetch.mockReset();
     mockFetch.mockResolvedValueOnce(head()).mockResolvedValueOnce(response(412));
     await expect(saveRawAcl(FOLDER, OWNER, own, '"old"')).rejects.toMatchObject({ code: "conflict" });
+  });
+});
+
+describe("the shapes a network's collective needs (#69, lib/collective.ts)", () => {
+  beforeEach(() => mockFetch.mockReset());
+  const head = () => response(200, "", { link: '<.acl>; rel="acl"' });
+  const INBOX = "https://pod.example/alice/inbox/";
+  const ROSTER = "https://pod.example/alice/membres.ttl";
+
+  it("an inbox: anyone signed in may append, into the folder and what lands in it; only the owner reads", async () => {
+    mockFetch.mockResolvedValueOnce(head()).mockResolvedValueOnce(response(404)).mockResolvedValueOnce(response(201));
+    await setAuthenticatedAccess(INBOX, OWNER, ["append"]);
+    const [url, init] = mockFetch.mock.calls[2];
+    expect(url).toBe(INBOX + ".acl");
+    expect(init.headers["If-None-Match"]).toBe("*");
+    const rules = parseAcl(init.body, INBOX + ".acl", INBOX, OWNER);
+    expect(rules).toMatchObject({ authenticated: ["append"], public: [], agents: [], unknown: [], folderOnly: [] });
+    expect(rules.inherits.authenticated).toEqual(["append"]);
+    expect(checkRawAcl(init.body, INBOX, INBOX + ".acl", OWNER).ownerKeepsControl).toBe(true);
+  });
+
+  it("a roster: only the owner, written only if it has no rules of its own", async () => {
+    mockFetch.mockResolvedValueOnce(head()).mockResolvedValueOnce(response(404)).mockResolvedValueOnce(response(201));
+    await setAccess(ROSTER, OWNER, { agents: [], public: [], authenticated: [] }, null);
+    const init = mockFetch.mock.calls[2][1];
+    expect(init.headers["If-None-Match"]).toBe("*");
+    expect(init.body).toContain("acl:accessTo <./membres.ttl>");
+    expect(init.body.match(/a acl:Authorization/g)).toHaveLength(1);
+    expect(parseAcl(init.body, ROSTER + ".acl", ROSTER, OWNER)).toMatchObject({ agents: [], public: [], authenticated: [], unknown: [] });
+
+    // Rules of its own already (members the backoffice let read it): refused, never narrowed.
+    mockFetch.mockReset();
+    const own = serializeAcl(ROSTER, ROSTER + ".acl", OWNER, { agents: [{ webId: AGENT, modes: ["read"] }], public: [], authenticated: [] });
+    mockFetch.mockResolvedValueOnce(head()).mockResolvedValueOnce(response(200, own, { etag: '"v1"' }));
+    await expect(setAccess(ROSTER, OWNER, { agents: [], public: [], authenticated: [] }, null)).rejects.toMatchObject({ code: "conflict" });
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 });
