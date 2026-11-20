@@ -54,6 +54,8 @@ export interface StepContext {
   logo?: LogoState | null;
   /** Tile C's address (S5, #40): once the hours are in the file. Absent: no address panel. */
   move?: MoveState | null;
+  /** Signed in with a pod: the welcome tile (#69) is mounted by the page into `#welcome-mount`. Absent: signed out. */
+  welcome?: boolean;
 }
 
 function waitsFor(tile: Tile, ctx: StepContext): string {
@@ -147,6 +149,14 @@ function openStep(tile: Tile, state: TileState, ctx: StepContext): string {
   // Signed in with the space on the pod: tile C is real (14.6 S1).
   if (tile.act === "hours" && ctx.tool && ctx.hours) return `<div id="tool-mount"></div>`;
   if (tile.act === "hours" && ctx.hours) return renderHours(tile, ctx.hours, ctx.logo ?? null, ctx.move ?? null);
+  // The welcome tile (#69) is real signed in with a pod: the page mounts it (welcome.ts). Without one, it says what it needs.
+  if (tile.act === "welcome" && ctx.welcome) return `<div id="welcome-mount"></div>`;
+  if (tile.act === "welcome") {
+    return `
+    <div class="wb-step-head"><h2 class="wb-step-title" tabindex="-1">${esc(tile.title)}</h2></div>
+    ${bernard(tile.lines.say)}
+    <p class="wb-aside">${esc(tile.ui.uiWelcomeNeedsPod ?? "")}</p>`;
+  }
   // Done, tile B keeps showing what it showed (below): 14.4 writes the file and gives it its own "done" view.
   // Signed in with a pod: there is nothing to choose any more, only to put on the map (14.4).
   // On the map in this tab, tile B is done and shows the threshold (AC4b) rather than its done preview.

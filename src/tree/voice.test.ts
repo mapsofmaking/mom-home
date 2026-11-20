@@ -14,6 +14,7 @@ import { HOURS_UI_KEYS } from "../workbench/hours";
 import { LOGO_UI_KEYS } from "../workbench/logo";
 import { MOVE_UI_KEYS } from "../workbench/move";
 import { PROFILE_UI_KEYS } from "../workbench/tool";
+import { WELCOME_UI_KEYS } from "../workbench/welcome";
 
 /** What tile B shows signed out and signed in: every line it uses is in the tree, and nothing else is. */
 const TILE_B_KEYS: readonly string[] = [...THRESHOLD_UI_KEYS, ...PUBLISH_UI_KEYS];
@@ -79,6 +80,14 @@ describe("the tree's words (14.2 AC8)", () => {
     const keys: readonly string[] = [...HOURS_UI_KEYS, ...LOGO_UI_KEYS, ...MOVE_UI_KEYS, ...PROFILE_UI_KEYS];
     expect(keys.filter((k) => !(k in changeTile.ui))).toEqual([]);
     expect(Object.keys(changeTile.ui).filter((k) => !keys.includes(k))).toEqual([]);
+  });
+
+  it("has every line the welcome tile shows, and nothing it no longer uses (#69)", () => {
+    const welcomeTile = tree.tiles.find((t) => t.act === "welcome")!;
+    const keys: readonly string[] = WELCOME_UI_KEYS;
+    expect(keys.filter((k) => !(k in welcomeTile.ui))).toEqual([]);
+    expect(Object.keys(welcomeTile.ui).filter((k) => !keys.includes(k))).toEqual([]);
+    expect(Object.keys(welcomeTile.lines).sort()).toEqual(["saidDone", "say"]);
   });
 
   // A network's variant is the space's line said differently: the key sets above lock the space's lines, and a

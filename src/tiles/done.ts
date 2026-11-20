@@ -13,6 +13,7 @@
  * page that won't load.
  */
 import type { Tree } from "../tree/parse";
+import type { CollectiveState } from "../lib/collective";
 import type { Draft } from "../workbench/previews";
 
 export interface DoneContext {
@@ -30,6 +31,12 @@ export interface DoneContext {
   spaceData?: Draft | null;
   /** The space is on the map (S3 sets it from the register answer); until then tile B is not done. */
   onMap?: boolean;
+  /**
+   * The network as a collective (#69), read at sign-in when the tree has the welcome tile (lib/collective.ts
+   * `readCollective`); null when it wasn't read or couldn't be. A session refused there stops the sign-in
+   * (main.ts), so it never reads here as "not set up".
+   */
+  collective?: CollectiveState | null;
 }
 
 export type DoneCheck = (ctx: DoneContext) => Promise<boolean>;
@@ -60,6 +67,8 @@ export const DONE_CHECKS: Readonly<Record<string, DoneCheck>> = {
   // change, "Update it once" (14.6 S1, #36): the space's file says its opening hours. Tile A doesn't ask for
   // them, so hours in the file were set here (or by the coordinator's own edit, which counts the same).
   change: async (ctx) => ctx.space !== null && !!ctx.spaceData?.hours?.trim(),
+  // welcome, "Welcome your members" (#69): config.ttl parses, and the roster and inbox it names exist.
+  welcome: async (ctx) => ctx.collective?.state === "done",
   join: notYet, // → its story: org:memberOf a network
   event: notYet,
   answer: notYet,

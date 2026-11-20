@@ -51,10 +51,10 @@ describe("forKind", () => {
 
   it("never draws the network's tile for a space", () => {
     const s = open({ name: "Weld Done", city: "Marolles" }, "change");
-    expect(s.querySelector('button[data-tile="welcome"]')).toBeNull();
+    expect(s.querySelector('#hexes button[data-tile="welcome"]')).toBeNull();
     s.remove();
     const n = open(network, "change");
-    expect(n.querySelector('button[data-tile="welcome"]')).not.toBeNull();
+    expect(n.querySelector('#hexes button[data-tile="welcome"]')).not.toBeNull();
     n.remove();
   });
 
