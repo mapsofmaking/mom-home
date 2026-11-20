@@ -29,6 +29,7 @@ const WRITE_SITES: Record<string, number> = {
   "lib/publish.ts": 3, // space-file, space-acl
   "lib/register.ts": 4, // account
   "lib/typeindex.ts": 8, // indexes, profile-links, public/private-index-entry
+  "lib/spaceapi-read.ts": 1, // the map reads a file (#73): leaves nothing anywhere
   "settings/home.ts": 3, // settings-file, readme-section
   "workbench/where.ts": 1, // the geocoder: leaves nothing anywhere
 };

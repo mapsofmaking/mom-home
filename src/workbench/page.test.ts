@@ -275,6 +275,7 @@ describe("tile A starts from a file someone already has (#73)", () => {
 
   it("Enter in the box reads the file, and never submits the form", async () => {
     const root = document.createElement("div");
+    document.body.append(root);
     const done = new Set<string>();
     const readFile = vi.fn(async (_url: string) => ({ problem: "unread" as const, error: "HTTP 404" }));
     renderPage(root, tree, { ...options("onboarding", done), readFile });
@@ -284,13 +285,16 @@ describe("tile A starts from a file someone already has (#73)", () => {
     box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
     await vi.waitFor(() => expect(root.querySelector("#import-status")!.textContent).toContain("HTTP 404"));
     expect(done.has("describe")).toBe(false);
+    root.remove();
   });
 
   it("opened with ?from= and nothing typed, reads it at once; with a draft of this browser's own, only fills the box", async () => {
     const empty = document.createElement("div");
+    document.body.append(empty);
     const readFile = vi.fn(async (_url: string) => ingegno());
     renderPage(empty, tree, { ...options("onboarding"), readFile, importFrom: "https://x.example/f.json" });
     await vi.waitFor(() => expect(empty.querySelector<HTMLInputElement>("#f-name")!.value).toBe("Ingegno"));
+    empty.remove();
 
     const typed = document.createElement("div");
     const read2 = vi.fn();

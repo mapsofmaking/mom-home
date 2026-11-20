@@ -289,7 +289,8 @@ describe("the lists an import brings (#73)", () => {
   it("keeps a network the map reads: urn:mak:network/<slug>, an http(s) IRI, a bare slug; nothing else", () => {
     expect(cleanMemberOf(["Maakbib", "urn:mak:network/vulca", "https://pod.example/config.ttl#n", "javascript:x", "urn:mak:network/Bad Slug", 3, "maakbib"]))
       .toEqual(["urn:mak:network/maakbib", "urn:mak:network/vulca", "https://pod.example/config.ttl#n"]);
-    expect(memberIri("https://x.example/a b")).toBeNull();
+    expect(memberIri("ftp://x.example/a")).toBeNull();
+    expect(memberIri("urn:mak:space/x")).toBeNull();
   });
 
   it("keeps goals 1 to 17 once each, sorted; topics as one line each, once", () => {
