@@ -261,6 +261,13 @@
   onb:uiWelcomeRefused "Your pod said no. Press again; if it keeps saying no, the people who run the pod server can see why."@en ;
   onb:uiWelcomeUnconfirmed "It went in, but reading it back didn't work. Press again: what is there isn't written twice."@en ;
   onb:uiWelcomeRetry "Try again"@en ;
+  onb:uiWelcomeNoRead "Your pod says this account can't read part of it. Signing in again won't help: check who can see it in the backoffice."@en ;
+  onb:uiWelcomeNotOurs "Your pod already has a collective file, config.ttl, that this page didn't write, so it leaves it as it is. Missing: {missing}. Change it in the backoffice, then reload."@en ;
+  onb:uiWelcomeMissingRoster "the roster it names"@en ;
+  onb:uiWelcomeMissingInbox "the inbox it names"@en ;
+  onb:uiWelcomeMissingPublic "a rule letting anyone read config.ttl, which an invitation needs"@en ;
+  onb:uiWelcomeRosterTaken "A file called membres.ttl is already in your pod and holds something. It was left alone and isn't used: rename it in the backoffice, then press again."@en ;
+  onb:uiWelcomeConfigTaken "A collective file, config.ttl, is in your pod and this page didn't write it. It was left alone: check it in the backoffice."@en ;
   onb:doneWhen """ASK { ?c a sc:Collective ; sc:roster ?roster ; ldp:inbox ?inbox }  # in config.ttl at the pod root; the roster and the inbox it names exist (followed, never assumed: Maakbib's roster is members.ttl)""" .
 
 :change a onb:Tile ;

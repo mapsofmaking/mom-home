@@ -33,7 +33,14 @@ Kit-level decisions (Solid, ACLs, sign-in) are ADRs in the kit repo; this file o
     backoffice's `parseCollectiveConfig`, copied at `ea20fad`, kit ADR 004) and the roster and inbox it names
     exist. The file name is never assumed: Maakbib's hand-made config names `members.ttl` and reads done with
     nothing written. Only a 404 is "missing"; a 401 or 403 is the session, and nothing is written on it.
-    A `config.ttl` that doesn't parse is shown as it is and never rewritten.
+    A `config.ttl` that doesn't parse is shown as it is and never rewritten. Done also needs `config.ttl` readable
+    by a stranger (read without the session, as an invitation is opened), so a half-failed public Read is not done.
+  - **Home finishes only what it wrote** (after the adversarial review): a `config.ttl` is home's when its
+    `rdfs:seeAlso` names this pod's `space.ttl`. One home didn't write that lacks something (its roster, its
+    inbox, public Read) is said in plain words, with no button: never opened, finished or linked to from here.
+    A `membres.ttl` already there is used only if it holds no statement. New rules on the inbox and the roster
+    keep the named agents the folder passed on (never a class); rules home can't copy (a group) or would widen
+    (a grant on the folder only) stop the setup. A 403 is "this account may not", not an ended session.
   - **Home writes `https://schema.org/` in `config.ttl`**, like `space.ttl`; the backoffice reads the slogan
     and description under both `http://` and `https://`, so it needs no change.
   - **The two descriptions stay apart, linked by `rdfs:seeAlso`** both ways (`config.ttl#slug` ↔

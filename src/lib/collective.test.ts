@@ -47,6 +47,8 @@ function fakePod(files: Record<string, string>, status: Record<string, number> =
       if (!doc) return new Response(null, { status: 404, headers: link });
       return new Response(method === "HEAD" ? null : doc.body, { status: 200, headers: { ...link, ETag: `"v${doc.v}"`, "Content-Type": "text/turtle" } });
     }
+    // CSS 7.3: a PUT on an existing container is refused (409) before If-None-Match is looked at.
+    if (method === "PUT" && url.endsWith("/") && doc) return new Response("Existing containers cannot be updated via PUT", { status: 409 });
     if (headers["If-None-Match"] === "*" && doc) return new Response(null, { status: 412 });
     if (headers["If-Match"] && (!doc || headers["If-Match"] !== `"v${doc.v}"`)) return new Response(null, { status: 412 });
     if (method === "PUT") {
@@ -78,51 +80,73 @@ function fakePod(files: Record<string, string>, status: Record<string, number> =
 }
 
 const input = { podRoot: ROOT, webId: OWNER, name: "ZZ Net", slogan: "Join the ZZ Net network", description: "A network of test workshops.", spaceFile: SPACE_FILE };
+const AGENT = "https://zz-net.pod.example/profile/agent#me";
+/** A file's own rules: the owner, and anyone may read it. */
+const publicAcl = (name: string) => ROOT_ACL.replace(/<\.\/>/g, `<./${name}>`).replace(/acl:default[^;]*;/g, "");
+/** A config.ttl this app wrote: it links back to this pod's space.ttl. */
+const ours = (over: Partial<{ slug: string; roster: string; inbox: string }> = {}) =>
+  configTurtle({ slug: "zz-net", name: "ZZ Net", slogan: "", description: "", roster: ROOT + "membres.ttl", inbox: ROOT + "inbox/", space: SPACE_FILE + "#space", root: ROOT, ...over });
+const deps = (pod: ReturnType<typeof fakePod>) => ({ fetch: pod.fetch, anonFetch: pod.anonFetch });
+const read = (pod: ReturnType<typeof fakePod>) => readCollective(ROOT, pod.fetch, pod.anonFetch);
+const at = (pod: ReturnType<typeof fakePod>) => pod.writes().map((c) => `${c.method} ${c.url.slice(ROOT.length)}`);
 
 beforeEach(() => vi.mocked(authFetch).mockReset());
 
 describe("done is read from the pod (#69)", () => {
-  it("Maakbib's hand-made config.ttl is done: its roster is members.ttl, followed, and nothing is written", async () => {
-    const pod = fakePod({ [ROOT + "config.ttl"]: MAAKBIB, [ROOT + "members.ttl"]: "", [ROOT + "inbox/"]: "" });
-    const read = await readCollective(ROOT, pod.fetch);
-    expect(read).toMatchObject({ state: "done", collective: { name: "MaakBib", roster: ROOT + "members.ttl", inbox: ROOT + "inbox/" } });
+  it("Maakbib's hand-made config.ttl (public) is done: its roster is members.ttl, followed, and nothing is written", async () => {
+    const pod = fakePod({ [ROOT + "config.ttl"]: MAAKBIB, [ROOT + "config.ttl.acl"]: publicAcl("config.ttl"), [ROOT + "members.ttl"]: "", [ROOT + "inbox/"]: "" });
+    expect(await read(pod)).toMatchObject({ state: "done", ours: false, collective: { name: "MaakBib", roster: ROOT + "members.ttl", inbox: ROOT + "inbox/" } });
     expect(pod.calls.map((c) => c.url)).not.toContain(ROOT + "membres.ttl");
     expect(pod.writes()).toEqual([]);
-    // And the setup, pressed on a done collective, writes nothing either.
-    await setUpCollective({ ...input, name: "MaakBib" }, { fetch: pod.fetch, anonFetch: pod.anonFetch });
+    // And the setup, pressed on a done collective, writes nothing either, and doesn't even read space.ttl.
+    await setUpCollective({ ...input, name: "MaakBib" }, deps(pod));
     expect(pod.writes()).toEqual([]);
     expect(pod.calls.map((c) => c.url)).not.toContain(SPACE_FILE);
   });
 
-  it("reads the schema words under http:// (Maakbib) and https:// (what home writes)", () => {
-    expect(parseCollectiveConfig(MAAKBIB, ROOT + "config.ttl").slogan).toBe("Sluit aan bij het MaakBib-netwerk");
-    const ours = configTurtle({ slug: "zz-net", name: "ZZ Net", slogan: "Join us", description: "Two lines.", roster: ROOT + "membres.ttl", inbox: ROOT + "inbox/", space: SPACE_FILE + "#space", root: ROOT });
-    expect(ours).toContain("@prefix schema: <https://schema.org/> .");
-    expect(parseCollectiveConfig(ours, ROOT + "config.ttl")).toMatchObject({ slogan: "Join us", description: "Two lines." });
+  it("a hand-made config.ttl a stranger can't read, or missing its roster, is never finished from here", async () => {
+    const closed = fakePod({ [SPACE_FILE]: SPACE, [ROOT + "config.ttl"]: MAAKBIB, [ROOT + "members.ttl"]: "", [ROOT + "inbox/"]: "" });
+    expect(await read(closed)).toMatchObject({ state: "foreign", missing: ["public"] });
+    await expect(setUpCollective({ ...input, name: "MaakBib" }, deps(closed))).rejects.toMatchObject({ code: "taken" });
+    expect(closed.writes()).toEqual([]);
+
+    const half = fakePod({ [SPACE_FILE]: SPACE, [ROOT + "config.ttl"]: MAAKBIB, [ROOT + "config.ttl.acl"]: publicAcl("config.ttl"), [ROOT + "inbox/"]: "" });
+    expect(await read(half)).toMatchObject({ state: "foreign", missing: ["roster"] });
+    await expect(setUpCollective({ ...input, name: "MaakBib" }, deps(half))).rejects.toMatchObject({ code: "taken" });
+    expect(half.writes()).toEqual([]);
   });
 
-  it("a 401 or 403 on the roster or the inbox is the session, never \"missing\"", async () => {
-    for (const code of [401, 403]) {
+  it("reads the schema words under http:// (Maakbib) and https:// (what home writes)", () => {
+    expect(parseCollectiveConfig(MAAKBIB, ROOT + "config.ttl").slogan).toBe("Sluit aan bij het MaakBib-netwerk");
+    const t = configTurtle({ slug: "zz-net", name: "ZZ Net", slogan: "Join us", description: "Two lines.", roster: ROOT + "membres.ttl", inbox: ROOT + "inbox/", space: SPACE_FILE + "#space", root: ROOT });
+    expect(t).toContain("@prefix schema: <https://schema.org/> .");
+    expect(parseCollectiveConfig(t, ROOT + "config.ttl")).toMatchObject({ slogan: "Join us", description: "Two lines." });
+  });
+
+  it("a 401 is the session and a 403 this account not allowed: never \"missing\", nothing written", async () => {
+    for (const [code, said] of [[401, "expired"], [403, "no-control"]] as const) {
       for (const url of [ROOT + "members.ttl", ROOT + "inbox/", ROOT + "config.ttl"]) {
-        const pod = fakePod({ [ROOT + "config.ttl"]: MAAKBIB, [ROOT + "members.ttl"]: "", [ROOT + "inbox/"]: "" }, { [url]: code });
-        await expect(readCollective(ROOT, pod.fetch)).rejects.toMatchObject({ code: "expired", status: code });
-        await expect(setUpCollective(input, { fetch: pod.fetch, anonFetch: pod.anonFetch })).rejects.toMatchObject({ code: "expired" });
+        const pod = fakePod({ [ROOT + "config.ttl"]: MAAKBIB, [ROOT + "config.ttl.acl"]: publicAcl("config.ttl"), [ROOT + "members.ttl"]: "", [ROOT + "inbox/"]: "" }, { [url]: code });
+        await expect(read(pod)).rejects.toMatchObject({ code: said, status: code });
+        await expect(setUpCollective(input, deps(pod))).rejects.toMatchObject({ code: said });
         expect(pod.writes()).toEqual([]);
       }
     }
   });
 
-  it("no config.ttl (404) is not set up; a roster that answers 404 is missing", async () => {
-    expect(await readCollective(ROOT, fakePod({}).fetch)).toMatchObject({ state: "none", configUrl: ROOT + "config.ttl" });
-    const half = fakePod({ [ROOT + "config.ttl"]: MAAKBIB, [ROOT + "inbox/"]: "" });
-    expect(await readCollective(ROOT, half.fetch)).toMatchObject({ state: "incomplete", missing: ["roster"] });
+  it("no config.ttl (404) is not set up; home's own config with a 404 roster, or closed to strangers, is unfinished", async () => {
+    expect(await read(fakePod({}))).toMatchObject({ state: "none", configUrl: ROOT + "config.ttl" });
+    const half = fakePod({ [ROOT + "config.ttl"]: ours(), [ROOT + "config.ttl.acl"]: publicAcl("config.ttl"), [ROOT + "inbox/"]: "" });
+    expect(await read(half)).toMatchObject({ state: "incomplete", missing: ["roster"] });
+    const closed = fakePod({ [ROOT + "config.ttl"]: ours(), [ROOT + "membres.ttl"]: "", [ROOT + "inbox/"]: "" });
+    expect(await read(closed)).toMatchObject({ state: "incomplete", missing: ["public"] });
   });
 
   it("a config.ttl that doesn't parse stops everything, says why, and is never rewritten", async () => {
     const broken = MAAKBIB.replace(/@prefix schema:.*\n/, "");
     const pod = fakePod({ [ROOT + "config.ttl"]: broken, [SPACE_FILE]: SPACE });
-    await expect(readCollective(ROOT, pod.fetch)).rejects.toMatchObject({ code: "unreadable", message: expect.stringContaining("@prefix schema: <http://schema.org/>") });
-    await expect(setUpCollective(input, { fetch: pod.fetch, anonFetch: pod.anonFetch })).rejects.toMatchObject({ code: "unreadable" });
+    await expect(read(pod)).rejects.toMatchObject({ code: "unreadable", message: expect.stringContaining("@prefix schema: <http://schema.org/>") });
+    await expect(setUpCollective(input, deps(pod))).rejects.toMatchObject({ code: "unreadable" });
     expect(pod.writes()).toEqual([]);
     expect(pod.docs.get(ROOT + "config.ttl")!.body).toBe(broken);
   });
@@ -130,7 +154,7 @@ describe("done is read from the pod (#69)", () => {
   it("refuses a config whose roster or inbox is on another server: nothing is asked there", async () => {
     const elsewhere = MAAKBIB.replace("<members.ttl>", "<https://elsewhere.example/members.ttl>");
     const pod = fakePod({ [ROOT + "config.ttl"]: elsewhere });
-    await expect(readCollective(ROOT, pod.fetch)).rejects.toMatchObject({ code: "unreadable", message: expect.stringContaining("outside this pod") });
+    await expect(read(pod)).rejects.toMatchObject({ code: "unreadable", message: expect.stringContaining("outside this pod") });
     expect(pod.calls.some((c) => c.url.startsWith("https://elsewhere.example/"))).toBe(false);
   });
 });
@@ -138,11 +162,10 @@ describe("done is read from the pod (#69)", () => {
 describe("the setup (#69): only what is missing, in an order that never points at nothing", () => {
   it("makes the inbox, the roster, config.ttl and the link back, each with its rules", async () => {
     const pod = fakePod({ [SPACE_FILE]: SPACE });
-    const done = await setUpCollective(input, { fetch: pod.fetch, anonFetch: pod.anonFetch });
-    expect(done).toMatchObject({ state: "done", link: "https://backoffice.mapsofmaking.org/?collective=https://zz-net.pod.example/config.ttl" });
+    const done = await setUpCollective(input, deps(pod));
+    expect(done).toMatchObject({ state: "done", ours: true, link: "https://backoffice.mapsofmaking.org/?collective=https://zz-net.pod.example/config.ttl" });
 
-    const order = pod.writes().map((c) => `${c.method} ${c.url.slice(ROOT.length)}`);
-    expect(order).toEqual(["PUT inbox/", "PUT inbox/.acl", "PUT membres.ttl", "PUT membres.ttl.acl", "PUT config.ttl", "PUT config.ttl.acl", "PATCH space.ttl"]);
+    expect(at(pod)).toEqual(["PUT inbox/", "PUT inbox/.acl", "PUT membres.ttl", "PUT membres.ttl.acl", "PUT config.ttl", "PUT config.ttl.acl", "PATCH space.ttl"]);
     // Every new file and every new rule: only if nothing is there.
     for (const c of pod.writes().filter((w) => w.method === "PUT")) expect(c.headers["If-None-Match"]).toBe("*");
 
@@ -171,64 +194,112 @@ describe("the setup (#69): only what is missing, in an order that never points a
 
     // Pressed again: nothing more.
     const n = pod.writes().length;
-    await setUpCollective(input, { fetch: pod.fetch, anonFetch: pod.anonFetch });
+    await setUpCollective(input, deps(pod));
     expect(pod.writes()).toHaveLength(n);
+  });
+
+  it("keeps the named agents the folder passed on (never a class) in the inbox's and the roster's new rules", async () => {
+    const shared = ROOT_ACL + `<#agent> a acl:Authorization; acl:agent <${AGENT}>; acl:accessTo <./>; acl:default <./>; acl:mode acl:Read.\n`;
+    const pod = fakePod({ [SPACE_FILE]: SPACE, [ROOT + ".acl"]: shared });
+    await setUpCollective(input, deps(pod));
+    const inboxAcl = pod.docs.get(ROOT + "inbox/.acl")!.body;
+    expect(inboxAcl).toContain(`acl:agent <${AGENT}>`);
+    expect(inboxAcl).toContain("acl:AuthenticatedAgent");
+    const rosterAcl = pod.docs.get(ROOT + "membres.ttl.acl")!.body;
+    expect(rosterAcl).toContain(`acl:agent <${AGENT}>`);
+    expect(rosterAcl).not.toContain("agentClass");
+  });
+
+  it("refuses to give the inbox rules of its own when the folder passes on rules it can't copy (a group)", async () => {
+    const grouped = ROOT_ACL + "<#g> a acl:Authorization; acl:agentGroup <https://zz-net.pod.example/team#g>; acl:accessTo <./>; acl:default <./>; acl:mode acl:Read.\n";
+    const pod = fakePod({ [SPACE_FILE]: SPACE, [ROOT + ".acl"]: grouped });
+    await expect(setUpCollective(input, deps(pod))).rejects.toMatchObject({ code: "rules-unknown" });
+    expect(at(pod)).toEqual(["PUT inbox/"]);
+  });
+
+  it("refuses to rewrite an inbox's own rules that hold a grant on the folder only (it would widen it)", async () => {
+    const folderOnly = ROOT_ACL.replace(/<#public>[^\n]*\n/, "") + `<#a> a acl:Authorization; acl:agent <${AGENT}>; acl:accessTo <./>; acl:mode acl:Read.\n`;
+    const pod = fakePod({ [SPACE_FILE]: SPACE, [ROOT + "inbox/"]: "", [ROOT + "inbox/.acl"]: folderOnly });
+    await expect(setUpCollective(input, deps(pod))).rejects.toMatchObject({ code: "rules-unknown" });
+    expect(at(pod)).toEqual(["PUT inbox/"]);
+    expect(pod.docs.get(ROOT + "inbox/.acl")!.body).toBe(folderOnly);
   });
 
   it("carries on after a run that stopped: what is there is kept, never written over", async () => {
     // An inbox the backoffice made (its newcomer steps use the same inbox/): anyone signed in may already append.
     const inboxAcl = ROOT_ACL.replace(/<#public>[^\n]*\n/, "") + "<#a> a acl:Authorization; acl:agentClass acl:AuthenticatedAgent; acl:accessTo <./>; acl:default <./>; acl:mode acl:Append.\n";
     const pod = fakePod({ [SPACE_FILE]: SPACE, [ROOT + "inbox/"]: "", [ROOT + "inbox/.acl"]: inboxAcl, [ROOT + "membres.ttl"]: rosterTurtle("x") });
-    await setUpCollective(input, { fetch: pod.fetch, anonFetch: pod.anonFetch });
+    await setUpCollective(input, deps(pod));
     const writes = pod.writes().map((c) => `${c.method} ${c.url.slice(ROOT.length)} ${c.headers["If-None-Match"] ?? c.headers["If-Match"] ?? ""}`);
-    // inbox/ and membres.ttl answered 412 and were left alone; the inbox's rules already let anyone signed in append.
-    // The roster a run that never finished made (no config.ttl yet) gets its "only me" rules now.
+    // inbox/ answered 409 (CSS on an existing container) and membres.ttl 412: both left alone; the inbox's rules
+    // already let anyone signed in append. The empty roster a run that never finished made gets its rules now.
     expect(writes).toEqual(["PUT inbox/ *", "PUT membres.ttl *", "PUT membres.ttl.acl *", "PUT config.ttl *", "PUT config.ttl.acl *", 'PATCH space.ttl "v1"']);
     expect(pod.docs.get(ROOT + "membres.ttl")!.body).toBe(rosterTurtle("x"));
+    expect(pod.docs.get(ROOT + "inbox/.acl")!.body).toBe(inboxAcl);
   });
 
-  it("a config.ttl there with its roster missing: makes the roster IT names, never writes config.ttl", async () => {
-    // Maakbib's config.ttl is public already: nothing is written to its rules.
-    const publicConfig = ROOT_ACL.replace(/<\.\/>/g, "<./config.ttl>").replace(/acl:default[^;]*;/g, "");
-    const pod = fakePod({ [SPACE_FILE]: SPACE, [ROOT + "config.ttl"]: MAAKBIB, [ROOT + "config.ttl.acl"]: publicConfig, [ROOT + "inbox/"]: "" });
-    await setUpCollective({ ...input, name: "MaakBib" }, { fetch: pod.fetch, anonFetch: pod.anonFetch });
-    const writes = pod.writes().map((c) => `${c.method} ${c.url.slice(ROOT.length)}`);
-    expect(writes).toEqual(["PUT members.ttl", "PUT members.ttl.acl", "PATCH space.ttl"]);
-    expect(pod.docs.get(ROOT + "config.ttl")!.body).toBe(MAAKBIB);
-    expect(pod.docs.get(ROOT + "config.ttl.acl")!.body).toBe(publicConfig);
+  it("a membres.ttl already there that holds something is not home's: the setup stops, its rules untouched", async () => {
+    const held = `<${ROOT}config.ttl#x> <http://xmlns.com/foaf/0.1/member> <https://a.example/card#me> .\n`;
+    const pod = fakePod({ [SPACE_FILE]: SPACE, [ROOT + "membres.ttl"]: held });
+    await expect(setUpCollective(input, deps(pod))).rejects.toMatchObject({ code: "taken" });
+    expect(at(pod)).toEqual(["PUT inbox/", "PUT inbox/.acl", "PUT membres.ttl"]);
+    expect(pod.docs.has(ROOT + "membres.ttl.acl")).toBe(false);
+    expect(pod.docs.has(ROOT + "config.ttl")).toBe(false);
+  });
+
+  it("home's own config with its roster missing: makes the roster IT names, never writes config.ttl", async () => {
+    const config = ours({ roster: ROOT + "members.ttl" });
+    const pod = fakePod({ [SPACE_FILE]: SPACE, [ROOT + "config.ttl"]: config, [ROOT + "config.ttl.acl"]: publicAcl("config.ttl"), [ROOT + "inbox/"]: "" });
+    await setUpCollective(input, deps(pod));
+    expect(at(pod)).toEqual(["PUT members.ttl", "PUT members.ttl.acl", "PATCH space.ttl"]);
+    expect(pod.docs.get(ROOT + "config.ttl")!.body).toBe(config);
     expect(pod.docs.has(ROOT + "membres.ttl")).toBe(false);
-    expect(pod.docs.get(ROOT + "members.ttl.acl")!.body).toContain("acl:accessTo <./members.ttl>");
   });
 
-  it("a config.ttl made meanwhile (412) is never overwritten: it is the one linked to", async () => {
-    const pod = fakePod({ [SPACE_FILE]: SPACE });
-    const real = pod.fetch;
-    let raced = false;
-    const racing = async (url: string, init?: RequestInit) => {
-      if (url === ROOT + "config.ttl" && init?.method === "PUT" && !raced) {
-        raced = true;
-        await real(url, { method: "PUT", body: configTurtle({ slug: "other", name: "Other", slogan: "", description: "", roster: ROOT + "membres.ttl", inbox: ROOT + "inbox/", space: SPACE_FILE + "#space", root: ROOT }) });
+  it("home's own config a stranger can't read: only its public Read is added", async () => {
+    const pod = fakePod({ [SPACE_FILE]: SPACE, [ROOT + "config.ttl"]: ours(), [ROOT + "membres.ttl"]: "", [ROOT + "inbox/"]: "" });
+    await setUpCollective(input, deps(pod));
+    expect(at(pod)).toEqual(["PUT config.ttl.acl", "PATCH space.ttl"]);
+  });
+
+  it("a config.ttl made meanwhile (412) is never overwritten: home's own is linked to, another's left alone", async () => {
+    for (const other of [ours({ slug: "other" }), MAAKBIB]) {
+      const pod = fakePod({ [SPACE_FILE]: SPACE });
+      const real = pod.fetch;
+      let raced = false;
+      const racing = async (url: string, init?: RequestInit) => {
+        if (url === ROOT + "config.ttl" && init?.method === "PUT" && !raced) {
+          raced = true;
+          await real(url, { method: "PUT", body: other });
+        }
+        return real(url, init);
+      };
+      const run = setUpCollective(input, { fetch: racing, anonFetch: pod.anonFetch });
+      if (other === MAAKBIB) {
+        await expect(run).rejects.toMatchObject({ code: "taken" });
+        expect(pod.docs.get(ROOT + "config.ttl")!.body).toBe(MAAKBIB);
+        expect(pod.docs.has(ROOT + "config.ttl.acl")).toBe(false);
+        expect(pod.writes().some((c) => c.method === "PATCH")).toBe(false);
+      } else {
+        await run;
+        expect(pod.docs.get(ROOT + "config.ttl")!.body).toContain("<#other>");
+        expect(pod.docs.get(SPACE_FILE)!.body).toContain("config.ttl#other");
       }
-      return real(url, init);
-    };
-    await setUpCollective(input, { fetch: racing, anonFetch: pod.anonFetch });
-    expect(pod.docs.get(ROOT + "config.ttl")!.body).toContain("<#other>");
-    expect(pod.docs.get(SPACE_FILE)!.body).toContain("config.ttl#other");
+    }
   });
 
-  it("a run whose link back failed is finished on the next press, once (Maakbib's config links nowhere, so it never is)", async () => {
-    const ours = configTurtle({ slug: "zz-net", name: "ZZ Net", slogan: "", description: "", roster: ROOT + "membres.ttl", inbox: ROOT + "inbox/", space: SPACE_FILE + "#space", root: ROOT });
-    const pod = fakePod({ [SPACE_FILE]: SPACE, [ROOT + "config.ttl"]: ours, [ROOT + "membres.ttl"]: "", [ROOT + "inbox/"]: "" });
-    expect(await readCollective(ROOT, pod.fetch)).toMatchObject({ state: "done", seeAlso: [SPACE_FILE + "#space"] });
-    await setUpCollective(input, { fetch: pod.fetch, anonFetch: pod.anonFetch });
-    expect(pod.writes().map((c) => `${c.method} ${c.url}`)).toEqual([`PATCH ${SPACE_FILE}`]);
-    await setUpCollective(input, { fetch: pod.fetch, anonFetch: pod.anonFetch });
+  it("a run whose link back failed is finished on the next press, once", async () => {
+    const pod = fakePod({ [SPACE_FILE]: SPACE, [ROOT + "config.ttl"]: ours(), [ROOT + "config.ttl.acl"]: publicAcl("config.ttl"), [ROOT + "membres.ttl"]: "", [ROOT + "inbox/"]: "" });
+    expect(await read(pod)).toMatchObject({ state: "done", ours: true, seeAlso: [SPACE_FILE + "#space"] });
+    await setUpCollective(input, deps(pod));
+    expect(at(pod)).toEqual(["PATCH space.ttl"]);
+    await setUpCollective(input, deps(pod));
     expect(pod.writes()).toHaveLength(1);
   });
 
-  it("refuses to make an inbox a hand-made config names as a file", async () => {
-    const pod = fakePod({ [SPACE_FILE]: SPACE, [ROOT + "config.ttl"]: MAAKBIB.replace("<inbox/>", "<inbox>"), [ROOT + "members.ttl"]: "" });
-    await expect(setUpCollective(input, { fetch: pod.fetch, anonFetch: pod.anonFetch })).rejects.toMatchObject({ code: "unreadable" });
+  it("refuses to make an inbox its config names as a file", async () => {
+    const pod = fakePod({ [SPACE_FILE]: SPACE, [ROOT + "config.ttl"]: ours({ inbox: ROOT + "inbox" }), [ROOT + "config.ttl.acl"]: publicAcl("config.ttl"), [ROOT + "membres.ttl"]: "" });
+    await expect(setUpCollective(input, deps(pod))).rejects.toMatchObject({ code: "unreadable" });
     expect(pod.writes()).toEqual([]);
   });
 
@@ -236,13 +307,13 @@ describe("the setup (#69): only what is missing, in an order that never points a
     const linked = SPACE.replace('schema:description "A network of test workshops." .', `schema:description "A network of test workshops." ;\n  <http://www.w3.org/2000/01/rdf-schema#seeAlso> <${ROOT}config.ttl#zz-net> .`);
     expect(linked).toContain("seeAlso");
     const pod = fakePod({ [SPACE_FILE]: linked });
-    await setUpCollective(input, { fetch: pod.fetch, anonFetch: pod.anonFetch });
+    await setUpCollective(input, deps(pod));
     expect(pod.writes().some((c) => c.method === "PATCH")).toBe(false);
   });
 
   it("refuses a network with no name before anything is written", async () => {
     const pod = fakePod({ [SPACE_FILE]: SPACE });
-    await expect(setUpCollective({ ...input, name: "  " }, { fetch: pod.fetch, anonFetch: pod.anonFetch })).rejects.toMatchObject({ code: "incomplete" });
+    await expect(setUpCollective({ ...input, name: "  " }, deps(pod))).rejects.toMatchObject({ code: "incomplete" });
     expect(pod.writes()).toEqual([]);
   });
 });

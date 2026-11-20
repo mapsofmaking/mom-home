@@ -23,7 +23,8 @@ export const WELCOME_UI_KEYS = [
   "uiWelcomeGo", "uiWelcomeWorking", "uiWelcomeUnfinished", "uiWelcomeFinish", "uiWelcomeLinkLabel", "uiWelcomeCopy",
   "uiWelcomeCopied", "uiWelcomeRequests", "uiWelcomeNeedsPod", "uiWelcomeNoName", "uiWelcomeExpired", "uiWelcomeNoAccess",
   "uiWelcomeBroken", "uiWelcomeConflict", "uiWelcomeRules", "uiWelcomeWider", "uiWelcomeNotPublic", "uiWelcomeUnreachable",
-  "uiWelcomeRefused", "uiWelcomeUnconfirmed", "uiWelcomeRetry",
+  "uiWelcomeRefused", "uiWelcomeUnconfirmed", "uiWelcomeRetry", "uiWelcomeNoRead", "uiWelcomeNotOurs", "uiWelcomeMissingRoster",
+  "uiWelcomeMissingInbox", "uiWelcomeMissingPublic", "uiWelcomeRosterTaken", "uiWelcomeConfigTaken",
 ] as const;
 export type WelcomeUiKey = (typeof WELCOME_UI_KEYS)[number];
 export const welcomeWords = (tile: Pick<Tile, "ui"> | undefined) => tileUi<WelcomeUiKey>(tile, "the welcome tile");
@@ -72,7 +73,9 @@ export function welcomeFailure(err: unknown, ui: ReturnType<typeof welcomeWords>
   const e = err instanceof PublishError ? err : new PublishError("refused", String(err));
   switch (e.code) {
     case "expired": return { message: ui("uiWelcomeExpired"), retry: "none" };
-    case "no-control": return { message: ui("uiWelcomeNoAccess"), retry: "none" };
+    // 403: this account may not; signing in again won't change it (unlike a 401).
+    case "no-control": return { message: ui(reading ? "uiWelcomeNoRead" : "uiWelcomeNoAccess"), retry: "none" };
+    case "taken": return { message: ui(/config\.ttl/.test(e.message) ? "uiWelcomeConfigTaken" : "uiWelcomeRosterTaken"), retry: "none" };
     case "incomplete": return { message: ui("uiWelcomeNoName"), retry: "none" };
     // A config.ttl that can't be used is the owner's to fix, never this page's to rewrite.
     case "unreadable":
@@ -151,8 +154,17 @@ export function mountWelcome(box: HTMLElement, deps: WelcomeDeps): WelcomeHandle
     if (focus) box.querySelector<HTMLElement>(focus)?.focus();
   };
 
-  /** The pod's answer, drawn: the form only on "none", carrying on only on "incomplete", the link only on "done". */
+  /**
+   * The pod's answer, drawn: the form only on "none", carrying on only on "incomplete" (home's own config), the
+   * link only on "done". A config home didn't write, with something missing, is said in plain words, no button.
+   */
   const show = (read: CollectiveState, focus: string | null) => {
+    if (read.state === "foreign") {
+      const part = { roster: ui("uiWelcomeMissingRoster"), inbox: ui("uiWelcomeMissingInbox"), public: ui("uiWelcomeMissingPublic") };
+      Object.assign(s, { status: "failed", retry: "none", message: ui("uiWelcomeNotOurs", { missing: read.missing.map((m) => part[m]).join("; ") }) });
+      paint(focus ? "#welcome-status" : null);
+      return;
+    }
     if (read.state === "done") {
       s.status = "done";
       s.link = read.link;

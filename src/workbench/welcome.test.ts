@@ -85,6 +85,22 @@ describe("the welcome tile (#69)", () => {
     expect(text()).toContain("Undefined prefix");
   });
 
+  it("a config.ttl this app didn't write, with something missing: said in plain words, nothing to press", async () => {
+    const deps = await open({ load: async () => ({ state: "foreign", configUrl: CONFIG, collective, missing: ["public", "roster"] }) });
+    expect(box.querySelector("button")).toBeNull();
+    expect(box.querySelector("#f-welcome")).toBeNull();
+    expect(text()).toContain(ui.uiWelcomeMissingPublic);
+    expect(text()).toContain(ui.uiWelcomeMissingRoster);
+    expect(text()).not.toContain(ui.uiWelcomeUnfinished);
+    expect(deps.setUp).not.toHaveBeenCalled();
+  });
+
+  it("a 403 (this account may not read it) is said in the tile, with nothing to press", async () => {
+    await open({ load: async () => { throw new PublishError("no-control", "403", 403); } });
+    expect(box.querySelector("#welcome-status")!.textContent).toBe(ui.uiWelcomeNoRead);
+    expect(box.querySelector("button")).toBeNull();
+  });
+
   it("a pod that didn't answer: read again, never the form", async () => {
     let calls = 0;
     await open({ load: async () => { if (calls++ === 0) throw new PublishError("unreachable", "no answer"); return DONE; } });

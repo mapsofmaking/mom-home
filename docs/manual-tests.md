@@ -346,6 +346,8 @@ signed in as `zz-net`, accept the request.
 - Signed out and in again: the tile is done (read from the pod) and shows the link. Pressing nothing writes
   nothing.
 - Anonymously (a private window, no sign-in), `config.ttl` reads; `membres.ttl` and `inbox/` answer 401.
+- Press again after a run that stopped (cut the network mid-setup): `PUT inbox/` answers 409 on CSS 7.3 and is
+  read as "already there"; the run carries on and nothing is written twice.
 
 **(b) Maakbib, made by hand: done, nothing written.**
 

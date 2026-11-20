@@ -341,8 +341,8 @@ async function main(): Promise<void> {
     else if (found) void keepReadme(root);
     // The tree as the space's kind reads it: a tile of another kind is neither drawn nor checked.
     const kinded = forKind(tree!, found?.draft.kind);
-    // A network's collective (#69), read once here for its tile's done check. A session refused there is the error
-    // view's "sign in again", like the space file's; anything else costs the tile's done, and the tile reads again.
+    // A network's collective (#69), read once here for its tile's done check. A 401 there is the error view's "sign in
+    // again", like the space file's; anything else (a 403 included) costs the tile's done, and the tile says why.
     const collective: CollectiveState | null = kinded.tiles.some((t) => t.act === "welcome")
       ? await readCollective(root).catch((err) => {
           if (err instanceof PublishError && err.code === "expired") throw err;

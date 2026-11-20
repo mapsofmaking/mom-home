@@ -19,7 +19,7 @@ const WRITE =
  */
 const WRITE_SITES: Record<string, number> = {
   "lib/acl.ts": 7, // kit WAC helpers: the space's rules (space-acl)
-  "lib/collective.ts": 4, // collective-inbox, -roster, -config: new files (one PUT helper), the inbox's and the roster's rules (config.ttl's through publish.ts makePublic); space-collective-link: one PATCH
+  "lib/collective.ts": 5, // collective-inbox, -roster, -config: new files (one PUT helper), the inbox's rules (new or added to) and the roster's (config.ttl's through publish.ts makePublic); space-collective-link: one PATCH
   "lib/conditional.ts": 2, // kit conditional write: used by the settings file and the index entries
   "lib/hours.ts": 1, // space-file: changeStatement, one statement (hours, logo)
   "lib/move.ts": 1, // space-file: moveSpace, the address and the pin in one patch

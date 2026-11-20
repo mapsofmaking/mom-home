@@ -75,7 +75,7 @@ export const FOOTPRINT: readonly FootprintMark[] = [
     kind: "own",
     where: "config.ttl, and its access rules",
     what: "for a network: the network as a collective, its name, the invitation's words, where its roster and inbox are; anyone can read it (written only if missing)",
-    writtenBy: ["lib/collective.ts:writeConfig"],
+    writtenBy: ["lib/collective.ts:writeConfig", "lib/collective.ts:openConfig"],
   },
   {
     id: "space-collective-link",
