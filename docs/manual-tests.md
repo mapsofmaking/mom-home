@@ -375,13 +375,13 @@ SpaceAPI file? Start from it", paste
 "Read it". **Expect:** one `POST /api/read-url`, nothing else; the form shows the name, street "Antoon
 Catriestraat 6, Drongen", city Gent, the pin line at 51.0503, 3.6574 · Gent · 9031 · BE without "Working out where
 that is"; email, Matrix room, website, logo, description filled; one line "Not carried over from your file:
-next_event, state, contact.facebook, contact.instagram". No scroll added at 1541×751. Reload: everything is
+next_event, state"; "Also from your file" names the networks, goals, topics, hours and the two links (Facebook, Instagram). No scroll added at 1541×751. Reload: everything is
 still there (the draft keeps the networks too, check `localStorage` `mom-home:draft:space` holds `memberOf`).
 
 **(b) Mother Sands to a zz pod.** **Do:** "Start over", then import
 `https://mapsofmaking.org/canary/mother-sands.json`. **Expect:** "Not carried over" names `ext_canary`, `ext_fab`,
-`issue_report_channels`, `state`, `country_code: sol-3`, `timezone: UTC+0`, `contact.irc`, `contact.twitter`; the
-country field is open and empty (type `GB`). Change the name to "zz Mother Sands", "Show me my card", "Publish
+`issue_report_channels`, `state`, `timezone: UTC+0`, `contact.irc` (and `country_code: sol-3` until the canary file says `XZ`); the
+twitter handle is a link under "Also from your file". The country is `XZ` (international waters), or, on the old file, the field is open and empty: type `XZ`. Change the name to "zz Mother Sands", "Show me my card", "Publish
 it", pod door, `zz-mothersand`, sign in, publish the file. **Expect:** `space.ttl` holds `mom:memberOf
 <urn:mak:network/canary>, <urn:mak:network/vulca>` and `mom:sdgs 9, 11, 12, 14, 17`. **Don't** press "Put it on the
 map" with the canary's own name (it makes a second pin); if you do, delete the zz record and the account with the

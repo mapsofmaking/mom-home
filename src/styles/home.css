@@ -233,3 +233,13 @@
 
 /* The welcome tile's invitation (#69): a long address wraps rather than pushing the step sideways. */
 .wb-welcome-link { margin: 0; overflow-wrap: anywhere; font-size: 13px; }
+
+/* Tile A's import (#73): the address and "Read it" on one line, the button as tall as the box; an empty status takes no room. */
+.wb-import { display: flex; flex-direction: column; gap: var(--space-6); }
+.wb-import-box { display: flex; flex-direction: column; gap: var(--space-4); }
+.wb-import-box .wb-field-label { margin: 0; font-weight: 600; font-size: 13px; }
+.wb-import-row { display: flex; align-items: stretch; gap: var(--space-8); }
+.wb-import-row input { flex: 1; min-width: 0; }
+.wb-import-row .btn { flex: none; }
+.wb-import-status { margin: 0; font: 400 13px/1.4 var(--font-mono); color: var(--muted); }
+.wb-import-status:empty { display: none; }

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { draftFromRecord, readSpaceFile, splitAddress, type ReadRecord, type ReadUrlAnswer } from "./spaceapi-read";
+import { draftFromRecord, handleOf, readSpaceFile, splitAddress, type ReadRecord, type ReadUrlAnswer } from "./spaceapi-read";
 import { spaceApiJson } from "./spaceapi";
 import { draftFromStore, draftFromTurtle, sameStatements, spaceFile, statements } from "./spacefile";
 
@@ -29,7 +29,12 @@ describe("draftFromRecord: a file someone already has, as tile A's draft (#73)",
     });
     expect(draft.knowsAbout).toHaveLength(9);
     expect(draft.kind).toBeUndefined();
-    expect(notCarried).toEqual(["next_event", "state", "contact.facebook", "contact.instagram"]);
+    expect(notCarried).toEqual(["next_event", "state"]);
+    // Facebook and Instagram are tile C links now, under the key they came from.
+    expect(draft.contacts).toEqual([
+      { type: "link", value: "https://www.facebook.com/IngegnoMakerSpace/", key: "facebook" },
+      { type: "link", value: "https://www.instagram.com/decreatievestem/", key: "instagram" },
+    ]);
     expect(draft.notCarried).toEqual(notCarried);
   });
 
@@ -37,8 +42,9 @@ describe("draftFromRecord: a file someone already has, as tile A's draft (#73)",
     const { draft, notCarried } = draftFromRecord(record("mother-sands"));
     expect(notCarried).toEqual([
       "ext_canary", "ext_fab", "issue_report_channels", "state",
-      "country_code: sol-3", "timezone: UTC+0", "contact.irc", "contact.twitter",
+      "country_code: sol-3", "timezone: UTC+0", "contact.irc",
     ]);
+    expect(draft.contacts).toEqual([{ type: "link", value: "https://twitter.com/mothersands", key: "twitter" }]);
     // Not an ISO code: left empty, the form asks for it.
     expect(draft.country).toBeUndefined();
     expect(draft.memberOf).toEqual(["urn:mak:network/canary", "urn:mak:network/vulca"]);
@@ -181,5 +187,43 @@ describe("nothing is cut or dropped unsaid (review of #73)", () => {
   it("marks the pin as the file's own, so a country typed after doesn't move it", () => {
     expect(draftFromRecord(base()).draft.pinFrom).toBe("file");
     expect(draftFromRecord(record("maakbib-pod")).draft.pinFrom).toBeUndefined();
+  });
+});
+
+describe("contacts become tile C's handles (#73, Nicolas 2026-11-20)", () => {
+  it.each([
+    ["phone", "+32 9 123 45 67", { type: "phone", value: "+32 9 123 45 67" }],
+    ["telegram", "@ingegno", { type: "telegram", value: "https://t.me/ingegno" }],
+    ["twitter", "@mothersands", { type: "link", value: "https://twitter.com/mothersands" }],
+    ["mastodon", "@fablab@mastodon.social", { type: "link", value: "https://mastodon.social/@fablab" }],
+    ["ext_discord", "https://discord.gg/abc", { type: "discord", value: "https://discord.gg/abc" }],
+    ["chat", "https://signal.group/#xyz", { type: "signal", value: "https://signal.group/#xyz" }],
+    ["facebook", "https://www.facebook.com/x/", { type: "link", value: "https://www.facebook.com/x/" }],
+  ])("%s: %s", (key, value, handle) => {
+    expect(handleOf(key, value)).toEqual(handle);
+  });
+
+  it.each([["irc", "#mothersands"], ["xmpp", "room@conf.example.org"], ["ml", "list@example.org"], ["facebook", "javascript:alert(1)"], ["phone", "call us"]])(
+    "%s: %s has no kind yet, so it stays not carried over",
+    (key, value) => expect(handleOf(key, value)).toBeNull()
+  );
+
+  it("they reach space.ttl as tile C writes them, come back the same, and go to the JSON under their own key", () => {
+    const d = { name: "A", city: "Gent", country: "BE", lat: "51", lon: "3.7",
+      contacts: [{ type: "phone", value: "+32 9 123 45 67" }, { type: "link", value: "https://www.facebook.com/x/", key: "facebook" }, { type: "telegram", value: "https://t.me/abcd" }] };
+    const { turtle } = spaceFile(d);
+    const lines = statements(turtle);
+    expect(lines.some((l) => l.includes("schema.org/telephone") && l.includes("+32 9 123 45 67"))).toBe(true);
+    expect(lines.filter((l) => l.includes(" https://schema.org/contactType ")).length).toBe(2);
+    const back = draftFromTurtle(turtle, "https://pod.example/space.ttl")!;
+    expect(back.contacts?.map((h) => [h.type, h.value])).toEqual([["phone", "+32 9 123 45 67"], ["link", "https://www.facebook.com/x/"], ["telegram", "https://t.me/abcd"]]);
+    expect(sameStatements(spaceFile(back).turtle, turtle)).toBe(true);
+    const json = JSON.parse(spaceApiJson(d).json);
+    expect(json.contact).toEqual({ phone: "+32 9 123 45 67", facebook: "https://www.facebook.com/x/", ext_telegram: "https://t.me/abcd" });
+  });
+
+  it("a stored draft keeps only handles it can write", () => {
+    expect(draftFromStore({ name: "A", contacts: [{ type: "link", value: "javascript:x" }, { type: "fax", value: "1" }, { type: "phone", value: "+3212345678" }, "x"] }))
+      .toEqual({ name: "A", contacts: [{ type: "phone", value: "+3212345678" }] });
   });
 });

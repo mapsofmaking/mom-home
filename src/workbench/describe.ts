@@ -76,7 +76,7 @@ export const UI_KEYS = [
   "uiPinArea", "uiNoResultArea", "uiUnavailableArea", "uiRateArea", "uiYourNetwork", "uiServes", "uiHoursFact",
   "uiImport", "uiImportUrl", "uiImportGo", "uiImportReading", "uiImportDone", "uiImportNotRead", "uiImportUnavailable",
   "uiImportRate", "uiNotCarried", "uiImportReplaceAsk", "uiImportReplace", "uiFromFile", "uiFromFileDrop",
-  "uiFromFileNetworks", "uiFromFileGoals", "uiFromFileTopics", "uiFromFileHours",
+  "uiFromFileNetworks", "uiFromFileGoals", "uiFromFileTopics", "uiFromFileHours", "uiFromFileContacts",
 ] as const;
 export type UiKey = (typeof UI_KEYS)[number];
 
@@ -245,11 +245,12 @@ function importLine(draft: Draft, w: DescribeWords, typed: boolean, importUrl: s
   return `
       <div class="wb-import" id="import"${shown ? "" : " hidden"}>
         <button type="button" class="inline-link" id="import-open" aria-expanded="${open}" aria-controls="import-row"${open ? " hidden" : ""}>${esc(w.ui("uiImport"))}</button>
-        <div class="wb-import-row" id="import-row"${open ? "" : " hidden"}>
-          <label class="wb-field" for="f-import">${esc(w.ui("uiImportUrl"))}
+        <div class="wb-import-box" id="import-row"${open ? "" : " hidden"}>
+          <label class="wb-field-label" for="f-import">${esc(w.ui("uiImportUrl"))}</label>
+          <div class="wb-import-row">
             <input id="f-import" name="importUrl" type="url" inputmode="url" autocomplete="url" spellcheck="false" enterkeyhint="go" value="${esc(importUrl)}" />
-          </label>
-          <button type="button" class="btn" id="import-go">${esc(w.ui("uiImportGo"))}</button>
+            <button type="button" class="btn" id="import-go">${esc(w.ui("uiImportGo"))}</button>
+          </div>
         </div>
         <p class="wb-import-status" id="import-status" role="status"></p>
         <div class="wb-confirm" id="import-confirm" role="group" aria-labelledby="import-confirm-q" hidden>
@@ -278,6 +279,7 @@ export function fromFileLine(draft: Draft, w: DescribeWords): string {
   if (draft.sdgs?.length) parts.push(w.ui("uiFromFileGoals", { list: draft.sdgs.join(", ") }));
   if (draft.knowsAbout?.length) parts.push(w.ui("uiFromFileTopics", { list: draft.knowsAbout.join(", ") }));
   if (draft.hours?.trim()) parts.push(w.ui("uiFromFileHours", { hours: draft.hours.trim() }));
+  if (draft.contacts?.length) parts.push(w.ui("uiFromFileContacts", { list: draft.contacts.map((h) => h.value).join(", ") }));
   if (!parts.length) return "";
   return `<p class="hint wb-from-file" id="from-file">${esc(w.ui("uiFromFile", { what: parts.join(" · ") }))}
         <button type="button" class="inline-link" id="from-file-drop">${esc(w.ui("uiFromFileDrop"))}</button></p>`;
