@@ -52,6 +52,12 @@ export interface Draft {
   sdgs?: number[];
   /** Its topics (an import's `knowsAbout`). */
   knowsAbout?: string[];
+  /**
+   * Contact handles beyond the email and the Matrix room (#73, from an import): tile C's kinds (phone, signal,
+   * telegram, discord, mattermost, link), the value as the file will hold it (a number, a link). `key` is the
+   * SpaceAPI key it came from (`facebook`), so the self-host JSON can give it back under the same name.
+   */
+  contacts?: { type: string; value: string; key?: string }[];
   /** "file": the pin is the imported file's own (#73); typing a missing country then doesn't ask the geocoder again. */
   pinFrom?: "file";
   /** What an import found in the file and the draft can't hold (tile A says so, #73): keys, or "key: value". */

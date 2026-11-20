@@ -8,6 +8,14 @@ Kit-level decisions (Solid, ACLs, sign-in) are ADRs in the kit repo; this file o
 
 ## 2026-11-20
 
+- **After the first live run of the import (Nicolas):** a place outside any country (Mother Sands, at sea) has
+  the country `XZ`: UN/LOCODE's "international waters", in ISO 3166's user-assigned range, so no country will
+  ever take it; two letters, so the writers and the map take it as any country (the map labels it). And an
+  imported contact is no longer a loss when tile C has a kind for it: a phone, Telegram, Signal, Discord,
+  Mattermost, or any web address as a Link (`facebook`, `instagram`, `twitter: @x`, `mastodon: @u@host`);
+  only what has no kind yet (IRC, XMPP, a mailing list) stays "not carried over". Not kept as a raw blob in
+  `space.ttl`, and no count of missing fields, for now.
+
 - **Tile A starts from a file someone already has** (#73, slice 2 of #72, `review`). Signed out, under the
   kind: "Already have a SpaceAPI file? Start from it", a web address read by the map (`POST /api/read-url`,
   maps_of_making #84, same origin). The form is filled (`src/lib/spaceapi-read.ts` `draftFromRecord`) and the

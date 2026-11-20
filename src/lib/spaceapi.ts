@@ -15,13 +15,16 @@
  * `test/fixtures/maakbib.json` holds it.
  */
 import type { Draft } from "../workbench/previews";
-import { draftLists, isNetwork, matrixRoom, networkParts, plainIri, requiredParts, type SpaceFile } from "./spacefile";
+import { cleanContacts, draftLists, isNetwork, matrixRoom, networkParts, plainIri, requiredParts, type SpaceFile } from "./spacefile";
 
 export interface SpaceApi {
   json: string;
   /** Draft fields left out of the file because their value was not a web address (or a room). */
   dropped: SpaceFile["dropped"];
 }
+
+/** SpaceAPI v15's contact keys that hold a link or a handle home can give back as a link. */
+const SPACEAPI_CONTACT_KEYS = new Set(["twitter", "mastodon", "facebook", "identica", "foursquare"]);
 
 export function spaceApiJson(draft: Draft): SpaceApi {
   const network = isNetwork(draft) ? networkParts(draft) : null;
@@ -67,6 +70,12 @@ export function spaceApiJson(draft: Draft): SpaceApi {
     const room = matrixRoom(draft.matrix);
     if (room) contact.matrix = room;
     else dropped.push("matrix");
+  }
+  // The other handles (#73): a phone under SpaceAPI's own key; a link under the key it was imported from when
+  // SpaceAPI has one (facebook, twitter, mastodon), else as an extension (`ext_signal`, `ext_link`). One per key.
+  for (const h of cleanContacts(draft.contacts)) {
+    const key = h.type === "phone" ? "phone" : h.key && SPACEAPI_CONTACT_KEYS.has(h.key) ? h.key : `ext_${h.type}`;
+    if (!(key in contact)) contact[key] = h.value;
   }
   if (Object.keys(contact).length) out.contact = contact;
 

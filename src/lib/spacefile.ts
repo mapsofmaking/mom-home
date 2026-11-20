@@ -241,6 +241,38 @@ export function cleanTopics(values: readonly unknown[] | undefined): string[] {
   return out.slice(0, MAX_LIST);
 }
 
+/** Tile C's contact kinds a draft may carry (onboarding.ttl `onb:ContactType`), and the contactType each is written with. */
+export const CONTACT_POINTS: Readonly<Record<string, string>> = { signal: "Signal", telegram: "Telegram", discord: "Discord", mattermost: "Mattermost", link: "Link" };
+/** A phone as the map reads it (turtle.py `_PHONE`). */
+export const PHONE = /^\+?[0-9][0-9 ().-]{4,40}$/;
+const MAX_HANDLES = 20;
+
+type Handle = NonNullable<Draft["contacts"]>[number];
+
+/** One handle, made safe: a phone the map reads, or an http(s) link for a contact point kind; null otherwise. */
+export function cleanHandle(raw: unknown): Handle | null {
+  if (!raw || typeof raw !== "object") return null;
+  const { type, value, key } = raw as Record<string, unknown>;
+  if (typeof type !== "string" || typeof value !== "string") return null;
+  const v = value.trim();
+  if (!v || v.length > 300) return null;
+  const k = typeof key === "string" && /^[a-z][a-z0-9_]{0,40}$/.test(key) ? key : undefined;
+  if (type === "phone") return PHONE.test(v.replace(/^tel:/i, "")) ? { type, value: v.replace(/^tel:/i, ""), ...(k ? { key: k } : {}) } : null;
+  if (!Object.hasOwn(CONTACT_POINTS, type)) return null;
+  const link = plainIri(v);
+  return link ? { type, value: link, ...(k ? { key: k } : {}) } : null;
+}
+
+/** The handles, cleaned, once each (by kind and value), in the order given, at most 20. */
+export function cleanContacts(values: readonly unknown[] | undefined): Handle[] {
+  const out: Handle[] = [];
+  for (const v of Array.isArray(values) ? values : []) {
+    const h = cleanHandle(v);
+    if (h && !out.some((o) => o.type === h.type && o.value === h.value)) out.push(h);
+  }
+  return out.slice(0, MAX_HANDLES);
+}
+
 type Lists = Pick<Draft, "memberOf" | "sdgs" | "knowsAbout">;
 
 /** The three lists a draft may hold (#73), cleaned; a list left empty is absent. */
@@ -266,8 +298,10 @@ export function draftFromStore(raw: unknown): Draft {
   for (const [k, v] of Object.entries(raw)) if (typeof v === "string") out[k] = v;
   // The lists (#73) and what an import did not carry over: cleaned here, never copied as they are (a string
   // where a list belongs would pass the copy above).
-  for (const key of ["memberOf", "sdgs", "knowsAbout", "notCarried"]) delete out[key];
+  for (const key of ["memberOf", "sdgs", "knowsAbout", "notCarried", "contacts"]) delete out[key];
   Object.assign(out, draftLists(raw as Record<string, unknown>));
+  const contacts = cleanContacts((raw as { contacts?: unknown[] }).contacts);
+  if (contacts.length) out.contacts = contacts;
   const notCarried = (raw as { notCarried?: unknown }).notCarried;
   if (Array.isArray(notCarried)) {
     const kept = notCarried.filter((k): k is string => typeof k === "string" && !!k.trim()).map((k) => k.trim().slice(0, 200)).slice(0, 100);
@@ -365,6 +399,11 @@ export function spaceFile(draft: Draft): SpaceFile {
     const link = matrixLink(draft.matrix);
     if (link) add("schema:contactPoint", `[ a schema:ContactPoint ;\n    schema:contactType "Matrix" ;\n    schema:url ${link} ]`);
     else dropped.push("matrix");
+  }
+  // The other handles an import brought (#73), as tile C writes them: a phone of its own, the rest as contact points.
+  for (const h of cleanContacts(draft.contacts)) {
+    if (h.type === "phone") add("schema:telephone", literal(h.value));
+    else add("schema:contactPoint", `[ a schema:ContactPoint ;\n    schema:contactType ${literal(CONTACT_POINTS[h.type])} ;\n    schema:url <${h.value}> ]`);
   }
   for (const key of ["website", "logo"] as const) {
     if (!(draft[key] ?? "").trim()) continue;
@@ -481,6 +520,14 @@ export function draftFromTurtle(turtle: string, base: string): Draft | null {
   }
   set("email", one(subject, "email"));
   set("hours", one(subject, "openingHours"));
+  // Phones, and the contact points of tile C's other kinds (#73), in the file's order.
+  const handles: unknown[] = objects(subject, "telephone").map((o) => ({ type: "phone", value: o.value }));
+  for (const point of objects(subject, "contactPoint")) {
+    const kind = (one(point, "contactType") ?? "").toLowerCase();
+    if (kind !== "matrix" && Object.hasOwn(CONTACT_POINTS, kind)) handles.push({ type: kind, value: one(point, "url") ?? "" });
+  }
+  const contacts = cleanContacts(handles);
+  if (contacts.length) draft.contacts = contacts;
   for (const point of objects(subject, "contactPoint")) {
     if (one(point, "contactType") !== "Matrix") continue;
     const link = one(point, "url") ?? "";

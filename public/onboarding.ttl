@@ -83,6 +83,7 @@
   onb:uiFromFileGoals "goals {list}"@en ;
   onb:uiFromFileTopics "topics {list}"@en ;
   onb:uiFromFileHours "hours {hours}"@en ;
+  onb:uiFromFileContacts "contacts {list}"@en ;
   # The form's fields, in no order (the code orders them). onb:example fills "Fill in an
   # example": a space that doesn't exist, so nothing typed is mistaken for real. Its street
   # doesn't exist either: the pin falls back to the Marolles, and the pin line says so.
@@ -105,7 +106,7 @@
     [ onb:key "logo" ; onb:label "Logo URL"@en ; onb:placeholder "example.org/logo.png"@en ;
       onb:hint "Transparent PNG works best."@en ] ,
     [ onb:key "country" ; onb:label "Country code"@en ; onb:placeholder "e.g. BE"@en ;
-      onb:hint "Two letters, ISO. e.g. DE, FR, BE."@en ] ,
+      onb:hint "Two letters, ISO. e.g. DE, FR, BE. At sea, outside any country: XZ."@en ] ,
     [ onb:key "lat" ; onb:label "Latitude"@en ; onb:placeholder "e.g. 50.84"@en ] ,
     [ onb:key "lon" ; onb:label "Longitude"@en ; onb:placeholder "e.g. 4.33"@en ] ;
   onb:doneWhen """ASK { ?space schema:name ?n . { ?space a mom:Space ; schema:address ?a } UNION { ?space a mom:Network ; schema:areaServed ?area } }""" .

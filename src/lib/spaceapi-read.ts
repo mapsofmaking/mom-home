@@ -14,7 +14,7 @@
  * split best-effort; the pin doesn't depend on it.
  */
 import type { Draft } from "../workbench/previews";
-import { areasCountry, cleanAreas, cleanFidelity, cleanTopics, draftLists, matrixRoom, memberIri, plainIri } from "./spacefile";
+import { areasCountry, cleanAreas, cleanContacts, cleanFidelity, cleanTopics, draftLists, matrixRoom, memberIri, PHONE, plainIri } from "./spacefile";
 
 /** The map's record (maps_of_making `infra/link_handler/read_record.py`). */
 export interface ReadRecord {
@@ -69,6 +69,38 @@ export function splitAddress(address: string): { street: string; postcode: strin
     city = parts.length > 1 ? parts.pop()! : (parts.pop() ?? "");
   }
   return { street: parts.join(", "), postcode, city };
+}
+
+/**
+ * A SpaceAPI contact (`key`: `value`) as one of tile C's handles, or null (IRC, XMPP, a mailing list: no kind
+ * for them yet, so they stay not carried over). A handle (`@name`) becomes its link where the place is known.
+ */
+export function handleOf(key: string, value: string): { type: string; value: string } | null {
+  const v = value.trim();
+  if (!v || v.length > 300) return null;
+  const k = key.toLowerCase().replace(/^ext_/, "");
+  if (k === "phone") return PHONE.test(v.replace(/^tel:/i, "")) ? { type: "phone", value: v.replace(/^tel:/i, "") } : null;
+  if (k === "telegram") {
+    const name = /^@?([A-Za-z0-9_]{4,64})$/.exec(v)?.[1];
+    if (name) return { type: "telegram", value: `https://t.me/${name}` };
+  }
+  if (k === "twitter" || k === "x") {
+    const name = /^@?([A-Za-z0-9_]{1,30})$/.exec(v)?.[1];
+    if (name) return { type: "link", value: `https://twitter.com/${name}` };
+  }
+  if (k === "mastodon") {
+    const m = /^@?([A-Za-z0-9_.]{1,64})@([a-z0-9.-]+\.[a-z]{2,})$/i.exec(v);
+    if (m) return { type: "link", value: `https://${m[2]}/@${m[1]}` };
+  }
+  const link = plainIri(v);
+  if (!link) return null;
+  const host = new URL(link).hostname.toLowerCase();
+  const kind = k === "signal" || host.startsWith("signal.") ? "signal"
+    : k === "discord" || /(^|\.)discord\.(gg|com)$/.test(host) ? "discord"
+    : k === "telegram" || host === "t.me" ? "telegram"
+    : k === "mattermost" ? "mattermost"
+    : "link";
+  return { type: kind, value: link };
 }
 
 /** The draft a record makes, and what it holds that the draft can't (`notCarried`, also kept on the draft). */
@@ -147,11 +179,19 @@ export function draftFromRecord(record: ReadRecord): { draft: Draft; notCarried:
   setWhole("logo", record.logo, CAP.url, "logo", (v) => plainIri(v) !== null);
 
   const contact = record.contact && typeof record.contact === "object" ? record.contact : {};
+  const handles: { type: string; value: string; key: string }[] = [];
   for (const [key, value] of Object.entries(contact)) {
     if (key === "email" && typeof value === "string") setWhole("email", value, CAP.email, "contact.email", (v) => /^[^\s@]+@[^\s@]+$/.test(v));
     else if (key === "matrix" && typeof value === "string") setWhole("matrix", value, CAP.matrix, "contact.matrix", (v) => matrixRoom(v) !== null);
-    else leave(`contact.${key}`);
+    else {
+      // Tile C's kinds (#73): a phone, Telegram, or a web address (Signal, Discord, Mattermost by their host, else a link).
+      const h = typeof value === "string" ? handleOf(key, value) : null;
+      if (h) handles.push({ ...h, key });
+      else leave(`contact.${key}`);
+    }
   }
+  const contacts = cleanContacts(handles);
+  if (contacts.length) draft.contacts = contacts;
 
   // The lists: what the draft keeps, and each value it doesn't, named.
   const lists = draftLists(record);

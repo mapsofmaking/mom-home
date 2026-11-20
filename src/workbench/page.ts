@@ -823,7 +823,7 @@ export function renderPage(root: HTMLElement, base: Tree, opts: PageOptions): Pa
     }
     if (target.id === "from-file-drop") {
       // What tile A has no field for leaves the draft, so it can't reach the file unseen.
-      for (const k of ["memberOf", "sdgs", "knowsAbout", "hours"] as const) delete opts.draft[k];
+      for (const k of ["memberOf", "sdgs", "knowsAbout", "hours", "contacts"] as const) delete opts.draft[k];
       opts.onDraft?.(opts.draft);
       draw();
       step.querySelector<HTMLInputElement>("#f-name")?.focus();
