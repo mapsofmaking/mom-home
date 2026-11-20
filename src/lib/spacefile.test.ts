@@ -311,3 +311,15 @@ describe("the lists an import brings (#73)", () => {
     expect(draftFromTurtle(hand, "https://pod.example/space.ttl")).toMatchObject({ memberOf: ["urn:mak:network/maakbib", "urn:mak:network/vulca"], sdgs: [4] });
   });
 });
+
+describe("draftFromTurtle reads a network by IRI or slug only (review of #73)", () => {
+  it("a blank node is never read as a network", () => {
+    const t = '@prefix mom: <https://mapsofmaking.org/ns/mom#> . @prefix schema: <https://schema.org/> . <#space> a mom:Space ; schema:name "A" ; mom:memberOf [ schema:name "x" ], <urn:mak:network/ok> .';
+    expect(draftFromTurtle(t, "https://pod.example/space.ttl")!.memberOf).toEqual(["urn:mak:network/ok"]);
+  });
+
+  it("a stored draft keeps the file's pin mark, and nothing else in its place", () => {
+    expect(draftFromStore({ name: "A", pinFrom: "file" })).toEqual({ name: "A", pinFrom: "file" });
+    expect(draftFromStore({ name: "A", pinFrom: "elsewhere" })).toEqual({ name: "A" });
+  });
+});

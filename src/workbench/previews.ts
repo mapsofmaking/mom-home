@@ -52,6 +52,8 @@ export interface Draft {
   sdgs?: number[];
   /** Its topics (an import's `knowsAbout`). */
   knowsAbout?: string[];
+  /** "file": the pin is the imported file's own (#73); typing a missing country then doesn't ask the geocoder again. */
+  pinFrom?: "file";
   /** What an import found in the file and the draft can't hold (tile A says so, #73): keys, or "key: value". */
   notCarried?: string[];
   event?: { title: string; date: string };

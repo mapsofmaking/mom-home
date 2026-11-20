@@ -75,7 +75,8 @@ export const UI_KEYS = [
   "uiKind", "uiKindSpace", "uiKindNetwork", "uiNameNetwork", "uiAreaFound",
   "uiPinArea", "uiNoResultArea", "uiUnavailableArea", "uiRateArea", "uiYourNetwork", "uiServes", "uiHoursFact",
   "uiImport", "uiImportUrl", "uiImportGo", "uiImportReading", "uiImportDone", "uiImportNotRead", "uiImportUnavailable",
-  "uiImportRate", "uiNotCarried",
+  "uiImportRate", "uiNotCarried", "uiImportReplaceAsk", "uiImportReplace", "uiFromFile", "uiFromFileDrop",
+  "uiFromFileNetworks", "uiFromFileGoals", "uiFromFileTopics", "uiFromFileHours",
 ] as const;
 export type UiKey = (typeof UI_KEYS)[number];
 
@@ -251,13 +252,35 @@ function importLine(draft: Draft, w: DescribeWords, typed: boolean, importUrl: s
           <button type="button" class="btn" id="import-go">${esc(w.ui("uiImportGo"))}</button>
         </div>
         <p class="wb-import-status" id="import-status" role="status"></p>
-      </div>${notCarriedLine(draft, w)}`;
+        <div class="wb-confirm" id="import-confirm" role="group" aria-labelledby="import-confirm-q" hidden>
+          <p id="import-confirm-q">${esc(w.ui("uiImportReplaceAsk"))}</p>
+          <button type="button" class="btn" id="import-replace">${esc(w.ui("uiImportReplace"))}</button>
+          <button type="button" class="inline-link" id="import-keep">${esc(w.ui("uiKeepIt"))}</button>
+        </div>
+      </div>${notCarriedLine(draft, w)}${fromFileLine(draft, w)}`;
 }
 
 /** What the file held and the draft can't: one line, every key named, never cut (nothing is dropped silently). */
 export function notCarriedLine(draft: Draft, w: DescribeWords): string {
   const keys = draft.notCarried ?? [];
   return keys.length ? `<p class="hint wb-not-carried" id="not-carried">${esc(w.ui("uiNotCarried", { keys: keys.join(", ") }))}</p>` : "";
+}
+
+/**
+ * What an import brought that tile A has no field for (#73): the networks, goals, topics and hours go into the
+ * file as they are, so the coordinator sees them here, on one line, and can leave them out.
+ */
+export function fromFileLine(draft: Draft, w: DescribeWords): string {
+  const parts: string[] = [];
+  // A network on the map is named by its slug (what the file said); another IRI as it is.
+  const nets = (draft.memberOf ?? []).map((m) => m.replace(/^urn:mak:network\//, ""));
+  if (nets.length) parts.push(w.ui("uiFromFileNetworks", { list: nets.join(", ") }));
+  if (draft.sdgs?.length) parts.push(w.ui("uiFromFileGoals", { list: draft.sdgs.join(", ") }));
+  if (draft.knowsAbout?.length) parts.push(w.ui("uiFromFileTopics", { list: draft.knowsAbout.join(", ") }));
+  if (draft.hours?.trim()) parts.push(w.ui("uiFromFileHours", { hours: draft.hours.trim() }));
+  if (!parts.length) return "";
+  return `<p class="hint wb-from-file" id="from-file">${esc(w.ui("uiFromFile", { what: parts.join(" · ") }))}
+        <button type="button" class="inline-link" id="from-file-drop">${esc(w.ui("uiFromFileDrop"))}</button></p>`;
 }
 
 export function renderDescribeForm(draft: Draft, w: DescribeWords, importUrl: string | null = null): string {
@@ -273,7 +296,7 @@ export function renderDescribeForm(draft: Draft, w: DescribeWords, importUrl: st
   // Anything optional already typed keeps the fold open: nothing typed hides behind it.
   const more = OPTIONAL.some((f) => draft[f.key]);
   return `
-    <form id="f-describe" class="wb-form${more ? " more-open" : ""}" novalidate${located ? ` data-located="${esc(located)}"` : ""}>
+    <form id="f-describe" class="wb-form${more ? " more-open" : ""}" novalidate${located ? ` data-located="${esc(located)}"` : ""}${draft.pinFrom === "file" && draft.lat ? ` data-pin-file="1"` : ""}>
       ${kindChoice(kind, w)}
       ${importLine(draft, w, typed, importUrl)}
       ${name}
@@ -335,6 +358,9 @@ export function readDescribeForm(form: HTMLFormElement, draft: Draft): void {
     delete draft.areaServed;
     delete draft.fidelity;
   }
+  // The file's pin (#73) holds while the form still has it.
+  if (form.dataset.pinFile && draft.lat && draft.lon) draft.pinFrom = "file";
+  else delete draft.pinFrom;
 }
 
 /** The kind picked in the form: a space unless a network is. */

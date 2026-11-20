@@ -310,3 +310,35 @@ describe("tile A starts from a file someone already has (#73)", () => {
     expect(root.querySelector("#import")).toBeNull();
   });
 });
+
+describe("tile A's import never replaces typed work unseen (review of #73)", () => {
+  it("a file read while a draft exists asks first; Keep it leaves the draft, Replace it applies the file", async () => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    const opts = { ...options("onboarding"), draft: { name: "Mine" } as Draft, importFrom: "https://x.example/f.json", readFile: vi.fn(async (_url: string) => ({ draft: { name: "Theirs" } as Draft, notCarried: [] })) };
+    renderPage(root, tree, opts);
+    root.querySelector<HTMLButtonElement>("#import-go")!.click();
+    await vi.waitFor(() => expect(root.querySelector<HTMLElement>("#import-confirm")!.hidden).toBe(false));
+    expect(opts.draft.name).toBe("Mine");
+    root.querySelector<HTMLButtonElement>("#import-keep")!.click();
+    expect(opts.draft.name).toBe("Mine");
+    root.querySelector<HTMLButtonElement>("#import-go")!.click();
+    await vi.waitFor(() => expect(root.querySelector<HTMLElement>("#import-confirm")!.hidden).toBe(false));
+    root.querySelector<HTMLButtonElement>("#import-replace")!.click();
+    expect(opts.draft.name).toBe("Theirs");
+    expect(root.querySelector<HTMLInputElement>("#f-name")!.value).toBe("Theirs");
+    root.remove();
+  });
+
+  it("shows what tile A has no field for, and leaves it out on request", () => {
+    const root = document.createElement("div");
+    const draft: Draft = { name: "Ingegno", memberOf: ["urn:mak:network/maakbib"], sdgs: [4], knowsAbout: ["wood"], hours: "Thu 18-21" };
+    renderPage(root, tree, { ...options("onboarding"), draft });
+    const line = root.querySelector("#from-file")!.textContent!;
+    expect(line).toContain("maakbib");
+    expect(line).toContain("wood");
+    root.querySelector<HTMLButtonElement>("#from-file-drop")!.click();
+    expect(draft).toEqual({ name: "Ingegno" });
+    expect(root.querySelector("#from-file")).toBeNull();
+  });
+});

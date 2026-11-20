@@ -234,6 +234,7 @@ export function unpin(form: HTMLFormElement): void {
   for (const name of ["lat", "lon", "postcode", "place", "fidelity", "area", "areaName"]) set(form, name, "");
   if (form.querySelector<HTMLElement>('[data-manual="country"]')?.hidden) set(form, "country", "");
   delete form.dataset.located;
+  delete form.dataset.pinFile;
   // A search on its way is moot too (the kind switched, or the text changed). The offers stay until the next
   // answer replaces them (or the text gets too short): no flicker while typing.
   searches.delete(form);
@@ -261,6 +262,12 @@ export async function locate(form: HTMLFormElement, w: DescribeWords, done: () =
   if (!city) return;
   const key = `${street}|${city}|${country}`;
   if (form.dataset.located === key) return;
+  // The imported file's pin (#73): a country typed after it fills the country, it doesn't move the pin.
+  if (form.dataset.pinFile && form.dataset.located === `${street}|${city}|` && value(form, "lat") && value(form, "lon")) {
+    form.dataset.located = key;
+    done();
+    return;
+  }
   form.dataset.located = key;
 
   const started = Date.now();

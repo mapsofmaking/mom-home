@@ -75,6 +75,14 @@
   onb:uiImportUnavailable "The map isn't answering right now. Try again in a moment."@en ;
   onb:uiImportRate "Many files were read in the last minute. Try again in a moment."@en ;
   onb:uiNotCarried "Not carried over from your file: {keys}"@en ;
+  onb:uiImportReplaceAsk "This replaces everything typed here with what your file says."@en ;
+  onb:uiImportReplace "Replace it"@en ;
+  onb:uiFromFile "Also from your file, written as it is: {what}."@en ;
+  onb:uiFromFileDrop "Leave these out"@en ;
+  onb:uiFromFileNetworks "networks {list}"@en ;
+  onb:uiFromFileGoals "goals {list}"@en ;
+  onb:uiFromFileTopics "topics {list}"@en ;
+  onb:uiFromFileHours "hours {hours}"@en ;
   # The form's fields, in no order (the code orders them). onb:example fills "Fill in an
   # example": a space that doesn't exist, so nothing typed is mistaken for real. Its street
   # doesn't exist either: the pin falls back to the Marolles, and the pin line says so.

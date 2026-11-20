@@ -134,3 +134,52 @@ describe("readSpaceFile: the map's answer", () => {
     expect(await readSpaceFile("https://x.example/f", down)).toEqual({ problem: "unavailable" });
   });
 });
+
+describe("nothing is cut or dropped unsaid (review of #73)", () => {
+  const base = () => record("ingegno");
+
+  it("never cuts an address or a handle: too long, it is left out and named", () => {
+    const long = "https://example.org/" + "a".repeat(600);
+    const { draft, notCarried } = draftFromRecord({ ...base(), url: long, contact: { email: "x".repeat(400) + "@e.org" } });
+    expect(draft.website).toBeUndefined();
+    expect(draft.email).toBeUndefined();
+    expect(notCarried.some((k) => k.startsWith("url: https://example.org/"))).toBe(true);
+    expect(notCarried.some((k) => k.startsWith("contact.email: "))).toBe(true);
+  });
+
+  it("says when a text is cut, and keeps a description up to the map's 5000", () => {
+    const { draft, notCarried } = draftFromRecord({ ...base(), name: "N".repeat(250), description: "d".repeat(4000) });
+    expect(draft.name).toHaveLength(200);
+    expect(notCarried).toContain("name (cut at 200 characters)");
+    expect(draft.description).toHaveLength(4000);
+  });
+
+  it("names every network, goal and topic it doesn't keep, and coordinates out of range", () => {
+    const many = Array.from({ length: 52 }, (_, i) => "t" + i);
+    const { notCarried } = draftFromRecord({ ...base(), knowsAbout: [...many, ""], memberOf: ["javascript:x"], sdgs: [4, 30], lat: 95 });
+    expect(notCarried).toContain("knowsAbout: t50");
+    expect(notCarried).toContain("knowsAbout: t51");
+    expect(notCarried).toContain("knowsAbout: ");
+    expect(notCarried).toContain("memberOf: javascript:x");
+    expect(notCarried).toContain("sdgs: 30");
+    expect(notCarried).toContain("lat/lon: 95, 3.657383");
+  });
+
+  it("a network: an area, a fidelity or a country it can't keep are named", () => {
+    const { draft, notCarried } = draftFromRecord({ ...record("maakbib-pod"), areaServed: [{ code: "BE-VLG", name: "Flanders" }, { code: "Vlaanderen", name: "" }], geolocationFidelity: "street", country_code: "NL" });
+    expect(draft.areaServed).toEqual([{ code: "BE-VLG", name: "Flanders" }]);
+    expect(notCarried).toEqual(["areaServed: VLAANDEREN", "country_code: NL", "geolocationFidelity: street"]);
+  });
+
+  it.each([
+    ["Springfield, IL 62701", "Springfield"],
+    ["221B Baker Street, London SW1A 1AA", "London SW1A 1AA"],
+  ])("doesn't read %s as a town and a postcode it isn't", (address, city) => {
+    expect(splitAddress(address).city).toBe(city);
+  });
+
+  it("marks the pin as the file's own, so a country typed after doesn't move it", () => {
+    expect(draftFromRecord(base()).draft.pinFrom).toBe("file");
+    expect(draftFromRecord(record("maakbib-pod")).draft.pinFrom).toBeUndefined();
+  });
+});

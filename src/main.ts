@@ -122,7 +122,8 @@ function takeFrom(): string | null {
   const url = from.trim().slice(0, 2000);
   return /^https?:\/\/[^\s]+$/i.test(url) ? url : null;
 }
-const importFrom = takeFrom();
+/** Used once: a later onboarding view (after Start over, a sign-out) must not read the invitation's file again. */
+let importFrom = takeFrom();
 /** The hex panel's fold, one state for the page (page.ts). Signed in, S6 keeps it in settings/mom-home.ttl. */
 const fold: FoldState = { folded: null };
 
@@ -142,7 +143,11 @@ function renderOnboardingView(): void {
     mode: "onboarding",
     done,
     draft,
-    importFrom,
+    importFrom: (() => {
+      const once = importFrom;
+      importFrom = null;
+      return once;
+    })(),
     onDraft: keepDraft,
     fold,
     onSignIn: () => renderLoginView(),

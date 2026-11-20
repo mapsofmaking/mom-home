@@ -667,9 +667,27 @@ export function renderPage(root: HTMLElement, base: Tree, opts: PageOptions): Pa
       box.focus();
       return;
     }
+    // Something typed here (before, or while the file was read): asked first, never replaced unseen.
+    if (Object.keys(opts.draft).length) {
+      pendingImport = out.draft;
+      const el = status();
+      if (el) el.textContent = "";
+      const ask = step.querySelector<HTMLElement>("#import-confirm");
+      if (ask) ask.hidden = false;
+      step.querySelector<HTMLElement>("#import-replace")?.focus();
+      return;
+    }
+    applyImport(out.draft);
+  };
+  /** A file read and not yet applied, waiting for "Replace it". */
+  let pendingImport: Draft | null = null;
+  const applyImport = (next: Draft): void => {
+    pendingImport = null;
     for (const k of Object.keys(opts.draft)) delete (opts.draft as Record<string, unknown>)[k];
-    Object.assign(opts.draft, out.draft);
+    Object.assign(opts.draft, next);
     opts.onDraft?.(opts.draft);
+    // Read: the line goes (the form now holds the file; Start over brings it back).
+    importUrl = "";
     draw();
     const done = words.ui("uiImportDone");
     const el = status();
@@ -792,6 +810,23 @@ export function renderPage(root: HTMLElement, base: Tree, opts: PageOptions): Pa
       target.hidden = true;
       target.setAttribute("aria-expanded", "true");
       step.querySelector<HTMLInputElement>("#f-import")?.focus();
+      return;
+    }
+    if (target.id === "import-replace" || target.id === "import-keep") {
+      const next = pendingImport;
+      pendingImport = null;
+      const ask = step.querySelector<HTMLElement>("#import-confirm");
+      if (ask) ask.hidden = true;
+      if (target.id === "import-replace" && next) applyImport(next);
+      else step.querySelector<HTMLInputElement>("#f-import")?.focus();
+      return;
+    }
+    if (target.id === "from-file-drop") {
+      // What tile A has no field for leaves the draft, so it can't reach the file unseen.
+      for (const k of ["memberOf", "sdgs", "knowsAbout", "hours"] as const) delete opts.draft[k];
+      opts.onDraft?.(opts.draft);
+      draw();
+      step.querySelector<HTMLInputElement>("#f-name")?.focus();
       return;
     }
     if (target.id === "import-go") {

@@ -283,6 +283,7 @@ export function draftFromStore(raw: unknown): Draft {
     if (clean.length) out.areaServed = clean;
   }
   if (out.kind !== "network") delete out.kind;
+  if (out.pinFrom !== "file") delete out.pinFrom;
   return out as Draft;
 }
 
@@ -494,7 +495,8 @@ export function draftFromTurtle(turtle: string, base: string): Draft | null {
   Object.assign(
     draft,
     draftLists({
-      memberOf: momOf("memberOf").map((o) => o.value),
+      // A blank node has no IRI: never read as a slug (its label would become a network).
+      memberOf: momOf("memberOf").filter((o) => o.termType === "NamedNode" || o.termType === "Literal").map((o) => o.value),
       sdgs: momOf("sdgs").filter((o) => o.termType === "Literal").map((o) => o.value),
       knowsAbout: objects(subject, "knowsAbout").filter((o) => o.termType === "Literal").map((o) => o.value),
     })
