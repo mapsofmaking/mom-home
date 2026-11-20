@@ -214,7 +214,7 @@ describe("contacts become tile C's handles (#73, Nicolas 2026-11-20)", () => {
     const { turtle } = spaceFile(d);
     const lines = statements(turtle);
     expect(lines.some((l) => l.includes("schema.org/telephone") && l.includes("+32 9 123 45 67"))).toBe(true);
-    expect(lines.filter((l) => l.includes("contactType")).length).toBe(2);
+    expect(lines.filter((l) => l.includes(" https://schema.org/contactType ")).length).toBe(2);
     const back = draftFromTurtle(turtle, "https://pod.example/space.ttl")!;
     expect(back.contacts?.map((h) => [h.type, h.value])).toEqual([["phone", "+32 9 123 45 67"], ["link", "https://www.facebook.com/x/"], ["telegram", "https://t.me/abcd"]]);
     expect(sameStatements(spaceFile(back).turtle, turtle)).toBe(true);
