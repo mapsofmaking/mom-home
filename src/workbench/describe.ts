@@ -245,11 +245,12 @@ function importLine(draft: Draft, w: DescribeWords, typed: boolean, importUrl: s
   return `
       <div class="wb-import" id="import"${shown ? "" : " hidden"}>
         <button type="button" class="inline-link" id="import-open" aria-expanded="${open}" aria-controls="import-row"${open ? " hidden" : ""}>${esc(w.ui("uiImport"))}</button>
-        <div class="wb-import-row" id="import-row"${open ? "" : " hidden"}>
-          <label class="wb-field" for="f-import">${esc(w.ui("uiImportUrl"))}
+        <div class="wb-import-box" id="import-row"${open ? "" : " hidden"}>
+          <label class="wb-field-label" for="f-import">${esc(w.ui("uiImportUrl"))}</label>
+          <div class="wb-import-row">
             <input id="f-import" name="importUrl" type="url" inputmode="url" autocomplete="url" spellcheck="false" enterkeyhint="go" value="${esc(importUrl)}" />
-          </label>
-          <button type="button" class="btn" id="import-go">${esc(w.ui("uiImportGo"))}</button>
+            <button type="button" class="btn" id="import-go">${esc(w.ui("uiImportGo"))}</button>
+          </div>
         </div>
         <p class="wb-import-status" id="import-status" role="status"></p>
         <div class="wb-confirm" id="import-confirm" role="group" aria-labelledby="import-confirm-q" hidden>
