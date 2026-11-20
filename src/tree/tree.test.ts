@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { MAX_OPEN, tally, tileStates, type TileState } from "./fog";
+import { forKind } from "./kind";
 import { loadTree } from "./load";
 import { parseTree, TreeError, type Tile } from "./parse";
 
@@ -17,7 +18,7 @@ const tile = (id: string, extra = "", q = 0, r = 0) =>
 describe("parseTree, on the shipped tree", () => {
   it("reads every tile and word, in prio order", () => {
     expect(tree.tiles.map((t) => t.id)).toEqual([
-      "describe", "keep", "change", "join", "event", "answer", "second",
+      "describe", "keep", "welcome", "change", "join", "event", "answer", "second",
       "peers", "agenda", "discord", "handover", "mentor", "bridge",
     ]);
     expect(tree.words.map((w) => w.label)).toEqual([
@@ -33,6 +34,9 @@ describe("parseTree, on the shipped tree", () => {
     expect(by.mentor.emergent).toBe(true);
     expect(by.discord.planned).toBe(true);
     expect(by.describe).toMatchObject({ q: 0, r: 0, icon: "pin", act: "describe", preview: "mapcard" });
+    // A network's own tile (#69): only a network's tree has it.
+    expect(by.welcome).toMatchObject({ q: 0, r: 1, act: "welcome", forKind: "network", needsPod: true, requiresAll: ["keep"] });
+    expect(tree.tiles.filter((t) => t.forKind).map((t) => t.id)).toEqual(["welcome"]);
   });
 
   it("keeps every line Bernard speaks, by its local name", () => {
@@ -79,6 +83,11 @@ describe("parseTree refuses a tree that would draw a lie", () => {
     refuses(tile("a", "; onb:requiresAll :ghost"), /requires "ghost"/));
   it("refuses a word that isn't declared", () =>
     refuses(tile("a", "; onb:unlocksWord :ghost"), /unlocks "ghost"/));
+  it("refuses a kind no draft can have, and a tile that needs another kind's tile (2026-11-20)", () => {
+    refuses(tile("a", '; onb:forKind "maker"'), /onb:forKind "maker" is not one of space, network/);
+    refuses(tile("a", "", 0, 0) + tile("n", '; onb:forKind "network"', 1, 0) + tile("b", "; onb:requiresAll :n", 2, 0), /"b" requires "n", which only a network sees/);
+    expect(() => parseTree(HEAD + tile("a", "", 0, 0) + tile("n", '; onb:forKind "network"', 1, 0) + tile("b", '; onb:requiresAll :n ; onb:forKind "network"', 2, 0))).not.toThrow();
+  });
   it("refuses two tiles in one hex", () =>
     refuses(tile("a") + tile("b"), /"a" and "b" share the hex/));
   it("refuses a field with no key or no label, and two fields with one key (14.2 AC8)", () => {
@@ -144,7 +153,8 @@ describe("parseTree refuses a tree that would draw a lie", () => {
 });
 
 describe("fog rules (AC3)", () => {
-  const view = (...done: string[]) => tileStates(tree.tiles, new Set(done));
+  // As a space sees it: a network's own tile is not in its tree (kind.ts).
+  const view = (...done: string[]) => tileStates(forKind(tree, "space").tiles, new Set(done));
   const ids = (states: Map<string, TileState>, s: TileState) =>
     [...states].filter(([, v]) => v === s).map(([k]) => k);
 
@@ -160,6 +170,12 @@ describe("fog rules (AC3)", () => {
     expect(ids(s, "open")).toEqual(["change", "join", "event"]);
     expect(ids(s, "ready")).toEqual(["second", "handover"]);
     expect(tally(s)).toEqual({ cleared: 2, open: 3 });
+  });
+
+  it("a network sees its own tile first once it is published (2026-11-20: network tile first)", () => {
+    const s = tileStates(forKind(tree, "network").tiles, new Set(["describe", "keep"]));
+    expect(ids(s, "open")).toEqual(["welcome", "change", "join"]);
+    expect(ids(s, "ready")).toEqual(["event", "second", "handover"]);
   });
 
   it("shows a tile next to something open as a cue, the rest stay fog", () => {
@@ -206,7 +222,7 @@ describe("loadTree", () => {
     (async () => new Response(body, { status })) as unknown as typeof fetch;
 
   it("parses what the server sends", async () => {
-    expect((await loadTree("/onboarding.ttl", answer(TTL))).tiles).toHaveLength(13);
+    expect((await loadTree("/onboarding.ttl", answer(TTL))).tiles).toHaveLength(14);
   });
   it("turns a 404 into a TreeError", async () => {
     await expect(loadTree("/onboarding.ttl", answer("", 404))).rejects.toThrowError(/answered 404/);

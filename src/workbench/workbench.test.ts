@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { tileStates } from "../tree/fog";
 import { parseTree } from "../tree/parse";
+import { forKind } from "../tree/kind";
 import { hexPosition, renderHexView, tileLabel } from "./hexview";
 import { renderPreview } from "./previews";
 import { renderStep } from "./step";
@@ -12,7 +13,8 @@ import { metWords, renderWords } from "./words";
 import { renderHexRow } from "./hexrow";
 import { fallbackName } from "./who";
 
-const tree = parseTree(readFileSync(join(__dirname, "../../public/onboarding.ttl"), "utf8"));
+/** The tree as a space sees it (a network's own tile is left out, kind.ts): what these views were drawn for. */
+const tree = forKind(parseTree(readFileSync(join(__dirname, "../../public/onboarding.ttl"), "utf8")), "space");
 const byId = Object.fromEntries(tree.tiles.map((t) => [t.id, t]));
 /** Tile A's words, as the page reads them from the tree. */
 const W = describeWords(byId.describe);

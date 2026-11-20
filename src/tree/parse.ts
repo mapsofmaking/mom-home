@@ -20,6 +20,9 @@
  * (`uiCta`, `uiPinFound`), and `onb:field` nodes, one per
  * form field, keyed by `onb:key`. The code keeps what a field does (type,
  * required); the tree keeps what it says.
+ *
+ * `onb:forKind` gates a tile by the kind tile A picked (a network's own tile):
+ * data, read generically by kind.ts, never a kind named in a tile's code.
  */
 import { Parser, type Quad, type Term } from "n3";
 
@@ -36,6 +39,14 @@ export type Lines = Readonly<Record<string, string>>;
  * (Not just "Network": `uiKindNetwork`, `uiNameNetwork` and `uiYourNetwork` already exist as lines of their own.)
  */
 export const NETWORK_SUFFIX = "ForNetwork";
+
+/**
+ * The kinds of thing a coordinator describes on tile A (2026-11-19). A tile with `onb:forKind` is drawn only for
+ * that kind (`forKind`, kind.ts, leaves it out of every other kind's tree): a network's own tile, which a space
+ * never sees. A tile without it is for every kind.
+ */
+export const TILE_KINDS = ["space", "network"] as const;
+export type TileKind = (typeof TILE_KINDS)[number];
 
 /** What a network says instead of the space's words on a tile; absent keys fall back to the space's. */
 export interface TileNetwork {
@@ -71,6 +82,8 @@ export interface Tile {
   emergent: boolean;
   /** Drawn but never opens: not built yet. */
   planned: boolean;
+  /** `onb:forKind`: drawn only for this kind (kind.ts); null for every kind. */
+  forKind: TileKind | null;
   act: string;
   preview: string | null;
   icon: string | null;
@@ -301,6 +314,10 @@ export function parseTree(turtle: string): Tree {
         if (value !== null && get(name) === null) throw new TreeError(`Tile "${id}" has onb:${name}${NETWORK_SUFFIX} but no onb:${name} for a space.`);
         return value;
       };
+      const kind = get("forKind");
+      if (kind !== null && !(TILE_KINDS as readonly string[]).includes(kind)) {
+        throw new TreeError(`Tile "${id}": onb:forKind "${kind}" is not one of ${TILE_KINDS.join(", ")}.`);
+      }
       const network: TileNetwork = { title: net("title"), cue: net("cue"), lead: net("lead"), leadShort: net("leadShort"), lines: said.network, ui: ui.network };
       tiles.push({
         id,
@@ -315,6 +332,7 @@ export function parseTree(turtle: string): Tree {
         needsPod: get("needsPod") === "true",
         emergent: get("emergent") === "true",
         planned: get("planned") === "true",
+        forKind: kind as TileKind | null,
         act: get("act") ?? "none",
         preview: get("preview"),
         icon: get("icon"),
@@ -390,6 +408,11 @@ export function parseTree(turtle: string): Tree {
   for (const t of tiles) {
     for (const req of [...t.requiresAll, ...t.requiresAny]) {
       if (!tileIds.has(req)) throw new TreeError(`Tile "${t.id}" requires "${req}", which is not a tile.`);
+      // A kind's tree leaves out the other kinds' tiles: a requirement on one would point at nothing there.
+      const needed = tiles.find((x) => x.id === req)!;
+      if (needed.forKind && needed.forKind !== t.forKind) {
+        throw new TreeError(`Tile "${t.id}" requires "${req}", which only a ${needed.forKind} sees.`);
+      }
     }
     if (t.unlocksWord && !wordIds.has(t.unlocksWord)) {
       throw new TreeError(`Tile "${t.id}" unlocks "${t.unlocksWord}", which is not a word.`);

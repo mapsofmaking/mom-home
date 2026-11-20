@@ -16,4 +16,5 @@ export const ICONS: Readonly<Record<string, string>> = {
   chat:"M2 3h8v5H5l-2 2V8H2z M7 10h3l2 2v-2h2V6h-2",
   key:"M6 10a3 3 0 1 1 0-6 3 3 0 0 1 0 6z M8.2 8.2l5.3 5.3 M11.5 11.5 13 10",
   "person-plus":"M6 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4z M2.5 13c0-2.2 1.6-4 3.5-4s3.5 1.8 3.5 4 M12 5v4 M10 7h4",
+  door:"M4 13.5v-11h8v11 M2.5 13.5h11 M9.5 8h.01",
   bridge:"M1.5 11h13 M1.5 11c2-4 11-4 13 0 M4.5 8.6V11 M8 7.8V11 M11.5 8.6V11"};

@@ -381,7 +381,8 @@ export function renderPage(root: HTMLElement, base: Tree, opts: PageOptions): Pa
     const states = tileStates(tree.tiles, doneNow(), completable);
     const { cleared, open } = tally(states);
     tallyEl.innerHTML = `Cleared <b>${cleared}</b> · Open <b>${open}</b>`;
-    if (!selected || states.get(selected) === "fog") {
+    // A tile this kind's tree doesn't have (the kind changed on tile A) is no selection either.
+    if (!selected || !states.has(selected) || states.get(selected) === "fog") {
       // An open tile, else the first one reached, never a fog tile ("Still to discover" reads as a dead page).
       selected = (
         tree.tiles.find((t) => states.get(t.id) === "open") ??
