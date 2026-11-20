@@ -315,6 +315,55 @@ throwaway pod (`zz-` address), at 1541×751 and on a phone.
 
 ---
 
+## 14 · A network welcomes its members (#69)
+
+A network's own tile, "Welcome your members" (hex q0 r1), turns its pod into a Solid collective: `inbox/`,
+`config.ttl` (public) and `membres.ttl` (only the owner reads it), and ends on the invitation link. Accepting
+and refusing happen in the backoffice. Run on production with throwaway accounts (`zz-` addresses), at
+1541×751, with the browser's network tab open.
+
+**(a) A new network, end to end.**
+
+**Do:** signed out, tile A: "A network", name "ZZ Net", area "Flanders", a description. "Publish it", the pod
+door, create `zz-net`, sign in, "Put it on the map". Then the welcome tile (it opens first). Check the
+description is prefilled from tile A's, type a title, press "Open it to members". Copy the link. In a private
+window, open it, sign in to the backoffice as another `zz-` account, "Ask to join". Back in the backoffice
+signed in as `zz-net`, accept the request.
+
+**Expect:**
+- A space never sees this tile (describe a space in a fresh tab: no hex at q0 r1).
+- The form is one Bernard line, two fields, one button; no pop-up, no scroll at 1541×751.
+- In the network tab, in this order: `PUT inbox/`, `PUT inbox/.acl`, `PUT membres.ttl`, `PUT membres.ttl.acl`,
+  `PUT config.ttl`, `PUT config.ttl.acl`, one `PATCH space.ttl`; every PUT with `If-None-Match: *`, the PATCH
+  with `If-Match` and an insert only. Nothing under `/profile/`.
+- `config.ttl` reads `<#zz-net> a sc:Collective, foaf:Group`, `foaf:name "ZZ Net"`, the title and description
+  under `https://schema.org/`, `sc:roster <membres.ttl>`, `ldp:inbox <inbox/>`, `rdfs:seeAlso <space.ttl#space>`.
+  `space.ttl` gained `rdfs:seeAlso <…/config.ttl#zz-net>` and nothing else changed.
+- The tile ends on the link `https://backoffice.mapsofmaking.org/?collective=https://zz-net.pod.mapsofmaking.org/config.ttl`,
+  Copy puts it on the clipboard, and "Requests to join arrive in the backoffice" opens the backoffice.
+- The backoffice shows the invitation with the title and description typed here. Ask to join works; Accept
+  works, with **no 404** (the roster is there), and the new member can then read `membres.ttl`.
+- Signed out and in again: the tile is done (read from the pod) and shows the link. Pressing nothing writes
+  nothing.
+- Anonymously (a private window, no sign-in), `config.ttl` reads; `membres.ttl` and `inbox/` answer 401.
+- Press again after a run that stopped (cut the network mid-setup): `PUT inbox/` answers 409 on CSS 7.3 and is
+  read as "already there"; the run carries on and nothing is written twice.
+
+**(b) Maakbib, made by hand: done, nothing written.**
+
+**Do:** sign in to home as Maakbib's account (its `config.ttl` names `members.ttl`, not `membres.ttl`). Open
+the welcome tile.
+
+**Expect:** the tile is done and shows Maakbib's invitation link. The tile's requests are GET and HEAD only
+(`config.ttl`, `members.ttl`, `inbox/`): **no PUT and no PATCH** to `config.ttl`, `members.ttl`, `membres.ttl`,
+`inbox/`, `space.ttl` or any `.acl`, and `space.ttl` is not even read by the tile. One write is expected, once,
+and is not the tile's: the sign-in brings home's section of `settings/README.md` up to date, because the
+footprint list grew with this slice (and, if the space isn't in the public Type Index yet, it is listed there).
+
+**Observed:**
+
+---
+
 ## UX review
 
 Not machine-checkable. Answer these per release, about whatever screens the app

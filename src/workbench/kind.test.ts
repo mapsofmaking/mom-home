@@ -15,6 +15,7 @@ const tree = parseTree(readFileSync(join(__dirname, "../../public/onboarding.ttl
 const net = forKind(tree, "network");
 const tileOf = (t: typeof tree, id: string) => t.tiles.find((x) => x.id === id)!;
 const space = /\bspace\b|\bspace's\b|workshop|opening hours/i;
+const network: Draft = { kind: "network", name: "Maakbib", areaServed: [{ code: "BE-VLG", name: "Flanders" }] };
 
 beforeEach(() => {
   vi.stubGlobal("ResizeObserver", class { disconnect() {} observe() {} });
@@ -34,9 +35,27 @@ const open = (draft: Draft, tile: string, done = ["describe", "keep"], extra = {
 const said = (root: HTMLElement) => root.querySelector("#step")!.textContent!.replace(/\s+/g, " ");
 
 describe("forKind", () => {
-  it("is the tree itself for a space, or when no kind is picked yet", () => {
-    expect(forKind(tree, "space")).toBe(tree);
-    expect(forKind(tree, undefined)).toBe(tree);
+  it("is one tree for a space, or when no kind is picked yet, and the same one each time", () => {
+    expect(forKind(tree, "space")).toBe(forKind(tree, undefined));
+    expect(forKind(tree, "space")).toBe(forKind(tree, "space"));
+    expect(forKind(tree, "network")).toBe(net);
+  });
+
+  it("leaves a network's own tile out of a space's tree (onb:forKind, 2026-11-20)", () => {
+    expect(forKind(tree, "space").tiles.map((t) => t.id)).not.toContain("welcome");
+    expect(forKind(tree, undefined).tiles.map((t) => t.id)).not.toContain("welcome");
+    expect(net.tiles.map((t) => t.id)).toContain("welcome");
+    // Everything else is the same tiles, in the same order.
+    expect(forKind(tree, "space").tiles.map((t) => t.id)).toEqual(tree.tiles.filter((t) => t.id !== "welcome").map((t) => t.id));
+  });
+
+  it("never draws the network's tile for a space", () => {
+    const s = open({ name: "Weld Done", city: "Marolles" }, "change");
+    expect(s.querySelector('#hexes button[data-tile="welcome"]')).toBeNull();
+    s.remove();
+    const n = open(network, "change");
+    expect(n.querySelector('#hexes button[data-tile="welcome"]')).not.toBeNull();
+    n.remove();
   });
 
   it("lays a network's variants over the space's lines and leaves the rest alone", () => {
@@ -68,7 +87,6 @@ describe("forKind", () => {
 });
 
 describe("tiles speak to the kind picked", () => {
-  const network: Draft = { kind: "network", name: "Maakbib", areaServed: [{ code: "BE-VLG", name: "Flanders" }] };
 
   it("tile C, first visit: a network sets contact hours; a space sets opening hours", () => {
     const n = open(network, "change");

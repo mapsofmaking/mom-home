@@ -18,6 +18,15 @@ describe("done is read from the space's file (#11)", () => {
     expect(await DONE_CHECKS.describe({ ...base, space, spaceData: { ...network, areaServed: [] } })).toBe(false);
   });
 
+  it("welcome (#69): done only when the pod says the collective is whole", async () => {
+    const configUrl = "https://a.pod.example/config.ttl";
+    const collective = { configUrl, group: configUrl + "#a", name: "A", roster: "https://a.pod.example/members.ttl", inbox: "https://a.pod.example/inbox/", sharing: false as const };
+    expect(await DONE_CHECKS.welcome({ ...base, space, collective: { state: "done", configUrl, collective, link: "x" } })).toBe(true);
+    expect(await DONE_CHECKS.welcome({ ...base, space, collective: { state: "incomplete", configUrl, collective, missing: ["roster"] } })).toBe(false);
+    expect(await DONE_CHECKS.welcome({ ...base, space, collective: { state: "none", configUrl } })).toBe(false);
+    expect(await DONE_CHECKS.welcome({ ...base, space, collective: null })).toBe(false);
+  });
+
   it("keep: a file in the pod is not published until it is on the map (S3)", async () => {
     expect(await DONE_CHECKS.keep({ ...base, space, spaceData: full })).toBe(false);
     expect(await DONE_CHECKS.keep({ ...base, space, spaceData: full, onMap: true })).toBe(true);

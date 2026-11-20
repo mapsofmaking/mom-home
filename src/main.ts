@@ -40,6 +40,8 @@ import { moveSpace } from "./lib/move";
 import { loadProfile, saveProfile } from "./lib/profile";
 import { makeSpacePublic, PublishError, readSpaceAt, readSpaceFile, spaceFileUrl, spaceIsPublic, writeSpaceFile } from "./lib/publish";
 import { registerSpace, spacesInPublicIndex } from "./lib/typeindex";
+import { readCollective, setUpCollective, type CollectiveState } from "./lib/collective";
+import { forKind } from "./tree/kind";
 import type { Draft } from "./workbench/previews";
 import type { Tree } from "./tree/parse";
 
@@ -203,6 +205,15 @@ function renderWorkbenchView(
     moveSpace: pod ? (next) => moveSpace(spaceFileUrl(pod.root), next) : undefined,
     // Tile C on a later visit (S4, #39): the whole profile, read from the space file and saved to it in one patch.
     profileTool: pod ? { load: () => loadProfile(spaceFileUrl(pod.root), tree!.profile), save: (edit) => saveProfile(spaceFileUrl(pod.root), tree!.profile, edit) } : undefined,
+    // The welcome tile (#69): the network as a collective, read from the pod root and set up there. Only a network's
+    // tree has the tile (onb:forKind), so a space never reaches these.
+    welcome: pod
+      ? {
+          load: () => readCollective(pod.root),
+          setUp: (words) =>
+            setUpCollective({ podRoot: pod.root, webId: pod.webId, name: draft.name ?? "", slogan: words.slogan, description: words.description, spaceFile: spaceFileUrl(pod.root) }),
+        }
+      : undefined,
     // The file as the pod held it at sign-in: tile C shows it before the first change (C1).
     spaceText: pod?.spaceText ?? null,
     // Already on the map at sign-in: tile B shows the threshold, read from the pod and the map.
@@ -328,10 +339,21 @@ async function main(): Promise<void> {
     if (found && published && !listed.includes(found.space)) listSpace(webId, root, found.url);
     // Home has written to this pod: its README section says what (#48). Quietly, and only if it changed.
     else if (found) void keepReadme(root);
+    // The tree as the space's kind reads it: a tile of another kind is neither drawn nor checked.
+    const kinded = forKind(tree!, found?.draft.kind);
+    // A network's collective (#69), read once here for its tile's done check. A 401 there is the error view's "sign in
+    // again", like the space file's; anything else (a 403 included) costs the tile's done, and the tile says why.
+    const collective: CollectiveState | null = kinded.tiles.some((t) => t.act === "welcome")
+      ? await readCollective(root).catch((err) => {
+          if (err instanceof PublishError && err.code === "expired") throw err;
+          console.warn("Could not read the network's collective:", err);
+          return null;
+        })
+      : null;
     // Settings that can't be read cost the remembered fold, not the page.
     const [name, doneOnPod, settings] = await Promise.all([
       displayName(webId),
-      readDone(tree!, { webId, podRoot: root, space: found?.space ?? null, spaceData: found?.draft ?? null, onMap: published !== null }),
+      readDone(kinded, { webId, podRoot: root, space: found?.space ?? null, spaceData: found?.draft ?? null, onMap: published !== null, collective }),
       readHomeSettings(root).catch((err): HomeSettings => {
         console.warn("Could not read settings/mom-home.ttl:", err);
         return { folded: null, seen: [] };

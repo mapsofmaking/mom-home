@@ -230,3 +230,6 @@
   .wb-flow { display: grid; grid-template-columns: minmax(0, 1fr) 16px minmax(0, 1fr); gap: var(--space-8); align-items: start; }
   .wb-flow-arrow { display: block; align-self: center; font: 600 18px/1 var(--font-mono); color: var(--muted); text-align: center; }
 }
+
+/* The welcome tile's invitation (#69): a long address wraps rather than pushing the step sideways. */
+.wb-welcome-link { margin: 0; overflow-wrap: anywhere; font-size: 13px; }

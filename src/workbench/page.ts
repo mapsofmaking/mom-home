@@ -90,6 +90,8 @@ import { moveIdle, moveWords, renderMovePanel, type MoveState } from "./move";
 import { findPlace as geocode, shortPlace } from "./where";
 import type { Tile } from "../tree/parse";
 import { mountTool, type ToolHandle } from "./tool";
+import { mountWelcome, type WelcomeHandle, type WelcomeWords } from "./welcome";
+import type { CollectiveState } from "../lib/collective";
 import type { Edit, Profile, SaveResult } from "../lib/profile";
 import type { MoveResult, Place } from "../lib/move";
 
@@ -151,6 +153,11 @@ export interface PageOptions {
   findPlace?: typeof geocode;
   /** The space file's text as the pod held it at sign-in: tile C shows it (14.6, live sources only). */
   spaceText?: string | null;
+  /**
+   * The welcome tile (#69), signed in with a pod: the collective read from the pod, and set up there. Absent:
+   * signed out, and the tile says it needs the pod.
+   */
+  welcome?: { load: () => Promise<CollectiveState>; setUp: (words: WelcomeWords) => Promise<CollectiveState> };
 }
 
 /** null: never set, the width decides. */
@@ -289,6 +296,9 @@ export function renderPage(root: HTMLElement, base: Tree, opts: PageOptions): Pa
   const toolOpen = !!opts.profileTool && !!opts.draft.hours?.trim();
   let toolBox: HTMLElement | null = null;
   let tool: ToolHandle | null = null;
+  /** The welcome tile's box (#69), like the tool's: mounted once, put back where the step draws it. */
+  let welcomeBox: HTMLElement | null = null;
+  let welcome: WelcomeHandle | null = null;
   // Everything that outlives the markup (root and media-query listeners,
   // observers) is undone by destroy(), so a redraw never stacks a second set.
   const life = new AbortController();
@@ -381,7 +391,8 @@ export function renderPage(root: HTMLElement, base: Tree, opts: PageOptions): Pa
     const states = tileStates(tree.tiles, doneNow(), completable);
     const { cleared, open } = tally(states);
     tallyEl.innerHTML = `Cleared <b>${cleared}</b> · Open <b>${open}</b>`;
-    if (!selected || states.get(selected) === "fog") {
+    // A tile this kind's tree doesn't have (the kind changed on tile A) is no selection either.
+    if (!selected || !states.has(selected) || states.get(selected) === "fog") {
       // An open tile, else the first one reached, never a fog tile ("Still to discover" reads as a dead page).
       selected = (
         tree.tiles.find((t) => states.get(t.id) === "open") ??
@@ -410,9 +421,10 @@ export function renderPage(root: HTMLElement, base: Tree, opts: PageOptions): Pa
     clearTimeout(podTimer);
     // Published in this tab: tile C's card is the one the map gave back then.
     if (!hours.onMap && publish.onMap) hours = { ...hours, onMap: publish.onMap };
-    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, carded, words, offers, door, selfDone, selfFailed, pod, podReady: podReady?.pod ?? null, prior: opts.priorPod ?? null, makeAnother, publish: opts.publishSpace ? publish : null, hours: opts.saveHours ? hours : null, tool: toolOpen, logo: opts.uploadLogo && opts.draft.hours?.trim() ? logo : null, move: opts.moveSpace && opts.draft.hours?.trim() && opts.draft.kind !== "network" ? move : null });
+    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, carded, words, offers, door, selfDone, selfFailed, pod, podReady: podReady?.pod ?? null, prior: opts.priorPod ?? null, makeAnother, publish: opts.publishSpace ? publish : null, hours: opts.saveHours ? hours : null, tool: toolOpen, logo: opts.uploadLogo && opts.draft.hours?.trim() ? logo : null, move: opts.moveSpace && opts.draft.hours?.trim() && opts.draft.kind !== "network" ? move : null, welcome: !!opts.welcome });
     step.scrollTop = 0;
     if (tile.act === "hours" && toolOpen) placeTool(tile);
+    if (tile.act === "welcome") placeWelcome(tile);
     if (tile.act === "threshold" && !offersAsked) askOffers();
     // The suggested address is checked as soon as the form opens (AC2): a bad one shows before the passphrase is reached.
     const podForm = step.querySelector<HTMLFormElement>("#f-pod");
@@ -450,6 +462,30 @@ export function renderPage(root: HTMLElement, base: Tree, opts: PageOptions): Pa
     mount.replaceWith(toolBox);
   };
 
+  /** The welcome tile's box goes where the step left its mount point; mounted (and the pod read) the first time. */
+  const placeWelcome = (tile: Tile) => {
+    const mount = step.querySelector<HTMLElement>("#welcome-mount");
+    if (!mount || !opts.welcome) return;
+    if (!welcomeBox) {
+      welcomeBox = document.createElement("div");
+      welcomeBox.className = "wb-welcome-box";
+      welcome = mountWelcome(welcomeBox, {
+        tile,
+        name: opts.draft.name ?? "",
+        description: opts.draft.description ?? "",
+        load: opts.welcome.load,
+        setUp: opts.welcome.setUp,
+        // The pod says done: the hexes say so in this tab too, as the next sign-in reads it from the pod.
+        onDone: () => {
+          if (doneNow().has(tile.id)) return;
+          doneHere.add(tile.id);
+          draw();
+        },
+      });
+    }
+    mount.replaceWith(welcomeBox);
+  };
+
   /** The draft follows what the file now says, so the other tiles' previews don't show an older space. */
   const keepDraft = (profile: Profile) => {
     const text = (key: string) => profile.values.get(key)?.text || undefined;
@@ -480,7 +516,7 @@ export function renderPage(root: HTMLElement, base: Tree, opts: PageOptions): Pa
 
   const select = (id: string) => {
     // A create is in flight: a redraw now would drop its answer (the form is replaced). Tiles wait for it.
-    if (creating || publishing || savingHours || savingLogo || moving) return;
+    if (creating || publishing || savingHours || savingLogo || moving || welcome?.busy()) return;
     podReady = null;
     selected = id;
     editing = false;
@@ -1310,6 +1346,7 @@ export function renderPage(root: HTMLElement, base: Tree, opts: PageOptions): Pa
   return {
     destroy() {
       tool?.destroy();
+      welcome?.destroy();
       life.abort();
       clearTimeout(podTimer);
       dropAllMaps();

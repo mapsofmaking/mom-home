@@ -223,10 +223,57 @@
   onb:uiPassMismatch "The two don't match."@en ;
   onb:doneWhen """ASK { <> pim:storage ?pod }  # or: the map knows the space's own URL""" .
 
+:welcome a onb:Tile ;
+  onb:icon "door" ;
+  onb:title "Welcome your members"@en ; onb:cue "Let members ask to join"@en ;
+  onb:q 0 ; onb:r 1 ; onb:prio 3 ;
+  onb:requiresAll :keep ; onb:needsPod true ;
+  # A network's own tile (2026-11-20, #69): a space's tree leaves it out (src/tree/kind.ts). The network becomes
+  # a Solid collective: an inbox for requests, config.ttl (public), its roster (only the owner reads it). Accepting
+  # and refusing stay in the backoffice; this tile ends on the invitation link.
+  onb:forKind "network" ;
+  onb:act "welcome" ;
+  onb:say "One link for your members. They ask to join, you answer each one in the backoffice. Nobody is in until you say yes."@en ;
+  onb:saidDone "That's your invitation. Send it to whoever belongs: their requests come to you, and you answer each one."@en ;
+  onb:uiWelcomeLoading "Reading your pod."@en ;
+  onb:uiWelcomeSlogan "Title for newcomers"@en ;
+  onb:uiWelcomeSloganPlaceholder "Join the {name} network"@en ;
+  onb:uiWelcomeDescription "What joining means"@en ;
+  onb:uiWelcomeDescriptionHint "Filled in from your network's description. It goes on the invitation only: say it for the people you invite."@en ;
+  onb:uiWelcomeGo "Open it to members"@en ;
+  onb:uiWelcomeWorking "Setting it up in your pod. This takes a few seconds."@en ;
+  onb:uiWelcomeUnfinished "This started once and didn't finish. Press the button: it carries on from what is in your pod, and nothing there is written twice."@en ;
+  onb:uiWelcomeFinish "Finish it"@en ;
+  onb:uiWelcomeLinkLabel "Your invitation"@en ;
+  onb:uiWelcomeCopy "Copy the link"@en ;
+  onb:uiWelcomeCopied "Copied."@en ;
+  onb:uiWelcomeRequests "Requests to join arrive in the backoffice ↗"@en ;
+  onb:uiWelcomeNeedsPod "This one sets up your network's pod: sign in to it, and it opens here."@en ;
+  onb:uiWelcomeNoName "Your network's file has no name yet. Give it one in the tile before this one, then press again."@en ;
+  onb:uiWelcomeExpired "Your session ended. Sign in again, then come back here: it carries on from what is in your pod."@en ;
+  onb:uiWelcomeNoAccess "Your pod says this account can't write there. Signing in again won't help: check who can edit it in the backoffice."@en ;
+  onb:uiWelcomeBroken "Your pod already has a collective file, config.ttl, and this page can't read it. It was left exactly as it is: fix it in the backoffice, then reload. What's wrong: {why}"@en ;
+  onb:uiWelcomeConflict "Something in your pod changed while this ran. Press again: it starts from what is there now."@en ;
+  onb:uiWelcomeRules "Who can reach part of your pod is set by rules this app doesn't understand, so they were left alone. The people who run the pod server can help."@en ;
+  onb:uiWelcomeWider "Anyone can already change your collective file, not only read it. That was left alone: check who can edit it in the backoffice."@en ;
+  onb:uiWelcomeNotPublic "Your collective file is in your pod, but reading it without signing in still fails. Press again."@en ;
+  onb:uiWelcomeUnreachable "The pod isn't answering. Press again in a moment."@en ;
+  onb:uiWelcomeRefused "Your pod said no. Press again; if it keeps saying no, the people who run the pod server can see why."@en ;
+  onb:uiWelcomeUnconfirmed "It went in, but reading it back didn't work. Press again: what is there isn't written twice."@en ;
+  onb:uiWelcomeRetry "Try again"@en ;
+  onb:uiWelcomeNoRead "Your pod says this account can't read part of it. Signing in again won't help: check who can see it in the backoffice."@en ;
+  onb:uiWelcomeNotOurs "Your pod already has a collective file, config.ttl, that this page didn't write, so it leaves it as it is. Missing: {missing}. Change it in the backoffice, then reload."@en ;
+  onb:uiWelcomeMissingRoster "the roster it names"@en ;
+  onb:uiWelcomeMissingInbox "the inbox it names"@en ;
+  onb:uiWelcomeMissingPublic "a rule letting anyone read config.ttl, which an invitation needs"@en ;
+  onb:uiWelcomeRosterTaken "A file called membres.ttl is already in your pod and holds something. It was left alone and isn't used: rename it in the backoffice, then press again."@en ;
+  onb:uiWelcomeConfigTaken "A collective file, config.ttl, is in your pod and this page didn't write it. It was left alone: check it in the backoffice."@en ;
+  onb:doneWhen """ASK { ?c a sc:Collective ; sc:roster ?roster ; ldp:inbox ?inbox }  # in config.ttl at the pod root; the roster and the inbox it names exist (followed, never assumed: Maakbib's roster is members.ttl)""" .
+
 :change a onb:Tile ;
   onb:icon "pencil" ;
   onb:title "Update it once"@en ; onb:cue "One edit, everywhere"@en ;
-  onb:q 2 ; onb:r -1 ; onb:prio 3 ;
+  onb:q 2 ; onb:r -1 ; onb:prio 4 ;
   onb:requiresAll :keep ;
   onb:act "hours" ; onb:preview "readers" ; onb:unlocksWord :endpoint ;
   onb:say "Hours change. Change them here. Once."@en ;
@@ -388,7 +435,7 @@
 :join a onb:Tile ;
   onb:icon "people" ;
   onb:title "Join your network"@en ; onb:cue "Show who you belong to"@en ;
-  onb:q 2 ; onb:r 0 ; onb:prio 4 ;
+  onb:q 2 ; onb:r 0 ; onb:prio 5 ;
   onb:requiresAll :keep ; onb:needsPod true ;
   onb:act "network" ; onb:preview "network" ; onb:unlocksWord :handshake ;
   onb:say "Name your network. I carry the request. They answer, not me."@en ;
@@ -398,7 +445,7 @@
 :event a onb:Tile ;
   onb:icon "calendar" ;
   onb:title "Post an event"@en ; onb:cue "Tell people what's on"@en ;
-  onb:q 1 ; onb:r 1 ; onb:prio 5 ;
+  onb:q 1 ; onb:r 1 ; onb:prio 6 ;
   onb:requiresAll :keep ;
   onb:act "event" ; onb:preview "mapcard" ;
   onb:say "A title and a date. It goes on your card."@en ;
@@ -408,7 +455,7 @@
 :answer a onb:Tile ;
   onb:icon "speech" ;
   onb:title "Let it answer for you"@en ; onb:cue "Stop answering the same question"@en ;
-  onb:q 3 ; onb:r -2 ; onb:prio 6 ;
+  onb:q 3 ; onb:r -2 ; onb:prio 7 ;
   onb:requiresAll :change ; onb:needsPod true ;
   onb:act "none" ; onb:preview "assistant" ; onb:unlocksWord :agent ;
   onb:say "Same questions every week. Give an assistant your folder. That folder, nothing else."@en ;
@@ -418,7 +465,7 @@
 :second a onb:Tile ;
   onb:icon "layers" ;
   onb:title "Show up on another map"@en ; onb:cue "More maps, no extra work"@en ;
-  onb:q 3 ; onb:r -1 ; onb:prio 7 ;
+  onb:q 3 ; onb:r -1 ; onb:prio 8 ;
   onb:requiresAll :keep ;
   onb:act "none" ; onb:preview "ohm" ; onb:unlocksWord :linkeddata ;
   onb:say "Other maps read what I index. Say yes and you're on them. Nothing to fill twice."@en ;
@@ -428,7 +475,7 @@
 :peers a onb:Tile ;
   onb:icon "network" ;
   onb:title "Find your peers"@en ; onb:cue "See who's around you"@en ;
-  onb:q 3 ; onb:r 0 ; onb:prio 8 ;
+  onb:q 3 ; onb:r 0 ; onb:prio 9 ;
   onb:requiresAll :join ; onb:needsPod true ;
   onb:act "peers" ; onb:preview "peers" ; onb:unlocksWord :webid ;
   onb:say "The spaces your network recognises. And what they have on their benches."@en ;
@@ -438,7 +485,7 @@
 :agenda a onb:Tile ;
   onb:icon "agenda" ;
   onb:title "Share your events"@en ; onb:cue "On your network's calendar too"@en ;
-  onb:q 2 ; onb:r 1 ; onb:prio 9 ;
+  onb:q 2 ; onb:r 1 ; onb:prio 10 ;
   onb:requiresAll :join , :event ; onb:needsPod true ;
   onb:act "none" ; onb:preview "agenda" ;
   onb:say "Your events on the network's calendar. You don't post twice."@en ;
@@ -448,7 +495,7 @@
 :discord a onb:Tile ;
   onb:icon "chat" ;
   onb:title "Answer where people talk"@en ; onb:cue "On Discord or Matrix too"@en ;
-  onb:q 4 ; onb:r -3 ; onb:prio 10 ;
+  onb:q 4 ; onb:r -3 ; onb:prio 11 ;
   onb:requiresAll :answer ; onb:planned true ;
   onb:say "Discord, Matrix. Where your people already talk. Not built yet."@en .
 
@@ -456,7 +503,7 @@
   onb:icon "key" ;
   onb:title "Hand over the space"@en ; onb:cue "When you move on, nothing breaks"@en ;
   onb:titleForNetwork "Hand over the network"@en ;
-  onb:q 1 ; onb:r 2 ; onb:prio 11 ;
+  onb:q 1 ; onb:r 2 ; onb:prio 12 ;
   onb:requiresAll :keep ; onb:needsPod true ;
   onb:act "none" ; onb:preview "handover" ; onb:unlocksWord :account ;
   onb:say "Coordinators move on. The space stays. Give the role mailbox to whoever's next."@en ;
@@ -467,14 +514,14 @@
 :mentor a onb:Tile ;
   onb:icon "person-plus" ;
   onb:title "Help a space join"@en ; onb:cue "Bring a neighbour"@en ;
-  onb:q 4 ; onb:r -1 ; onb:prio 12 ;
+  onb:q 4 ; onb:r -1 ; onb:prio 13 ;
   onb:requiresAll :peers ; onb:emergent true ;
   onb:say "Not drawn yet. It opens when people start doing it."@en .
 
 :bridge a onb:Tile ;
   onb:icon "bridge" ;
   onb:title "Bridge two maps"@en ; onb:cue "Carry news between maps"@en ;
-  onb:q 4 ; onb:r -2 ; onb:prio 13 ;
+  onb:q 4 ; onb:r -2 ; onb:prio 14 ;
   onb:requiresAll :second , :peers ; onb:emergent true ;
   onb:say "Not drawn yet. A space on two maps carries things across, so nobody relays by hand."@en .
 
