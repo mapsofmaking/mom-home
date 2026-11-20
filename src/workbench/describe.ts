@@ -74,6 +74,9 @@ export const UI_KEYS = [
   "uiStreetMissed", "uiNoResult", "uiUnavailable", "uiRate", "uiAddedScheme", "uiAddedRoom",
   "uiKind", "uiKindSpace", "uiKindNetwork", "uiNameNetwork", "uiAreaFound",
   "uiPinArea", "uiNoResultArea", "uiUnavailableArea", "uiRateArea", "uiYourNetwork", "uiServes", "uiHoursFact",
+  "uiImport", "uiImportUrl", "uiImportGo", "uiImportReading", "uiImportDone", "uiImportNotRead", "uiImportUnavailable",
+  "uiImportRate", "uiNotCarried", "uiImportReplaceAsk", "uiImportReplace", "uiFromFile", "uiFromFileDrop",
+  "uiFromFileNetworks", "uiFromFileGoals", "uiFromFileTopics", "uiFromFileHours",
 ] as const;
 export type UiKey = (typeof UI_KEYS)[number];
 
@@ -230,7 +233,57 @@ function locatedKey(draft: Draft): string | null {
   return `${draft.street ?? ""}|${draft.city}|`;
 }
 
-export function renderDescribeForm(draft: Draft, w: DescribeWords): string {
+/**
+ * "Already have a SpaceAPI file? Start from it" (#73): one line under the kind; pressed, a web address and
+ * "Read it". Offered while nothing is typed (it replaces the draft), or when the page was opened with
+ * `?from=<url>` (the address is already in the box). Signed in, never: tile A is read from the pod there.
+ */
+function importLine(draft: Draft, w: DescribeWords, typed: boolean, importUrl: string | null): string {
+  if (importUrl === null) return "";
+  const open = !!importUrl;
+  const shown = open || !typed;
+  return `
+      <div class="wb-import" id="import"${shown ? "" : " hidden"}>
+        <button type="button" class="inline-link" id="import-open" aria-expanded="${open}" aria-controls="import-row"${open ? " hidden" : ""}>${esc(w.ui("uiImport"))}</button>
+        <div class="wb-import-row" id="import-row"${open ? "" : " hidden"}>
+          <label class="wb-field" for="f-import">${esc(w.ui("uiImportUrl"))}
+            <input id="f-import" name="importUrl" type="url" inputmode="url" autocomplete="url" spellcheck="false" enterkeyhint="go" value="${esc(importUrl)}" />
+          </label>
+          <button type="button" class="btn" id="import-go">${esc(w.ui("uiImportGo"))}</button>
+        </div>
+        <p class="wb-import-status" id="import-status" role="status"></p>
+        <div class="wb-confirm" id="import-confirm" role="group" aria-labelledby="import-confirm-q" hidden>
+          <p id="import-confirm-q">${esc(w.ui("uiImportReplaceAsk"))}</p>
+          <button type="button" class="btn" id="import-replace">${esc(w.ui("uiImportReplace"))}</button>
+          <button type="button" class="inline-link" id="import-keep">${esc(w.ui("uiKeepIt"))}</button>
+        </div>
+      </div>${notCarriedLine(draft, w)}${fromFileLine(draft, w)}`;
+}
+
+/** What the file held and the draft can't: one line, every key named, never cut (nothing is dropped silently). */
+export function notCarriedLine(draft: Draft, w: DescribeWords): string {
+  const keys = draft.notCarried ?? [];
+  return keys.length ? `<p class="hint wb-not-carried" id="not-carried">${esc(w.ui("uiNotCarried", { keys: keys.join(", ") }))}</p>` : "";
+}
+
+/**
+ * What an import brought that tile A has no field for (#73): the networks, goals, topics and hours go into the
+ * file as they are, so the coordinator sees them here, on one line, and can leave them out.
+ */
+export function fromFileLine(draft: Draft, w: DescribeWords): string {
+  const parts: string[] = [];
+  // A network on the map is named by its slug (what the file said); another IRI as it is.
+  const nets = (draft.memberOf ?? []).map((m) => m.replace(/^urn:mak:network\//, ""));
+  if (nets.length) parts.push(w.ui("uiFromFileNetworks", { list: nets.join(", ") }));
+  if (draft.sdgs?.length) parts.push(w.ui("uiFromFileGoals", { list: draft.sdgs.join(", ") }));
+  if (draft.knowsAbout?.length) parts.push(w.ui("uiFromFileTopics", { list: draft.knowsAbout.join(", ") }));
+  if (draft.hours?.trim()) parts.push(w.ui("uiFromFileHours", { hours: draft.hours.trim() }));
+  if (!parts.length) return "";
+  return `<p class="hint wb-from-file" id="from-file">${esc(w.ui("uiFromFile", { what: parts.join(" · ") }))}
+        <button type="button" class="inline-link" id="from-file-drop">${esc(w.ui("uiFromFileDrop"))}</button></p>`;
+}
+
+export function renderDescribeForm(draft: Draft, w: DescribeWords, importUrl: string | null = null): string {
   const [name, street, city] = BEDROCK.map((f) => field(f, draft, w));
   const network = draft.kind === "network";
   const kind: Kind = network ? "network" : "space";
@@ -243,8 +296,9 @@ export function renderDescribeForm(draft: Draft, w: DescribeWords): string {
   // Anything optional already typed keeps the fold open: nothing typed hides behind it.
   const more = OPTIONAL.some((f) => draft[f.key]);
   return `
-    <form id="f-describe" class="wb-form${more ? " more-open" : ""}" novalidate${located ? ` data-located="${esc(located)}"` : ""}>
+    <form id="f-describe" class="wb-form${more ? " more-open" : ""}" novalidate${located ? ` data-located="${esc(located)}"` : ""}${draft.pinFrom === "file" && draft.lat ? ` data-pin-file="1"` : ""}>
       ${kindChoice(kind, w)}
+      ${importLine(draft, w, typed, importUrl)}
       ${name}
       ${beat("where", !!draft.name, `${part("space", !network, "wb-doors", `${street}${city}`)}${part("network", network, "", areaField(draft, w))}${whereOut(draft, w)}`)}
       ${beat(
@@ -304,6 +358,9 @@ export function readDescribeForm(form: HTMLFormElement, draft: Draft): void {
     delete draft.areaServed;
     delete draft.fidelity;
   }
+  // The file's pin (#73) holds while the form still has it.
+  if (form.dataset.pinFile && draft.lat && draft.lon) draft.pinFrom = "file";
+  else delete draft.pinFrom;
 }
 
 /** The kind picked in the form: a space unless a network is. */
@@ -385,6 +442,9 @@ export function syncCta(form: HTMLFormElement): void {
   if (cta) cta.disabled = !(filled(form, "name") && whereFilled(form) && pinned(form));
   // Nothing typed: the example. Something typed: the way back to nothing (AC7, the draft is kept).
   const typed = FIELDS.some((f) => filled(form, f.key)) || (kindOf(form) === "network" && !!areaBox(form)?.value.trim());
+  // The import line (#73) replaces the draft: offered while nothing is typed, or once its box is open.
+  const imp = form.querySelector<HTMLElement>("#import");
+  if (imp && form.querySelector<HTMLElement>("#import-row")?.hidden) imp.hidden = typed;
   const example = form.querySelector<HTMLElement>("#example");
   const over = form.querySelector<HTMLElement>("#start-over");
   if (example && over && example.hidden === !typed) {

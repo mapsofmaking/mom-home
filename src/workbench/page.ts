@@ -51,6 +51,7 @@ import {
   describeCommit,
   describeEdited,
   describeKeydown,
+  normalizeUrl,
   describeNormalise,
   fillExample,
   kindOf,
@@ -59,7 +60,8 @@ import {
   setKind,
   syncCta,
 } from "./describe";
-import { locate, pickArea, pinByHand, pinned, unpin } from "./where";
+import { locate, meterInto, pickArea, pinByHand, pinned, unpin } from "./where";
+import { readSpaceFile, type ReadOutcome } from "../lib/spaceapi-read";
 import { esc } from "./html";
 import { renderHexRow } from "./hexrow";
 import { renderHexView } from "./hexview";
@@ -98,6 +100,13 @@ import type { MoveResult, Place } from "../lib/move";
 export interface PageOptions {
   /** The session decides (AC1b). */
   mode: "onboarding" | "workbench";
+  /**
+   * Signed out, opened with `?from=<url>` (#73, the invitation's "claim your spot" link): tile A's import box holds
+   * it, and reads it at once when this browser has no draft of its own. The shell has taken it off the address.
+   */
+  importFrom?: string | null;
+  /** Reads a file through the map (#73); the app uses lib/spaceapi-read.ts, tests pass their own. */
+  readFile?: (url: string) => Promise<ReadOutcome>;
   /** Signed in: the name to show, "Signed in as <name>". */
   who?: string;
   /** Mutable: tiles done. Signed out, in this tab only (AC4); signed in, read from the pod (S6). */
@@ -231,6 +240,8 @@ export function renderPage(root: HTMLElement, base: Tree, opts: PageOptions): Pa
   // Back from the sign-in after creating the pod: tile B speaks first (AC6).
   let selected: string | null = opts.podReady ? (tree.tiles.find((t) => t.act === "threshold")?.id ?? null) : null;
   let editing = false;
+  /** Tile A's import box (#73): the address last read or given by `?from=`. */
+  let importUrl = opts.importFrom ?? "";
   let carded = false; // workbench: the card is shown from the draft; done stays the pod's to say
   /** Signed in, what this tab has seen done before S4 reads it from the pod (on the map: tile B). Never written anywhere. */
   const doneHere = new Set<string>();
@@ -421,7 +432,7 @@ export function renderPage(root: HTMLElement, base: Tree, opts: PageOptions): Pa
     clearTimeout(podTimer);
     // Published in this tab: tile C's card is the one the map gave back then.
     if (!hours.onMap && publish.onMap) hours = { ...hours, onMap: publish.onMap };
-    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, carded, words, offers, door, selfDone, selfFailed, pod, podReady: podReady?.pod ?? null, prior: opts.priorPod ?? null, makeAnother, publish: opts.publishSpace ? publish : null, hours: opts.saveHours ? hours : null, tool: toolOpen, logo: opts.uploadLogo && opts.draft.hours?.trim() ? logo : null, move: opts.moveSpace && opts.draft.hours?.trim() && opts.draft.kind !== "network" ? move : null, welcome: !!opts.welcome });
+    step.innerHTML = renderStep(tile, { tiles: tree.tiles, states, draft: opts.draft, editing, carded, words, offers, door, selfDone, selfFailed, pod, podReady: podReady?.pod ?? null, prior: opts.priorPod ?? null, makeAnother, publish: opts.publishSpace ? publish : null, hours: opts.saveHours ? hours : null, tool: toolOpen, logo: opts.uploadLogo && opts.draft.hours?.trim() ? logo : null, move: opts.moveSpace && opts.draft.hours?.trim() && opts.draft.kind !== "network" ? move : null, welcome: !!opts.welcome, importUrl: workbench ? null : importUrl });
     step.scrollTop = 0;
     if (tile.act === "hours" && toolOpen) placeTool(tile);
     if (tile.act === "welcome") placeWelcome(tile);
@@ -617,6 +628,74 @@ export function renderPage(root: HTMLElement, base: Tree, opts: PageOptions): Pa
     (step.querySelector<HTMLElement>('[data-go="keep"]') ?? step.querySelector<HTMLElement>(".wb-step-title"))?.focus();
   });
 
+  /**
+   * "Read it" (#73): the map reads the file, the draft becomes what it holds (it replaces what was typed: the line
+   * is offered only when nothing is, or by `?from=`), and the form is drawn again from it, with what the file held
+   * and the form can't named under the kind. Nothing is written anywhere; the coordinator goes through every beat.
+   */
+  let importing = false;
+  const runImport = async (form: HTMLFormElement): Promise<void> => {
+    const box = form.querySelector<HTMLInputElement>("#f-import");
+    const status = () => step.querySelector<HTMLElement>("#import-status");
+    if (!box || importing || workbench) return;
+    const url = normalizeUrl(box.value);
+    if (!url) {
+      box.focus();
+      return;
+    }
+    box.value = url;
+    importUrl = url;
+    importing = true;
+    const stop = meterInto((text) => {
+      const el = status();
+      if (el) el.textContent = text;
+    }, words.ui("uiImportReading"));
+    let out: ReadOutcome;
+    try {
+      out = await (opts.readFile ?? readSpaceFile)(url);
+    } finally {
+      stop();
+      importing = false;
+    }
+    if (!form.isConnected) return; // the page moved on meanwhile
+    if ("problem" in out) {
+      const el = status();
+      const line =
+        out.problem === "unread" ? words.ui("uiImportNotRead", { error: out.error })
+        : words.ui(out.problem === "rate" ? "uiImportRate" : "uiImportUnavailable");
+      if (el) el.textContent = line;
+      box.focus();
+      return;
+    }
+    // Something typed here (before, or while the file was read): asked first, never replaced unseen.
+    if (Object.keys(opts.draft).length) {
+      pendingImport = out.draft;
+      const el = status();
+      if (el) el.textContent = "";
+      const ask = step.querySelector<HTMLElement>("#import-confirm");
+      if (ask) ask.hidden = false;
+      step.querySelector<HTMLElement>("#import-replace")?.focus();
+      return;
+    }
+    applyImport(out.draft);
+  };
+  /** A file read and not yet applied, waiting for "Replace it". */
+  let pendingImport: Draft | null = null;
+  const applyImport = (next: Draft): void => {
+    pendingImport = null;
+    for (const k of Object.keys(opts.draft)) delete (opts.draft as Record<string, unknown>)[k];
+    Object.assign(opts.draft, next);
+    opts.onDraft?.(opts.draft);
+    // Read: the line goes (the form now holds the file; Start over brings it back).
+    importUrl = "";
+    draw();
+    const done = words.ui("uiImportDone");
+    const el = step.querySelector<HTMLElement>("#import-status");
+    if (el) el.textContent = done;
+    step.querySelector<HTMLInputElement>("#f-name")?.focus();
+    announce(done);
+  };
+
   // Tile A's keyboard flow (14.2 AC4); the form is redrawn with the step, so listen here.
   const describeForm = (event: Event) => (event.target as Element).closest<HTMLFormElement>("#f-describe");
   /** What the form holds now goes to the draft, and the shell keeps it (AC7). Never in the workbench: tile A isn't on the pod yet. */
@@ -637,9 +716,17 @@ export function renderPage(root: HTMLElement, base: Tree, opts: PageOptions): Pa
   if (resumed && !workbench && resumedWhere(resumed) && !pinned(resumed)) {
     void locate(resumed, words, located(resumed));
   }
+  // Opened with `?from=<url>` and nothing typed in this browser: read it now (what was typed here is newer).
+  if (resumed && !workbench && opts.importFrom && !Object.keys(opts.draft).length) void runImport(resumed);
   step.addEventListener("keydown", (event) => {
     const form = describeForm(event);
     if (!form) return;
+    // Enter in the import box reads the file; it never submits the form.
+    if (event.key === "Enter" && (event.target as HTMLInputElement).name === "importUrl") {
+      event.preventDefault();
+      void runImport(form);
+      return;
+    }
     describeKeydown(form, event);
     // Enter in a network's area box asks at once, and again after the geocoder was busy or away; the same
     // text already asked, or offered, is not asked twice (where.ts).
@@ -716,6 +803,37 @@ export function renderPage(root: HTMLElement, base: Tree, opts: PageOptions): Pa
       void locate(form, words, located(form));
       return;
     }
+    if (target.id === "import-open") {
+      const row = step.querySelector<HTMLElement>("#import-row");
+      if (!row) return;
+      row.hidden = false;
+      target.hidden = true;
+      target.setAttribute("aria-expanded", "true");
+      step.querySelector<HTMLInputElement>("#f-import")?.focus();
+      return;
+    }
+    if (target.id === "import-replace" || target.id === "import-keep") {
+      const next = pendingImport;
+      pendingImport = null;
+      const ask = step.querySelector<HTMLElement>("#import-confirm");
+      if (ask) ask.hidden = true;
+      if (target.id === "import-replace" && next) applyImport(next);
+      else step.querySelector<HTMLInputElement>("#f-import")?.focus();
+      return;
+    }
+    if (target.id === "from-file-drop") {
+      // What tile A has no field for leaves the draft, so it can't reach the file unseen.
+      for (const k of ["memberOf", "sdgs", "knowsAbout", "hours"] as const) delete opts.draft[k];
+      opts.onDraft?.(opts.draft);
+      draw();
+      step.querySelector<HTMLInputElement>("#f-name")?.focus();
+      return;
+    }
+    if (target.id === "import-go") {
+      const form = step.querySelector<HTMLFormElement>("#f-describe");
+      if (form) void runImport(form);
+      return;
+    }
     if (target.id === "example") {
       const form = step.querySelector<HTMLFormElement>("#f-describe")!;
       fillExample(form, words);
@@ -731,6 +849,7 @@ export function renderPage(root: HTMLElement, base: Tree, opts: PageOptions): Pa
       askStartOver(step.querySelector<HTMLFormElement>("#f-describe")!, target.id === "start-over");
     } else if (target.id === "clear-yes") {
       for (const k of Object.keys(opts.draft)) delete (opts.draft as Record<string, unknown>)[k];
+      importUrl = "";
       opts.onDraft?.(opts.draft);
       // Signed out, a card with nothing behind it isn't done either.
       if (!workbench) opts.done.delete("describe");

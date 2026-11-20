@@ -1,0 +1,57 @@
+{
+  "validation": {
+    "reachable": true,
+    "status_code": 200,
+    "schema_valid": true,
+    "name_found": "Mother Sands",
+    "coords_found": true,
+    "lat": 51.65,
+    "lon": 1.7,
+    "kind": "space",
+    "subset": "spaceapi:compatible",
+    "subset_score": 3,
+    "missing_card_fields": [],
+    "unlock_message": "Full SpaceAPI compatibility — interoperable with mapall.space and other SpaceAPI maps.",
+    "next_subset": null,
+    "next_unlock": null,
+    "media_type": "application/json"
+  },
+  "record": {
+    "name": "Mother Sands",
+    "address": "Maunsell Fort, North Sea",
+    "country_code": "sol-3",
+    "timezone": "UTC+0",
+    "logo": "https://mapsofmaking.org/mother-sands-logo.png",
+    "url": "https://mothersands.example.org",
+    "description": "A canary space located on a Maunsell Fort in the North Sea, used to monitor the health of the fishtems and provide early warning of any issues.",
+    "opening_hours": "closed during low tide because they are out dredging sea floor for material.",
+    "geolocationFidelity": null,
+    "lat": 51.65,
+    "lon": 1.7,
+    "contact": {
+      "email": "bernard@mothersands.example.org",
+      "irc": "#mothersands",
+      "twitter": "@mothersands"
+    },
+    "memberOf": [
+      "urn:mak:network/canary",
+      "urn:mak:network/vulca"
+    ],
+    "sdgs": [
+      9,
+      11,
+      12,
+      14,
+      17
+    ],
+    "knowsAbout": [],
+    "areaServed": [],
+    "kind": "space",
+    "unmapped": [
+      "ext_canary",
+      "ext_fab",
+      "issue_report_channels",
+      "state"
+    ]
+  }
+}

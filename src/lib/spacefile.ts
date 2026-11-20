@@ -190,6 +190,72 @@ export const cleanFidelity = (value: string | undefined): string | null => {
 
 export const isNetwork = (draft: Pick<Draft, "kind">) => draft.kind === "network";
 
+/** A network on the map: `urn:mak:network/<slug>` (the map's `safe_iri(networks=True)`). */
+const NETWORK_IRI = /^urn:mak:network\/[a-z0-9_-]{1,64}$/;
+const MAX_LIST = 50;
+const MAX_TOPIC = 200;
+
+/**
+ * A network a space names (#73): `urn:mak:network/<slug>`, or a plain http(s) IRI (a collective's config.ttl);
+ * a bare slug ("maakbib") is the map's `urn:mak:network/maakbib`. null for anything else (`javascript:`, a
+ * space, an IRI with what could end it): the map's own check, so home never writes what the map would drop.
+ */
+export function memberIri(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const text = value.trim();
+  if (!text) return null;
+  if (!text.includes(":")) return memberIri(`urn:mak:network/${text.toLowerCase()}`);
+  if (NETWORK_IRI.test(text)) return text;
+  return /^https?:/i.test(text) ? plainIri(text) : null;
+}
+
+/** The networks, as IRIs the map reads: once each, in the order given, at most 50. */
+export function cleanMemberOf(values: readonly unknown[] | undefined): string[] {
+  const out: string[] = [];
+  for (const v of Array.isArray(values) ? values : []) {
+    const iri = memberIri(v);
+    if (iri && !out.includes(iri)) out.push(iri);
+  }
+  return out.slice(0, MAX_LIST);
+}
+
+/** The UN goals, 1 to 17 (whole numbers, or their text), once each, sorted (the map sorts them too). */
+export function cleanSdgs(values: readonly unknown[] | undefined): number[] {
+  const out = new Set<number>();
+  for (const v of Array.isArray(values) ? values : []) {
+    const n = typeof v === "number" ? v : typeof v === "string" && /^\d{1,2}$/.test(v.trim()) ? Number(v) : NaN;
+    if (Number.isInteger(n) && n >= 1 && n <= 17) out.add(n);
+  }
+  return [...out].sort((a, b) => a - b);
+}
+
+/** The topics (`knowsAbout`): text, one line, trimmed, once each, in the order given; at most 50 of 200 characters. */
+export function cleanTopics(values: readonly unknown[] | undefined): string[] {
+  const out: string[] = [];
+  for (const v of Array.isArray(values) ? values : []) {
+    if (typeof v !== "string") continue;
+    // eslint-disable-next-line no-control-regex
+    const text = Array.from(v.replace(/[\u0000-\u001f\u007f]/g, " ").split(/\s+/).filter(Boolean).join(" ")).slice(0, MAX_TOPIC).join("");
+    if (text && !out.includes(text)) out.push(text);
+  }
+  return out.slice(0, MAX_LIST);
+}
+
+type Lists = Pick<Draft, "memberOf" | "sdgs" | "knowsAbout">;
+
+/** The three lists a draft may hold (#73), cleaned; a list left empty is absent. */
+export function draftLists(raw: { memberOf?: unknown; sdgs?: unknown; knowsAbout?: unknown }): Lists {
+  const out: Lists = {};
+  const list = (v: unknown) => (Array.isArray(v) ? v : []);
+  const memberOf = cleanMemberOf(list(raw.memberOf));
+  if (memberOf.length) out.memberOf = memberOf;
+  const sdgs = cleanSdgs(list(raw.sdgs));
+  if (sdgs.length) out.sdgs = sdgs;
+  const knowsAbout = cleanTopics(list(raw.knowsAbout));
+  if (knowsAbout.length) out.knowsAbout = knowsAbout;
+  return out;
+}
+
 /**
  * A draft kept in this browser, read back (main.ts): text fields only, as before, plus a network's areas (the
  * one list a draft holds, cleaned). A kind that isn't "network" is dropped: absent is a space.
@@ -198,6 +264,15 @@ export function draftFromStore(raw: unknown): Draft {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(raw)) if (typeof v === "string") out[k] = v;
+  // The lists (#73) and what an import did not carry over: cleaned here, never copied as they are (a string
+  // where a list belongs would pass the copy above).
+  for (const key of ["memberOf", "sdgs", "knowsAbout", "notCarried"]) delete out[key];
+  Object.assign(out, draftLists(raw as Record<string, unknown>));
+  const notCarried = (raw as { notCarried?: unknown }).notCarried;
+  if (Array.isArray(notCarried)) {
+    const kept = notCarried.filter((k): k is string => typeof k === "string" && !!k.trim()).map((k) => k.trim().slice(0, 200)).slice(0, 100);
+    if (kept.length) out.notCarried = kept;
+  }
   // A stored `areaServed` that is a string (damaged or hand-edited) must not pass the copy above:
   // cleanAreas maps over it, and a throw there would break tile A on every load (review of #67).
   delete out.areaServed;
@@ -208,6 +283,7 @@ export function draftFromStore(raw: unknown): Draft {
     if (clean.length) out.areaServed = clean;
   }
   if (out.kind !== "network") delete out.kind;
+  if (out.pinFrom !== "file") delete out.pinFrom;
   return out as Draft;
 }
 
@@ -296,6 +372,11 @@ export function spaceFile(draft: Draft): SpaceFile {
     if (value) add(key === "website" ? "schema:url" : "schema:logo", value);
     else dropped.push(key);
   }
+  // What an import brought (#73): the networks it names, its goals, its topics. Cleaned, so only what the map reads.
+  const lists = draftLists(draft);
+  if (lists.memberOf) add("mom:memberOf", lists.memberOf.map((m) => `<${m}>`).join(", "));
+  if (lists.sdgs) add("mom:sdgs", lists.sdgs.join(", "));
+  if (lists.knowsAbout) add("schema:knowsAbout", lists.knowsAbout.map(literal).join(", "));
 
   const turtle = [
     `@prefix schema: <${SCHEMA}> .`,
@@ -409,5 +490,16 @@ export function draftFromTurtle(turtle: string, base: string): Draft | null {
   }
   set("website", one(subject, "url"));
   set("logo", one(subject, "logo"));
+  // The lists (#73): a network by IRI (or the bare slug a hand-written file may hold), goals, topics.
+  const momOf = (p: string) => quads.filter((q) => q.subject.equals(subject) && q.predicate.value === MOM + p).map((q) => q.object);
+  Object.assign(
+    draft,
+    draftLists({
+      // A blank node has no IRI: never read as a slug (its label would become a network).
+      memberOf: momOf("memberOf").filter((o) => o.termType === "NamedNode" || o.termType === "Literal").map((o) => o.value),
+      sdgs: momOf("sdgs").filter((o) => o.termType === "Literal").map((o) => o.value),
+      knowsAbout: objects(subject, "knowsAbout").filter((o) => o.termType === "Literal").map((o) => o.value),
+    })
+  );
   return draft;
 }

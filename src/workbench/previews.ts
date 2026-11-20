@@ -43,8 +43,19 @@ export interface Draft {
   logo?: string;
   /** Tile C's (14.6): tile A doesn't ask for hours. */
   hours?: string;
-  /** The network this space belongs to (the join tile's, later): not the draft's own kind. */
-  network?: string;
+  /**
+   * The networks this space names (#73): IRIs the map reads (`urn:mak:network/<slug>`, or http(s)), from an
+   * imported file. Declared, not recognised: no preview shows them as a name (an IRI is not one).
+   */
+  memberOf?: string[];
+  /** The UN goals it works on, 1 to 17 (an import's `mom.sdgs`). */
+  sdgs?: number[];
+  /** Its topics (an import's `knowsAbout`). */
+  knowsAbout?: string[];
+  /** "file": the pin is the imported file's own (#73); typing a missing country then doesn't ask the geocoder again. */
+  pinFrom?: "file";
+  /** What an import found in the file and the draft can't hold (tile A says so, #73): keys, or "key: value". */
+  notCarried?: string[];
   event?: { title: string; date: string };
 }
 
@@ -66,7 +77,7 @@ const isNet = (d: Draft) => d.kind === "network";
 const name = (d: Draft, w: W = null) => esc(d.name || (isNet(d) ? (w?.yourNetwork ?? "") : "Your space"));
 /** Where a card says it is: the town for a space, the areas served for a network. */
 const where = (d: Draft, w: W) => (isNet(d) ? (w?.areas(d) ?? "") : (d.city ?? ""));
-const network = (d: Draft) => esc(d.network || "your network");
+const network = (_d: Draft) => "your network";
 const dash = `<em class="pv-empty">—</em>`;
 
 const facts = (rows: [string, string | undefined][]) =>
@@ -98,7 +109,7 @@ const PREVIEWS: Record<string, (d: Draft, w: W) => string> = {
     <div class="pv">
       <p class="pv-title">${name(d, w)}</p>
       <p><span class="pv-chip declared">${network(d)}</span></p>
-      <p class="pv-meta">Declared by ${name(d, w)}. ${esc(d.network || "Your network")} hasn't recognised it yet.</p>
+      <p class="pv-meta">Declared by ${name(d, w)}. Your network hasn't recognised it yet.</p>
     </div>`,
   assistant: (d, w) => `
     <div class="pv">
@@ -114,13 +125,13 @@ const PREVIEWS: Record<string, (d: Draft, w: W) => string> = {
     </div>`,
   peers: (d, w) => `
     <div class="pv">
-      <p class="pv-title">${esc(d.network || "Your network")}</p>
+      <p class="pv-title">Your network</p>
       <p class="pv-meta">Members both sides recognise</p>
       <p><span class="pv-chip">${name(d, w)}</span> <span class="pv-meta">and the other members, from their own files</span></p>
     </div>`,
   agenda: (d, w) => `
     <div class="pv">
-      <p class="pv-title">${esc(d.network || "Your network")} · agenda</p>
+      <p class="pv-title">Your network · agenda</p>
       <p class="pv-meta">${d.event ? `${esc(d.event.date)} · ${esc(d.event.title)} at ${name(d, w)}` : `Your events, beside your peers'.`}</p>
     </div>`,
   handover: (d, w) => `
