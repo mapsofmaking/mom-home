@@ -6,6 +6,42 @@ itself is tracked in issues and on the `mapsofmaking` org project; older story f
 
 Kit-level decisions (Solid, ACLs, sign-in) are ADRs in the kit repo; this file only records home's own.
 
+## 2026-11-20
+
+- **The networks epic, decided with Nicolas** (plan of 2026-11-20, epic #72). **Import is a URL read through the
+  map**: a space already on the map through a SpaceAPI-style JSON starts tile A from that file's address, read
+  by the map's API (no paste, no upload). **Moving the record proves ownership with `mom.movedTo` in the old
+  JSON**: the map swaps the endpoint only when the old file points at the new one. **Inviting the spaces that
+  claim to be members is copy text only**: home shows the words to send, Maps of Making sends nothing (no
+  mail, no mailto). **The network's tile comes first**: "Welcome your members" (#69) opens before tile C for a
+  network, because it is the network's door and it fixes the backoffice's accept failing on a missing roster.
+
+- **A tile can be for one kind only** (#69). `onb:forKind "network"` on a tile draws it only for a network:
+  `forKind` (`src/tree/kind.ts`) leaves it out of a space's tree (and out of a tree with no kind yet), so
+  nothing draws, opens or checks it there. It is data like the `*ForNetwork` words; no tile's code names a
+  kind. A tile may not require another kind's tile (the tree is refused).
+
+- **"Welcome your members": the network becomes a Solid collective from home** (#69, `review`). The tile writes,
+  each step only if missing and every new file with `If-None-Match: *`: `inbox/` (anyone signed in may
+  append, as the backoffice's `createInbox`), the roster `membres.ttl` with rules of its own (only the
+  owner), then `config.ttl` in the backoffice template's shape and public, then one line in `space.ttl`.
+  Accepting and refusing stay in the backoffice; the tile ends on the invitation link. Its parts:
+  - **No `/profile/` write.** Joins go to the inbox `config.ttl` names, and an Accept to the requester's own
+    inbox; the network's profile needs an `ldp:inbox` only if it joins another collective. The `/profile/`
+    rule of 2026-11-03 holds.
+  - **Done is read from the pod, following `sc:roster`.** `config.ttl` at the pod root parses (the
+    backoffice's `parseCollectiveConfig`, copied at `ea20fad`, kit ADR 004) and the roster and inbox it names
+    exist. The file name is never assumed: Maakbib's hand-made config names `members.ttl` and reads done with
+    nothing written. Only a 404 is "missing"; a 401 or 403 is the session, and nothing is written on it.
+    A `config.ttl` that doesn't parse is shown as it is and never rewritten.
+  - **Home writes `https://schema.org/` in `config.ttl`**, like `space.ttl`; the backoffice reads the slogan
+    and description under both `http://` and `https://`, so it needs no change.
+  - **The two descriptions stay apart, linked by `rdfs:seeAlso`** both ways (`config.ttl#slug` ↔
+    `space.ttl#space`), never `owl:sameAs`, which would merge them. The description is prefilled once from
+    `space.ttl` and then belongs to the invitation.
+  - **The invitation goes to MoM's backoffice**, `https://backoffice.mapsofmaking.org` (`BACKOFFICE_URL` in
+    `src/config.ts`): `/?collective=` and the address of `config.ttl`, encoded as the backoffice's own links.
+
 ## 2026-11-19
 
 - **Tiles speak to the kind picked, and a network's hours are contact hours** (Nicolas, 2026-11-19). After tile A,
