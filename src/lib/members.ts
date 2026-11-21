@@ -20,12 +20,12 @@ export interface Member {
   endpoint: string;
   /** A Turtle file (a pod's space.ttl) or still a JSON file. */
   onPod: boolean;
-  /** What the map shows on the card: `[{type, value}]`, email and matrix first. */
+  /** How to reach it, from what the map shows on the card: email, then Matrix. */
   contact: { type: string; value: string }[];
 }
 
-const FIRST = ["email", "matrix"];
-const rank = (type: string) => (FIRST.includes(type) ? FIRST.indexOf(type) : FIRST.length);
+/** The ways to reach a member (#74: "email or matrix"): the card's other handles (socials) are not a channel. */
+const REACH = ["email", "matrix"];
 
 /** The network's members, or [] when the map doesn't count it as a network yet (404). */
 export async function readMembers(networkFile: string, fetchImpl: Fetch = (u, i) => fetch(u, i)): Promise<Member[]> {
@@ -54,8 +54,8 @@ export async function readMembers(networkFile: string, fetchImpl: Fetch = (u, i)
     if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) return [];
     const contact = (Array.isArray(m.contact) ? m.contact : [])
       .map((c: Record<string, unknown>) => ({ type: str(c?.type), value: str(c?.value).trim() }))
-      .filter((c) => c.type && c.value)
-      .sort((a, b) => rank(a.type) - rank(b.type));
+      .filter((c) => REACH.includes(c.type) && c.value)
+      .sort((a, b) => REACH.indexOf(a.type) - REACH.indexOf(b.type));
     const endpoint = str(m.endpoint_url);
     return [{ id, name: str(m.name) || id, endpoint, onPod: str(m.media_type) === "text/turtle", contact }];
   });

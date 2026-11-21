@@ -18,7 +18,7 @@ describe("a network's members on the map (#74)", () => {
     expect(map.calls).toEqual([`/api/network-members?url=${encodeURIComponent(NET)}`]);
   });
 
-  it("keeps what the map says of each one: its card, its file, a pod or not, email and matrix first", async () => {
+  it("keeps what the map says of each one: its card, its file, a pod or not, and how to reach it (email, then Matrix)", async () => {
     const map = answer(200, {
       members: [
         { id: "ingegno", name: "Ingegno", endpoint_url: "https://gitlab.example/ingegno.json", media_type: "application/json",
@@ -29,7 +29,7 @@ describe("a network's members on the map (#74)", () => {
     });
     expect(await readMembers(NET, map.fetchImpl)).toEqual([
       { id: "ingegno", name: "Ingegno", endpoint: "https://gitlab.example/ingegno.json", onPod: false,
-        contact: [{ type: "email", value: "hello@ingegno.example" }, { type: "matrix", value: "#i:matrix.org" }, { type: "facebook", value: "https://fb.example/i" }] },
+        contact: [{ type: "email", value: "hello@ingegno.example" }, { type: "matrix", value: "#i:matrix.org" }] },
       { id: "weld-done", name: "weld-done", endpoint: "https://weld-done.pod.example/space.ttl", onPod: true, contact: [] },
     ]);
   });
