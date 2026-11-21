@@ -87,13 +87,13 @@ const door = (id: "pod" | "self", title: string, desc: string, where: string, ch
  * (lib/handoff.ts), never from stored progress: 14.4 writes the card, and the
  * done checks read the pod from then on.
  */
-export function renderPodReady(tile: Tile, pod: string, publishPanel = ""): string {
+export function renderPodReady(tile: Tile, pod: string, publishPanel = "", lead = tile.lines.saidPodReady): string {
   const ui = thresholdWords(tile);
   return `
     <div class="wb-step-head">
       <h2 class="wb-step-title" tabindex="-1">${esc(tile.title)}</h2>
     </div>
-    ${bernard(tile.lines.saidPodReady)}
+    ${bernard(lead)}
     <p class="wb-aside">${esc(ui("uiPodReadyAt"))}:
       <a class="inline-link mono" href="${esc(pod)}" target="_blank" rel="noopener">${esc(pod.replace(/^https?:\/\//, "").replace(/\/$/, ""))}</a></p>
     ${publishPanel}`;

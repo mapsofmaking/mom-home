@@ -15,7 +15,7 @@ import { bernard, esc } from "./html";
 import { hasPreview, renderPreview, type Draft } from "./previews";
 import type { PodMade } from "../lib/handoff";
 import type { PodFormState } from "./podform";
-import { onTheMap, renderPublish, renderPublishBox, type PublishState } from "./publish";
+import { onTheMap, publishLead, renderPublish, renderPublishBox, type PublishState } from "./publish";
 import { renderHours, type HoursState } from "./hours";
 import type { LogoState } from "./logo";
 import type { MoveState } from "./move";
@@ -190,7 +190,7 @@ export function renderStep(tile: Tile, ctx: StepContext): string {
   // Back from the sign-in, the first time: the pod is ready, and the button is right there.
   // Once on the map, the threshold wins over the one-shot pod-ready panel: that panel says the pod is empty.
   if (ctx.podReady && tile.act === "threshold" && !(ctx.publish && onTheMap(ctx.publish))) {
-    return renderPodReady(tile, ctx.podReady, ctx.publish ? renderPublishBox(tile, ctx.publish) : "");
+    return renderPodReady(tile, ctx.podReady, ctx.publish ? renderPublishBox(tile, ctx.publish) : "", publishLead(tile, ctx.publish, tile.lines.saidPodReady));
   }
   const state = ctx.states.get(tile.id) ?? "fog";
   if (state === "cue" || state === "ready") return comingStep(tile, state, ctx);

@@ -378,6 +378,35 @@ describe("on the map, and the threshold (14.4 S3, #13; AC4, AC4b)", () => {
     expect(text(root, "#step")).toContain(keep.ui.uiOnMapLive);
   });
 
+  it("name_taken is said quietly, with no button to press again, and Bernard says the file is in (#82)", async () => {
+    const putOnMap = vi.fn(async () => { throw new PublishError("map-name-taken", "x", 409); });
+    const root = open(vi.fn(async () => ok()), { putOnMap });
+    expect(root.querySelector(".bernard-voice")!.textContent).toBe(`— ${keep.lines.sayPublish}`);
+    await go(root);
+    expect(text(root, "#publish-status")).toBe(keep.ui.uiMapNameTaken);
+    expect(root.querySelector("#publish-status")!.className).not.toContain("is-error");
+    expect(root.querySelector("#publish-go")).toBeNull();
+    expect(root.querySelector(".bernard-voice")!.textContent).toBe(`— ${keep.lines.saidFileIn}`);
+    expect(putOnMap).toHaveBeenCalledTimes(1);
+  });
+
+  it("right after the sign-in, the pod-ready line gives way once the file is written (#82)", async () => {
+    const root = open(vi.fn(async () => ok()), {
+      podReady: { webId: "https://weld-done.pod.example/profile/card#me", pod: "https://weld-done.pod.example/" },
+      putOnMap: vi.fn(async () => { throw new PublishError("map-name-taken", "x", 409); }),
+    });
+    expect(root.querySelector(".bernard-voice")!.textContent).toBe(`— ${keep.lines.saidPodReady}`);
+    await go(root);
+    expect(root.querySelector(".bernard-voice")!.textContent).toBe(`— ${keep.lines.saidFileIn}`);
+    expect(root.querySelector("#publish-go")).toBeNull();
+  });
+
+  it("other map failures keep the button, for the retry", async () => {
+    const root = open(vi.fn(async () => ok()), { putOnMap: vi.fn(async () => { throw new PublishError("unreachable", "x"); }) });
+    await go(root);
+    expect(root.querySelector("#publish-go")).not.toBeNull();
+  });
+
   it("a map that doesn't answer is the map's silence, not the pod's", async () => {
     const root = open(vi.fn(async () => ok()), { putOnMap: vi.fn(async () => { throw new PublishError("unreachable", "x"); }) });
     await go(root);

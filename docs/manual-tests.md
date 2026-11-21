@@ -425,7 +425,8 @@ whatever its id); before #95 it made a second pin. (c) uses the canary, which ne
 `https://mapsofmaking.org/canary/mother-sands.json` and keep its name "Mother Sands" (the canary's id is always
 taken), publish through a `zz-mothersand` pod up to "Put it on the map". **Expect:** the file and public steps
 done; the map step says "A space with this name is already on the map, from another address, so the map kept that
-one. …", no "press again"; no second Mother Sands pin. Then delete the zz account with the admin TUI.
+one. …", no "press again" and no "Put it on the map" button left (#82); Bernard's line above says "Your file is in your
+pod, and anyone can read it.", not "Nothing is in it yet"; no second Mother Sands pin. Then delete the zz account with the admin TUI.
 
 ## UX review
 
