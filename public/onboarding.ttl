@@ -197,6 +197,8 @@
   onb:uiStepMapWorking "The map is reading your file."@en ;
   onb:uiStepMapDone "The map has it."@en ;
   onb:uiMapRefused "The map read your file and didn't take it. Check the description in the first tile, then press again."@en ;
+  onb:uiMapNameTaken "A space with this name is already on the map, from another address, so the map kept that one. Your file is in your pod and public. Your network can confirm you're that space."@en ;
+  onb:uiMapNameTakenForNetwork "A network with this name is already on the map, from another address, so the map kept that one. Your file is in your pod and public."@en ;
   onb:uiMapDown "The map isn't answering right now. Your file is in your pod and public: press again in a moment."@en ;
   onb:uiOnMapLive "On the map, live"@en ;
   onb:uiPinLate "The map is still drawing your pin. It shows there in a minute."@en ;
@@ -288,6 +290,33 @@
   onb:uiWelcomeMissingPublic "a rule letting anyone read config.ttl, which an invitation needs"@en ;
   onb:uiWelcomeRosterTaken "A file called membres.ttl is already in your pod and holds something. It was left alone and isn't used: rename it in the backoffice, then press again."@en ;
   onb:uiWelcomeConfigTaken "A collective file, config.ttl, is in your pod and this page didn't write it. It was left alone: check it in the backoffice."@en ;
+  # Your members on the map (#74): the spaces that name the network in their file (mom:memberOf), as the map counts
+  # them. Copy text only: MoM sends nothing. A claim is "declared" until the network accepts the space's join.
+  onb:uiMembersTitle "Spaces on the map that say they're in"@en ;
+  onb:uiMembersLoading "Asking the map."@en ;
+  onb:uiMembersNone "No space on the map names {name} in its file yet. Your invitation link above is how they join."@en ;
+  onb:uiMembersFailed "The map didn't answer, so this list can't be shown now. Your invitation link above still works."@en ;
+  onb:uiMembersOnPod "On a pod"@en ;
+  onb:uiMembersOnFile "Still a file: it can join, and moving to a pod lets it keep its page up to date from here"@en ;
+  onb:uiMembersNoContact "No contact on its card: reach them as you usually do."@en ;
+  onb:uiMembersCopy "Copy their message"@en ;
+  onb:uiMembersCopied "Copied. Send it to them yourself."@en ;
+  onb:uiMembersSee "See the message"@en ;
+  onb:uiMembersMessage """Hello {member},
+
+The map says you're part of {network}. To make it official, ask to join here:
+{link}
+
+We'll answer your request."""@en ;
+  onb:uiMembersMessageClaim """Hello {member},
+
+The map says you're part of {network}. To make it official, ask to join here:
+{link}
+
+Your space is on the map from a file. To claim your spot and keep it up to date yourself, start here (it fills in from your file):
+{claim}
+
+We'll answer your request."""@en ;
   onb:doneWhen """ASK { ?c a sc:Collective ; sc:roster ?roster ; ldp:inbox ?inbox }  # in config.ttl at the pod root; the roster and the inbox it names exist (followed, never assumed: Maakbib's roster is members.ttl)""" .
 
 :change a onb:Tile ;

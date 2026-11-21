@@ -32,5 +32,11 @@ export const DEFAULT_IDENTIFIER = "https://pod.mapsofmaking.org/";
  */
 export const BACKOFFICE_URL = "https://backoffice.mapsofmaking.org";
 
+/**
+ * This app's own address, for links sent to someone else (#74: a member's "claim your spot" link,
+ * `?from=<their file>`). Not `location.origin`: a copy made on a dev server must still lead to home.
+ */
+export const HOME_URL = "https://home.mapsofmaking.org/";
+
 /** The tile tree (Story 14.1 AC2): tiles, requirements, cues, words, every line Bernard speaks. */
 export const TREE_URL = "/onboarding.ttl";

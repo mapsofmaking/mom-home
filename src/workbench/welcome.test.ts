@@ -140,6 +140,56 @@ describe("the welcome tile (#69)", () => {
   });
 });
 
+describe("your members on the map (#74)", () => {
+  const ingegno = { id: "ingegno", name: "Ingegno", endpoint: "https://gitlab.example/ingegno.json", onPod: false, contact: [{ type: "email", value: "hello@ingegno.example" }] };
+  const onPod = { id: "weld-done", name: "Weld Done", endpoint: "https://weld-done.pod.example/space.ttl", onPod: true, contact: [] };
+
+  it("done: under the link, each member with its card, its file, its contact and its message to copy", async () => {
+    const writeText = vi.fn(async () => {});
+    Object.assign(navigator, { clipboard: { writeText } });
+    await open({ load: async () => DONE, members: async () => [ingegno, onPod] });
+    const rows = box.querySelectorAll<HTMLElement>(".wb-member");
+    expect(rows).toHaveLength(2);
+    expect(rows[0].querySelector<HTMLAnchorElement>("a")!.href).toBe("https://mapsofmaking.org/?space=ingegno");
+    expect(rows[0].textContent).toContain("hello@ingegno.example");
+    expect(rows[0].textContent).toContain(ui.uiMembersOnFile);
+    expect(rows[1].textContent).toContain(ui.uiMembersOnPod);
+    expect(rows[1].textContent).toContain(ui.uiMembersNoContact);
+    // A file gets the invitation and a claim link to home; a pod only the invitation.
+    const fileMessage = rows[0].querySelector("pre")!.textContent!;
+    expect(fileMessage).toContain(LINK);
+    expect(fileMessage).toContain("https://home.mapsofmaking.org/?from=" + encodeURIComponent(ingegno.endpoint));
+    expect(fileMessage).toContain("ZZ Net");
+    const podMessage = rows[1].querySelector("pre")!.textContent!;
+    expect(podMessage).toContain(LINK);
+    expect(podMessage).not.toContain("?from=");
+    // The link is still there, and still one primary button.
+    expect(box.querySelector<HTMLAnchorElement>("#welcome-link")!.href).toBe(LINK);
+    expect(box.querySelectorAll(".btn-primary")).toHaveLength(1);
+
+    rows[0].querySelector<HTMLButtonElement>("[data-member-copy]")!.click();
+    await settle();
+    expect(writeText).toHaveBeenCalledWith(fileMessage);
+    expect(rows[0].textContent).toContain(ui.uiMembersCopied);
+  });
+
+  it("a map that doesn't answer costs the list, never the invitation", async () => {
+    await open({ load: async () => DONE, members: async () => { throw new Error("502"); } });
+    expect(text()).toContain(ui.uiMembersFailed);
+    expect(box.querySelector<HTMLAnchorElement>("#welcome-link")!.href).toBe(LINK);
+    expect(box.querySelector("#welcome-copy")).not.toBeNull();
+  });
+
+  it("no member yet says so; not done, the map isn't asked", async () => {
+    await open({ load: async () => DONE, members: async () => [] });
+    expect(text()).toContain(ui.uiMembersNone.replace("{name}", "ZZ Net"));
+    handle?.destroy();
+    const members = vi.fn(async () => [ingegno]);
+    await open({ members });
+    expect(members).not.toHaveBeenCalled();
+  });
+});
+
 describe("on the page", () => {
   beforeEach(() => {
     vi.stubGlobal("ResizeObserver", class { disconnect() {} observe() {} });

@@ -86,6 +86,15 @@ export async function registerOnMap(fileUrl: string, fetchImpl: Fetch = (u, i) =
   if (res.status === 422) {
     throw new PublishError("map-refused", `The map read the file and did not take it (422): ${await res.text().catch(() => "")}`, 422);
   }
+  // 409 (map #85): a name the map holds from another address, or a move it can't prove. Home sends no move
+  // (`replaces`), so a clash is the one it meets; any other 409 is the map saying no, never the map being down.
+  if (res.status === 409) {
+    const said = (await res.json().catch(() => null)) as { detail?: { error?: unknown } } | null;
+    if (said?.detail?.error === "name_taken") {
+      throw new PublishError("map-name-taken", "The map holds a space of that name from another address (409 name_taken).", 409);
+    }
+    throw new PublishError("map-refused", `The map did not take the file (409): ${String(said?.detail?.error ?? "")}`, 409);
+  }
   if (!res.ok) throw new PublishError("map-down", `The map's register answered ${res.status}.`, res.status);
   let body: { id?: unknown; space_uri?: unknown };
   try {

@@ -19,7 +19,7 @@ export const PUBLISH_UI_KEYS = [
   "uiMissingPin", "uiMissingArea", "uiPublishExpired", "uiPublishUnreachable", "uiPublishRefused", "uiPublishUnreadable",
   "uiStepPublic", "uiStepPublicWorking", "uiStepPublicDone", "uiStepPublicAlready", "uiPublicUnknown", "uiPublicNotPublic",
   "uiPublicBlocked", "uiPublicWider", "uiPublicNoControl", "uiPublicConflict", "uiPublicGone", "uiPublicNoWac",
-  "uiStepMap", "uiStepMapWorking", "uiStepMapDone", "uiMapRefused", "uiMapDown", "uiOnMapLive", "uiPinLate",
+  "uiStepMap", "uiStepMapWorking", "uiStepMapDone", "uiMapRefused", "uiMapNameTaken", "uiMapDown", "uiOnMapLive", "uiPinLate",
   "uiFileAddress", "uiCopy", "uiCopied", "uiSeeOnMap",
 ] as const;
 export type PublishUiKey = (typeof PUBLISH_UI_KEYS)[number];
