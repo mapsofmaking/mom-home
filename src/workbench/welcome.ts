@@ -26,7 +26,7 @@ export const WELCOME_UI_KEYS = [
   "uiWelcomeBroken", "uiWelcomeConflict", "uiWelcomeRules", "uiWelcomeWider", "uiWelcomeNotPublic", "uiWelcomeUnreachable",
   "uiWelcomeRefused", "uiWelcomeUnconfirmed", "uiWelcomeRetry", "uiWelcomeNoRead", "uiWelcomeNotOurs", "uiWelcomeMissingRoster",
   "uiWelcomeMissingInbox", "uiWelcomeMissingPublic", "uiWelcomeRosterTaken", "uiWelcomeConfigTaken",
-  "uiMembersTitle", "uiMembersLoading", "uiMembersNone", "uiMembersFailed", "uiMembersOnPod", "uiMembersOnFile",
+  "uiMembersTitle", "uiMembersTitleOne", "uiMembersShortened", "uiMembersLoading", "uiMembersNone", "uiMembersFailed", "uiMembersOnPod", "uiMembersOnFile",
   "uiMembersNoContact", "uiMembersCopy", "uiMembersCopied", "uiMembersSee", "uiMembersMessage", "uiMembersMessageClaim",
 ] as const;
 export type WelcomeUiKey = (typeof WELCOME_UI_KEYS)[number];
@@ -108,33 +108,65 @@ export function memberMessage(ui: ReturnType<typeof welcomeWords>, m: Member, ne
     : ui("uiMembersMessage", { member: m.name, network, link });
 }
 
-/** The members under the invitation (#74): one row each, the message behind a fold (no added scroll until asked). */
+/** A long address as it is shown, not as it is copied: no scheme, read as typed, cut with an ellipsis. */
+export function shortLink(url: string, max = 52): string {
+  let shown = url.replace(/^https?:\/\//i, "");
+  try {
+    shown = decodeURIComponent(shown).replace(/^https?:\/\//i, "");
+  } catch {
+    // a malformed escape: shown as it is
+  }
+  shown = shown.replace(/=https?:\/\//gi, "=");
+  return shown.length > max ? shown.slice(0, max - 1) + "…" : shown;
+}
+
+/** The message as the preview shows it: one paragraph per block, its links shortened (the copy keeps them whole). */
+function messagePreview(text: string): string {
+  return text
+    .split(/\n\s*\n/)
+    .map((block) => {
+      const html = esc(block)
+        .split("\n")
+        .map((line) => (/^https?:\/\/\S+$/i.test(line.trim()) ? `<span class="wb-message-link">${esc(shortLink(line.trim()))}</span>` : line))
+        .join("<br>");
+      return `<p>${html}</p>`;
+    })
+    .join("");
+}
+
+/**
+ * The members under the invitation (#74, design N1/N2 on the onboarding canvas, 2026-11-21): one row each (the
+ * name to its card, a file/pod tag, its copy button, how to reach them), then one folded preview of the message
+ * for the whole list: the row last copied, else the first.
+ */
 export function renderMembers(tile: Tile, s: State, name: string): string {
   const ui = welcomeWords(tile);
   const m = s.members;
   if (m.status === "idle") return "";
-  const title = `<h3 class="wf-label" id="welcome-members-title">${esc(ui("uiMembersTitle"))}</h3>`;
   const said = (text: string, error = false) => `<p class="${error ? "hint is-error" : "wb-aside"}" id="welcome-members-status" role="status">${esc(text)}</p>`;
-  if (m.status === "loading") return title + said(ui("uiMembersLoading"));
-  if (m.status === "failed") return title + said(ui("uiMembersFailed"), true);
-  if (!m.list.length) return title + said(ui("uiMembersNone", { name }));
+  if (m.status === "loading") return said(ui("uiMembersLoading"));
+  if (m.status === "failed") return said(ui("uiMembersFailed"), true);
+  if (!m.list.length) return said(ui("uiMembersNone", { name }));
+  const count = String(m.list.length);
+  const title = `<h3 class="wb-members-title" id="welcome-members-title">${esc(ui(m.list.length === 1 ? "uiMembersTitleOne" : "uiMembersTitle", { count, name }))}</h3>`;
   const rows = m.list.map((member, i) => {
-    const contact = member.contact.length
-      ? member.contact.map((c) => `<span class="mono">${esc(c.value)}</span>`).join(" · ")
-      : esc(ui("uiMembersNoContact"));
-    const message = memberMessage(ui, member, name, s.link);
+    const reach = member.contact.length ? member.contact.map((c) => esc(c.value)).join(" · ") : esc(ui("uiMembersNoContact"));
     return `<li class="wb-member" data-member="${esc(member.id)}">
-        <p><a class="inline-link" href="${esc(memberCard(member))}" target="_blank" rel="noopener">${esc(member.name)}</a>
-          <span class="wb-aside"> · ${esc(ui(member.onPod ? "uiMembersOnPod" : "uiMembersOnFile"))}</span></p>
-        <p class="wb-aside">${contact}</p>
-        <details><summary>${esc(ui("uiMembersSee"))}</summary><pre class="wb-member-message" id="welcome-message-${i}">${esc(message)}</pre></details>
-        <div class="wb-out">
+        <p class="wb-member-name"><a class="inline-link" href="${esc(memberCard(member))}" target="_blank" rel="noopener">${esc(member.name)} ↗</a>
+          <span class="wb-member-kind${member.onPod ? " is-pod" : ""}">${esc(ui(member.onPod ? "uiMembersOnPod" : "uiMembersOnFile"))}</span></p>
+        <div class="wb-member-act">
           <button type="button" class="btn" data-member-copy="${i}">${esc(ui("uiMembersCopy"))}</button>
-          <span class="wb-aside" role="status">${m.copied === member.id ? esc(ui("uiMembersCopied")) : ""}</span>
+          <span class="wb-member-copied" role="status">${m.copied === member.id ? esc(ui("uiMembersCopied")) : ""}</span>
         </div>
+        <p class="wb-member-reach">${reach}</p>
       </li>`;
   });
-  return `${title}<ul class="wb-members" aria-labelledby="welcome-members-title">${rows.join("")}</ul>`;
+  const shown = m.list.find((x) => x.id === m.copied) ?? m.list[0];
+  return `${title}<ul class="wb-members" aria-labelledby="welcome-members-title">${rows.join("")}</ul>
+    <details class="wb-message" id="welcome-message"><summary>${esc(ui("uiMembersSee"))}</summary>
+      <div class="wb-message-box" id="welcome-message-box">${messagePreview(memberMessage(ui, shown, name, s.link))}</div>
+      <p class="wb-aside">${esc(ui("uiMembersShortened"))}</p>
+    </details>`;
 }
 
 /** The tile's body for a state: pure, so it is tested without a pod. */
@@ -146,15 +178,18 @@ export function renderWelcome(tile: Tile, s: State, name: string): string {
   if (s.status === "loading") return head + bernard(tile.lines.say) + status(ui("uiWelcomeLoading"));
   if (s.status === "done") {
     return `${head}${bernard(tile.lines.saidDone)}
-      <p class="wf-label" id="welcome-link-label">${esc(ui("uiWelcomeLinkLabel"))}</p>
-      <p class="wb-welcome-link"><a class="inline-link mono" id="welcome-link" href="${esc(s.link)}" target="_blank" rel="noopener" aria-labelledby="welcome-link-label welcome-link">${esc(s.link)}</a></p>
-      <div class="wb-out">
-        <button type="button" class="btn btn-primary wb-cta" id="welcome-copy" data-copy="${esc(s.link)}">${esc(ui("uiWelcomeCopy"))}</button>
+      <div class="wb-invite">
+        <p class="wf-label" id="welcome-link-label">${esc(ui("uiWelcomeLinkLabel"))}</p>
+        <div class="wb-invite-row">
+          <a class="wb-invite-link" id="welcome-link" href="${esc(s.link)}" title="${esc(s.link)}" target="_blank" rel="noopener" aria-labelledby="welcome-link-label welcome-link">${esc(shortLink(s.link))}</a>
+          <button type="button" class="btn btn-primary" id="welcome-copy" data-copy="${esc(s.link)}">${esc(ui("uiWelcomeCopy"))}</button>
+        </div>
         <span class="wb-aside" id="welcome-copied" role="status">${s.copied ? esc(ui("uiWelcomeCopied")) : ""}</span>
+        <a class="inline-link" id="welcome-backoffice" href="${esc(BACKOFFICE_URL)}" target="_blank" rel="noopener">${esc(ui("uiWelcomeRequests"))}</a>
       </div>
-      <p><a class="inline-link" id="welcome-backoffice" href="${esc(BACKOFFICE_URL)}" target="_blank" rel="noopener">${esc(ui("uiWelcomeRequests"))}</a></p>
       <section class="wb-welcome-members" id="welcome-members">${renderMembers(tile, s, name)}</section>`;
   }
+
   const busy = s.status === "working";
   const failed = s.status === "failed";
   // A read that failed: no form, nothing to write from; only reading again, when that can help.
@@ -301,11 +336,13 @@ export function mountWelcome(box: HTMLElement, deps: WelcomeDeps): WelcomeHandle
       void navigator.clipboard
         ?.writeText(memberMessage(ui, member, deps.name, s.link))
         .then(() => {
-          // Said beside the button, not redrawn: an open message stays open.
+          // Said under the button, and the preview shows this one's message; nothing redraws, so an open preview stays open.
           s.members.copied = member.id;
-          box.querySelectorAll<HTMLElement>("#welcome-members .wb-out [role=status]").forEach((said) => (said.textContent = ""));
-          const said = target.parentElement?.querySelector<HTMLElement>("[role=status]");
+          box.querySelectorAll<HTMLElement>("#welcome-members .wb-member-copied").forEach((said) => (said.textContent = ""));
+          const said = target.parentElement?.querySelector<HTMLElement>(".wb-member-copied");
           if (said) said.textContent = ui("uiMembersCopied");
+          const preview = box.querySelector<HTMLElement>("#welcome-message-box");
+          if (preview) preview.innerHTML = messagePreview(memberMessage(ui, member, deps.name, s.link));
         })
         .catch(() => {});
     }
