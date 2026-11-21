@@ -74,7 +74,7 @@ const marker = (state: StepState) =>
 export const nameTaken = (s: PublishState) => s.map === "failed" && s.failedCode === "map-name-taken";
 
 /** Bernard's line above the panel: `before` until the file is written, then that it is (#82). */
-export const publishLead = (tile: Pick<Tile, "lines">, state: PublishState | undefined, before: string | undefined) =>
+export const publishLead = (tile: Pick<Tile, "lines">, state: PublishState | null | undefined, before: string | undefined) =>
   state?.file === "done" ? (tile.lines.saidFileIn ?? before) : before;
 
 /** The panel's inside: the steps, the line under them, the button. Pure, so the page can redraw it in place. */
