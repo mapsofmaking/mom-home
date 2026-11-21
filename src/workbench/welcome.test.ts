@@ -9,7 +9,7 @@ import { forKind } from "../tree/kind";
 import { parseTree } from "../tree/parse";
 import { PublishError } from "../lib/publish";
 import type { Collective, CollectiveState } from "../lib/collective";
-import { mountWelcome, type WelcomeDeps, type WelcomeHandle } from "./welcome";
+import { mountWelcome, shortLink, type WelcomeDeps, type WelcomeHandle } from "./welcome";
 import { renderStep } from "./step";
 import { renderPage } from "./page";
 
@@ -140,37 +140,60 @@ describe("the welcome tile (#69)", () => {
   });
 });
 
-describe("your members on the map (#74)", () => {
+describe("your members on the map (#74, design N1/N2)", () => {
   const ingegno = { id: "ingegno", name: "Ingegno", endpoint: "https://gitlab.example/ingegno.json", onPod: false, contact: [{ type: "email", value: "hello@ingegno.example" }] };
   const onPod = { id: "weld-done", name: "Weld Done", endpoint: "https://weld-done.pod.example/space.ttl", onPod: true, contact: [] };
 
-  it("done: under the link, each member with its card, its file, its contact and its message to copy", async () => {
-    const writeText = vi.fn(async () => {});
-    Object.assign(navigator, { clipboard: { writeText } });
+  it("done: one row per member, its card, file or pod, how to reach it, and its own copy button", async () => {
     await open({ load: async () => DONE, members: async () => [ingegno, onPod] });
+    expect(box.querySelector("#welcome-members-title")!.textContent).toBe(ui.uiMembersTitle.replace("{count}", "2").replace("{name}", "ZZ Net"));
     const rows = box.querySelectorAll<HTMLElement>(".wb-member");
     expect(rows).toHaveLength(2);
     expect(rows[0].querySelector<HTMLAnchorElement>("a")!.href).toBe("https://mapsofmaking.org/?space=ingegno");
-    expect(rows[0].textContent).toContain("hello@ingegno.example");
-    expect(rows[0].textContent).toContain(ui.uiMembersOnFile);
-    expect(rows[1].textContent).toContain(ui.uiMembersOnPod);
-    expect(rows[1].textContent).toContain(ui.uiMembersNoContact);
-    // A file gets the invitation and a claim link to home; a pod only the invitation.
-    const fileMessage = rows[0].querySelector("pre")!.textContent!;
-    expect(fileMessage).toContain(LINK);
-    expect(fileMessage).toContain("https://home.mapsofmaking.org/?from=" + encodeURIComponent(ingegno.endpoint));
-    expect(fileMessage).toContain("ZZ Net");
-    const podMessage = rows[1].querySelector("pre")!.textContent!;
-    expect(podMessage).toContain(LINK);
-    expect(podMessage).not.toContain("?from=");
-    // The link is still there, and still one primary button.
+    expect(rows[0].querySelector(".wb-member-kind")!.textContent).toBe(ui.uiMembersOnFile);
+    expect(rows[0].querySelector(".wb-member-reach")!.textContent).toBe("hello@ingegno.example");
+    expect(rows[1].querySelector(".wb-member-kind")!.textContent).toBe(ui.uiMembersOnPod);
+    expect(rows[1].querySelector(".wb-member-reach")!.textContent).toBe(ui.uiMembersNoContact);
+    expect(box.querySelectorAll("[data-member-copy]")).toHaveLength(2);
+    // One preview for the list, folded; the invitation still there, still one primary button.
+    expect(box.querySelectorAll("details")).toHaveLength(1);
+    expect(box.querySelector<HTMLDetailsElement>("#welcome-message")!.open).toBe(false);
     expect(box.querySelector<HTMLAnchorElement>("#welcome-link")!.href).toBe(LINK);
     expect(box.querySelectorAll(".btn-primary")).toHaveLength(1);
+  });
 
-    rows[0].querySelector<HTMLButtonElement>("[data-member-copy]")!.click();
+  it("one member: the title says so", async () => {
+    await open({ load: async () => DONE, members: async () => [ingegno] });
+    expect(box.querySelector("#welcome-members-title")!.textContent).toBe(ui.uiMembersTitleOne.replace("{name}", "ZZ Net"));
+  });
+
+  it("copying: the whole message goes out, said under that button, and the open preview shows that one", async () => {
+    const writeText = vi.fn(async (_text: string) => {});
+    Object.assign(navigator, { clipboard: { writeText } });
+    await open({ load: async () => DONE, members: async () => [ingegno, onPod] });
+    const details = box.querySelector<HTMLDetailsElement>("#welcome-message")!;
+    details.open = true;
+    expect(box.querySelector("#welcome-message-box")!.textContent).toContain("Ingegno");
+
+    box.querySelectorAll<HTMLButtonElement>("[data-member-copy]")[1].click();
     await settle();
-    expect(writeText).toHaveBeenCalledWith(fileMessage);
-    expect(rows[0].textContent).toContain(ui.uiMembersCopied);
+    const sent = writeText.mock.calls[0][0];
+    expect(sent).toContain(LINK);
+    expect(sent).not.toContain("?from=");
+    expect(sent).toContain("Weld Done");
+    const rows = box.querySelectorAll<HTMLElement>(".wb-member");
+    expect(rows[1].querySelector(".wb-member-copied")!.textContent).toBe(ui.uiMembersCopied);
+    expect(rows[0].querySelector(".wb-member-copied")!.textContent).toBe("");
+    expect(details.open).toBe(true);
+    expect(box.querySelector("#welcome-message-box")!.textContent).toContain("Weld Done");
+
+    box.querySelectorAll<HTMLButtonElement>("[data-member-copy]")[0].click();
+    await settle();
+    // A file's message holds the claim link to home, whole; the preview shows it short.
+    expect(writeText.mock.calls[1][0]).toContain("https://home.mapsofmaking.org/?from=" + encodeURIComponent(ingegno.endpoint));
+    const preview = box.querySelector("#welcome-message-box")!;
+    expect(preview.textContent).toContain("home.mapsofmaking.org/?from=gitlab.example/ingegno.");
+    expect(preview.textContent).not.toContain("https://");
   });
 
   it("a map that doesn't answer costs the list, never the invitation", async () => {
@@ -187,6 +210,15 @@ describe("your members on the map (#74)", () => {
     const members = vi.fn(async () => [ingegno]);
     await open({ members });
     expect(members).not.toHaveBeenCalled();
+  });
+});
+
+describe("shortLink", () => {
+  it("drops the scheme, reads escapes, cuts long ones", () => {
+    expect(shortLink("https://backoffice.mapsofmaking.org/?collective=https://maakbib.pod.mapsofmaking.org/config.ttl"))
+      .toBe("backoffice.mapsofmaking.org/?collective=maakbib.pod…");
+    expect(shortLink("https://a.example/x")).toBe("a.example/x");
+    expect(shortLink("https://a.example/%E0%A4%A")).toBe("a.example/%E0%A4%A");
   });
 });
 

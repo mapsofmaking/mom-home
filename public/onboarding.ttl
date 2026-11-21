@@ -292,16 +292,18 @@
   onb:uiWelcomeConfigTaken "A collective file, config.ttl, is in your pod and this page didn't write it. It was left alone: check it in the backoffice."@en ;
   # Your members on the map (#74): the spaces that name the network in their file (mom:memberOf), as the map counts
   # them. Copy text only: MoM sends nothing. A claim is "declared" until the network accepts the space's join.
-  onb:uiMembersTitle "Spaces on the map that say they're in"@en ;
+  onb:uiMembersTitle "{count} spaces on the map say they're part of {name}"@en ;
+  onb:uiMembersTitleOne "One space on the map says it's part of {name}"@en ;
   onb:uiMembersLoading "Asking the map."@en ;
-  onb:uiMembersNone "No space on the map names {name} in its file yet. Your invitation link above is how they join."@en ;
+  onb:uiMembersNone "No space on the map names {name} in its file yet. Your invitation above is how they join."@en ;
   onb:uiMembersFailed "The map didn't answer, so this list can't be shown now. Your invitation link above still works."@en ;
-  onb:uiMembersOnPod "On a pod"@en ;
-  onb:uiMembersOnFile "Still a file: it can join, and moving to a pod lets it keep its page up to date from here"@en ;
+  onb:uiMembersOnPod "pod"@en ;
+  onb:uiMembersOnFile "file"@en ;
   onb:uiMembersNoContact "No contact on its card: reach them as you usually do."@en ;
-  onb:uiMembersCopy "Copy their message"@en ;
-  onb:uiMembersCopied "Copied. Send it to them yourself."@en ;
-  onb:uiMembersSee "See the message"@en ;
+  onb:uiMembersCopy "Copy a message to send them"@en ;
+  onb:uiMembersCopied "Copied. Send it yourself."@en ;
+  onb:uiMembersSee "The message you send them"@en ;
+  onb:uiMembersShortened "Links are shortened here; the copied message holds them whole."@en ;
   onb:uiMembersMessage """Hello {member},
 
 The map says you're part of {network}. To make it official, ask to join here:
