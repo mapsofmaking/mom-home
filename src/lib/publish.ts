@@ -39,6 +39,8 @@ export type PublishCode =
   | "no-wac"
   /** The map read the file and didn't take it (422). */
   | "map-refused"
+  /** The map holds a space of that name from another address (409 `name_taken`, map #85): pressing again won't change it. */
+  | "map-name-taken"
   /** The map's register answered with an error. */
   | "map-down"
   /** The write went out, but reading it back failed: it may well be there (tile C, 14.6). */

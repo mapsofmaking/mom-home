@@ -383,9 +383,9 @@ still there (the draft keeps the networks too, check `localStorage` `mom-home:dr
 `issue_report_channels`, `state`, `timezone: UTC+0`, `contact.irc` (and `country_code: sol-3` until the canary file says `XZ`); the
 twitter handle is a link under "Also from your file". The country is `XZ` (international waters), or, on the old file, the field is open and empty: type `XZ`. Change the name to "zz Mother Sands", "Show me my card", "Publish
 it", pod door, `zz-mothersand`, sign in, publish the file. **Expect:** `space.ttl` holds `mom:memberOf
-<urn:mak:network/canary>, <urn:mak:network/vulca>` and `mom:sdgs 9, 11, 12, 14, 17`. **Don't** press "Put it on the
-map" with the canary's own name (it makes a second pin); if you do, delete the zz record and the account with the
-admin TUI.
+<urn:mak:network/canary>, <urn:mak:network/vulca>` and `mom:sdgs 9, 11, 12, 14, 17`. With the canary's own name, "Put it on the
+map" is refused (`name_taken`, map #85, §16 (c)); under another name it makes a new pin: delete the zz record and
+the account with the admin TUI.
 
 **(c) A network (Maakbib's pod file).** **Do:** fresh window, import `https://maakbib.pod.mapsofmaking.org/space.ttl`.
 **Expect:** "A network" pressed, area Flanders picked with its pin, nothing not carried over.
@@ -396,6 +396,36 @@ has a draft: the box holds the address, nothing is read until "Read it".
 
 **(e) Failures.** `https://example.org/` (a web page): "That file can't be read: …" with the map's reason, focus
 back in the box, the draft untouched. Signed in, tile A shows no import line.
+
+## 16 · A network's members on the map, and a name already taken (#74)
+
+Production, 1541×751. Needs map #95 deployed (`/api/network-members`). Nothing in this section writes anywhere
+except (c), which writes a zz pod's own file.
+
+**(a) Maakbib's list.** **Do:** sign in as Maakbib, open "Welcome your members" (done). **Expect:** under the link
+and "Requests to join…", "Spaces on the map that say they're in" with one row, Ingegno Maker Space (its card link
+opens `?space=ingegno-maker-space-drongen`), "Still a file: …", `info@decreatievestem.be · #ingegnomakerspace:matrix.org`
+as text. The `maakbib-*` pods are not listed: their files don't name Maakbib (`mom:memberOf`), as expected. One
+`GET /api/network-members` in the network tab; no other request. The page adds no scroll with the message folded.
+
+**(b) The message.** **Do:** "See the message", then "Copy their message", paste it somewhere. **Expect:** it names
+Ingegno and Maakbib, holds the invitation link (`https://backoffice.mapsofmaking.org/?collective=…config.ttl`) and
+a claim link `https://home.mapsofmaking.org/?from=https%3A%2F%2Fgitlab.com%2F…json`; "Copied. Send it to them
+yourself." beside the button, the message still open. Open the claim link in a fresh private window: tile A fills
+from Ingegno's JSON (as §15 (a)).
+
+Publishing that one ends on the same quiet line as (c) since map #95 (same name within 25 km of Ingegno's pin,
+whatever its id); before #95 it made a second pin. (c) uses the canary, which never risks one.
+
+**(c) A name already on the map.** **Do:** fresh private window, import
+`https://mapsofmaking.org/canary/mother-sands.json` and keep its name "Mother Sands" (the canary's id is always
+taken), publish through a `zz-mothersand` pod up to "Put it on the map". **Expect:** the file and public steps
+done; the map step says "A space with this name is already on the map, from another address, so the map kept that
+one. …", no "press again"; no second Mother Sands pin. Then delete the zz account with the admin TUI.
+
+**(d) The map down.** With the network tab blocking `/api/network-members`, reopen the tile. **Expect:** "The map
+didn't answer, so this list can't be shown now. Your invitation link above still works." and the link and "Copy the
+link" still there.
 
 ## UX review
 

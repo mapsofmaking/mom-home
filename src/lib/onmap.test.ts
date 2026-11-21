@@ -55,6 +55,13 @@ describe("on the map (14.4 S3, #13)", () => {
     await expect(registerOnMap(FILE, async () => { throw new TypeError("offline"); })).rejects.toMatchObject({ code: "unreachable" });
   });
 
+  it("a name the map holds from another address is said as such, and any other 409 is a refusal (map #85)", async () => {
+    const said = (detail: object) => fakeMap({ register: () => new Response(JSON.stringify({ detail }), { status: 409 }) }).fetchImpl;
+    await expect(registerOnMap(FILE, said({ error: "name_taken", id: "weld-done", add: { mom: { movedTo: FILE } } }))).rejects.toMatchObject({ code: "map-name-taken", status: 409 });
+    await expect(registerOnMap(FILE, said({ error: "kind_changed" }))).rejects.toMatchObject({ code: "map-refused", status: 409 });
+    await expect(registerOnMap(FILE, fakeMap({ register: () => new Response("not json", { status: 409 }) }).fetchImpl)).rejects.toMatchObject({ code: "map-refused" });
+  });
+
   it("reads the pin as the map draws it; not drawn yet is null, not an error", async () => {
     expect(await readPin("weld-done", fakeMap().fetchImpl)).toEqual({ id: "weld-done", name: "Weld Done", lat: 50.8371, lon: 4.3458, city: "Marolles", country: "Belgium", hours: "", address: "", logo: "" });
     expect(await readPin("weld-done", fakeMap({ lag: 1 }).fetchImpl)).toBeNull();

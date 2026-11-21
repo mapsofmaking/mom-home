@@ -41,6 +41,7 @@ import { loadProfile, saveProfile } from "./lib/profile";
 import { makeSpacePublic, PublishError, readSpaceAt, readSpaceFile, spaceFileUrl, spaceIsPublic, writeSpaceFile } from "./lib/publish";
 import { registerSpace, spacesInPublicIndex } from "./lib/typeindex";
 import { readCollective, setUpCollective, type CollectiveState } from "./lib/collective";
+import { readMembers } from "./lib/members";
 import { forKind } from "./tree/kind";
 import type { Draft } from "./workbench/previews";
 import type { Tree } from "./tree/parse";
@@ -234,6 +235,8 @@ function renderWorkbenchView(
           load: () => readCollective(pod.root),
           setUp: (words) =>
             setUpCollective({ podRoot: pod.root, webId: pod.webId, name: draft.name ?? "", slogan: words.slogan, description: words.description, spaceFile: spaceFileUrl(pod.root) }),
+          // #74: the spaces the map counts as members, by the network's own file address.
+          members: () => readMembers(spaceFileUrl(pod.root)),
         }
       : undefined,
     // The file as the pod held it at sign-in: tile C shows it before the first change (C1).

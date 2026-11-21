@@ -94,6 +94,7 @@ import type { Tile } from "../tree/parse";
 import { mountTool, type ToolHandle } from "./tool";
 import { mountWelcome, type WelcomeHandle, type WelcomeWords } from "./welcome";
 import type { CollectiveState } from "../lib/collective";
+import type { Member } from "../lib/members";
 import type { Edit, Profile, SaveResult } from "../lib/profile";
 import type { MoveResult, Place } from "../lib/move";
 
@@ -166,7 +167,7 @@ export interface PageOptions {
    * The welcome tile (#69), signed in with a pod: the collective read from the pod, and set up there. Absent:
    * signed out, and the tile says it needs the pod.
    */
-  welcome?: { load: () => Promise<CollectiveState>; setUp: (words: WelcomeWords) => Promise<CollectiveState> };
+  welcome?: { load: () => Promise<CollectiveState>; setUp: (words: WelcomeWords) => Promise<CollectiveState>; members?: () => Promise<Member[]> };
 }
 
 /** null: never set, the width decides. */
@@ -486,6 +487,7 @@ export function renderPage(root: HTMLElement, base: Tree, opts: PageOptions): Pa
         description: opts.draft.description ?? "",
         load: opts.welcome.load,
         setUp: opts.welcome.setUp,
+        members: opts.welcome.members,
         // The pod says done: the hexes say so in this tab too, as the next sign-in reads it from the pod.
         onDone: () => {
           if (doneNow().has(tile.id)) return;
@@ -993,7 +995,7 @@ export function renderPage(root: HTMLElement, base: Tree, opts: PageOptions): Pa
       const missing = e.missing.map((m) => ui(({ name: "uiMissingName", town: "uiMissingTown", country: "uiMissingCountry", pin: "uiMissingPin", area: "uiMissingArea" } as const)[m]));
       const status = String(e.status ?? "no status");
       // The map's own failures: its silence is not the pod's.
-      if (stepName === "map") return ui(e.code === "map-refused" ? "uiMapRefused" : "uiMapDown");
+      if (stepName === "map") return ui(e.code === "map-name-taken" ? "uiMapNameTaken" : e.code === "map-refused" ? "uiMapRefused" : "uiMapDown");
       switch (e.code) {
         case "incomplete": return ui("uiPublishIncomplete", { missing: missing.join(", ") });
         case "expired": return ui("uiPublishExpired");
@@ -1162,6 +1164,7 @@ export function renderPage(root: HTMLElement, base: Tree, opts: PageOptions): Pa
       hours = { ...hours, map: read.caughtUp ? "done" : "late", onMap: read.onMap };
     } catch (err) {
       if (asked !== mapAsked) return;
+      // A known address is registered again here, so the map's name clash (map-name-taken) can't happen.
       const refused = err instanceof PublishError && err.code === "map-refused";
       hours = { ...hours, map: "failed", mapMessage: ui(refused ? "uiMapRefusedFile" : "uiMapDidntRead") };
     }
