@@ -414,8 +414,8 @@ a claim link `https://home.mapsofmaking.org/?from=https%3A%2F%2Fgitlab.com%2F…
 yourself." beside the button, the message still open. Open the claim link in a fresh private window: tile A fills
 from Ingegno's JSON (as §15 (a)).
 
-Don't publish that one: the map makes its id from the name alone (`ingegno-maker-space`), Ingegno's is
-`ingegno-maker-space-drongen`, so it would not clash, it would add a second pin.
+Publishing that one ends on the same quiet line as (c) since map #95 (same name within 25 km of Ingegno's pin,
+whatever its id); before #95 it made a second pin. (c) uses the canary, which never risks one.
 
 **(c) A name already on the map.** **Do:** fresh private window, import
 `https://mapsofmaking.org/canary/mother-sands.json` and keep its name "Mother Sands" (the canary's id is always
