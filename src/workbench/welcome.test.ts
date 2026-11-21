@@ -168,7 +168,7 @@ describe("your members on the map (#74, design N1/N2)", () => {
   });
 
   it("copying: the whole message goes out, said under that button, and the open preview shows that one", async () => {
-    const writeText = vi.fn(async () => {});
+    const writeText = vi.fn(async (_text: string) => {});
     Object.assign(navigator, { clipboard: { writeText } });
     await open({ load: async () => DONE, members: async () => [ingegno, onPod] });
     const details = box.querySelector<HTMLDetailsElement>("#welcome-message")!;
@@ -177,7 +177,7 @@ describe("your members on the map (#74, design N1/N2)", () => {
 
     box.querySelectorAll<HTMLButtonElement>("[data-member-copy]")[1].click();
     await settle();
-    const sent = writeText.mock.calls[0][0] as string;
+    const sent = writeText.mock.calls[0][0];
     expect(sent).toContain(LINK);
     expect(sent).not.toContain("?from=");
     expect(sent).toContain("Weld Done");
