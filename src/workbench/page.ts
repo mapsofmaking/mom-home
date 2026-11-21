@@ -35,7 +35,7 @@ import { AccountError, createAccount, pendingEmail, type NewAccount, type SignUp
 import { markPodMade, type PodMade } from "../lib/handoff";
 import type { MapReread, OnMap, Pin } from "../lib/onmap";
 import { PublishError, type FileResult, type PublicResult } from "../lib/publish";
-import { IDLE, publishWords, renderPublishPanel, type PublishState } from "./publish";
+import { IDLE, publishLead, publishWords, renderPublishPanel, type PublishState } from "./publish";
 import { hoursIdle, hoursWords, renderHoursPanel, renderMapSteps, type HoursState } from "./hours";
 import type { HoursResult } from "../lib/hours";
 import type { LogoResult } from "../lib/logo";
@@ -983,6 +983,10 @@ export function renderPage(root: HTMLElement, base: Tree, opts: PageOptions): Pa
       const box = step.querySelector<HTMLElement>("#publish");
       if (!box) return;
       box.innerHTML = renderPublishPanel(tile, publish);
+      // Bernard's line sits outside the box: once the file is written, "nothing is in it yet" stops being true (#82).
+      const lead = publishLead(tile, publish, undefined);
+      const voice = step.querySelector<HTMLElement>(".bernard-voice");
+      if (lead && voice) voice.textContent = `— ${lead}`;
       const finished = publish.file === "done" && publish.pub === "done";
       if (focus) box.querySelector<HTMLElement>(finished ? "#publish-status" : "#publish-go")?.focus();
     };
@@ -1067,7 +1071,8 @@ export function renderPage(root: HTMLElement, base: Tree, opts: PageOptions): Pa
         publish = { ...publish, map: "done", onMap };
         arrived = true;
       } catch (err) {
-        publish = { ...publish, map: "failed", message: say(asError(err), "map") };
+        const e = asError(err);
+        publish = { ...publish, map: "failed", message: say(e, "map"), failedCode: e.code };
       }
     } finally {
       publishing = false;

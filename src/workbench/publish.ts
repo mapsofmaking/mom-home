@@ -67,6 +67,16 @@ const marker = (state: StepState) =>
         ? `<span class="sp-unlock-marker" aria-hidden="true">!</span>`
         : `<span class="sp-unlock-marker" aria-hidden="true"></span>`;
 
+/**
+ * The map kept another record of this name (409 name_taken): pressing again asks the same question and gets the
+ * same answer, so the button goes (#82). A reload brings it back, for when the other record has gone.
+ */
+export const nameTaken = (s: PublishState) => s.map === "failed" && s.failedCode === "map-name-taken";
+
+/** Bernard's line above the panel: `before` until the file is written, then that it is (#82). */
+export const publishLead = (tile: Pick<Tile, "lines">, state: PublishState | null | undefined, before: string | undefined) =>
+  state?.file === "done" ? (tile.lines.saidFileIn ?? before) : before;
+
 /** The panel's inside: the steps, the line under them, the button. Pure, so the page can redraw it in place. */
 export function renderPublishPanel(tile: Tile, state: PublishState): string {
   const ui = publishWords(tile);
@@ -89,11 +99,13 @@ export function renderPublishPanel(tile: Tile, state: PublishState): string {
     </ol>`;
   const working = state.file === "working" || state.pub === "working" || state.map === "working";
   const status = failed ? state.message : state.dropped;
+  // name_taken is not an error to fix here: said quietly, with no button (#74, #82).
+  const taken = nameTaken(state);
   return `${steps}
-    <p class="${failed ? "hint is-error" : "wb-aside"}" id="publish-status" role="status" tabindex="-1">${esc(status)}</p>
-    <div class="wb-form-actions"><button type="button" class="btn btn-primary wb-cta" id="publish-go"${
+    <p class="${failed && !taken ? "hint is-error" : "wb-aside"}" id="publish-status" role="status" tabindex="-1">${esc(status)}</p>
+    ${taken ? "" : `<div class="wb-form-actions"><button type="button" class="btn btn-primary wb-cta" id="publish-go"${
       working ? ' disabled aria-busy="true"' : ""
-    }>${esc(ui("uiPublishGo"))}</button></div>`;
+    }>${esc(ui("uiPublishGo"))}</button></div>`}`;
 }
 
 const COPY_ICON = `<svg class="copy-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 1h8a2 2 0 0 1 2 2v8h-2V3H5zM1 5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2zm2 0v8h7V5z"/></svg>`;
@@ -146,6 +158,6 @@ export function renderPublishBox(tile: Tile, state: PublishState): string {
 export function renderPublish(tile: Tile, state: PublishState, locality = "", next?: Tile): string {
   if (onTheMap(state)) return renderThreshold(tile, state, locality, next);
   return `
-    ${bernard(tile.lines.sayPublish)}
+    ${bernard(publishLead(tile, state, tile.lines.sayPublish))}
     ${renderPublishBox(tile, state)}`;
 }

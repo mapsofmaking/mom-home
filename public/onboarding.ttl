@@ -169,6 +169,8 @@
   # Back from the pod's own page, signed in (14.3 AC6). Wording to settle with Nicolas (story, open question 1).
   onb:uiPodReadyAt "Your pod"@en ;
   onb:saidPodReady "You're signed in, and the pod is yours. Nothing is in it yet: your card still lives in this browser. Putting it there comes next."@en ;
+  # Once the file is written, whatever the map then says (#82): the pod isn't empty any more.
+  onb:saidFileIn "Your file is in your pod, and anyone can read it."@en ;
   # What the pod server said, each with one way forward (14.3 AC5). Red only for errors (the field's border).
   onb:uiTakenLabel "Address taken"@en ;
   onb:uiTakenTry "Taken. Try {suggestion}."@en ;
@@ -197,8 +199,8 @@
   onb:uiStepMapWorking "The map is reading your file."@en ;
   onb:uiStepMapDone "The map has it."@en ;
   onb:uiMapRefused "The map read your file and didn't take it. Check the description in the first tile, then press again."@en ;
-  onb:uiMapNameTaken "A space with this name is already on the map, from another address, so the map kept that one. Your file is in your pod and public. Your network can confirm you're that space."@en ;
-  onb:uiMapNameTakenForNetwork "A network with this name is already on the map, from another address, so the map kept that one. Your file is in your pod and public."@en ;
+  onb:uiMapNameTaken "A space with this name is already on the map, from another address, so the map kept that one. Your network can confirm you're that space."@en ;
+  onb:uiMapNameTakenForNetwork "A network with this name is already on the map, from another address, so the map kept that one."@en ;
   onb:uiMapDown "The map isn't answering right now. Your file is in your pod and public: press again in a moment."@en ;
   onb:uiOnMapLive "On the map, live"@en ;
   onb:uiPinLate "The map is still drawing your pin. It shows there in a minute."@en ;
