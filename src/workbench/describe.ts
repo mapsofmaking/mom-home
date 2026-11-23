@@ -28,7 +28,7 @@ import type { FieldWords, Tile } from "../tree/parse";
 import { esc } from "./html";
 import { tileUi } from "./tilewords";
 import type { Draft, PreviewWords } from "./previews";
-import { pinLine, pinned } from "./where";
+import { areaChosen, pinLine, pinned } from "./where";
 import { areaLabel, areasCountry, cleanAreas, type Area } from "../lib/spacefile";
 
 type Key = "name" | "street" | "city" | "description" | "email" | "matrix" | "website" | "logo";
@@ -73,7 +73,7 @@ export const UI_KEYS = [
   "uiKeepIt", "uiCleared", "uiFix", "uiChange", "uiNotOnPod", "uiPinWorking", "uiPinFound", "uiPinByHand",
   "uiStreetMissed", "uiNoResult", "uiUnavailable", "uiRate", "uiAddedScheme", "uiAddedRoom",
   "uiKind", "uiKindSpace", "uiKindNetwork", "uiNameNetwork", "uiAreaFound",
-  "uiPinArea", "uiNoResultArea", "uiUnavailableArea", "uiRateArea", "uiYourNetwork", "uiServes", "uiHoursFact",
+  "uiPinArea", "uiNoResultArea", "uiAreaAsTyped", "uiAreaTyped", "uiUnavailableArea", "uiRateArea", "uiYourNetwork", "uiServes", "uiHoursFact",
   "uiImport", "uiImportUrl", "uiImportGo", "uiImportReading", "uiImportDone", "uiImportNotRead", "uiImportUnavailable",
   "uiImportRate", "uiNotCarried", "uiImportReplaceAsk", "uiImportReplace", "uiFromFile", "uiFromFileDrop",
   "uiFromFileNetworks", "uiFromFileGoals", "uiFromFileTopics", "uiFromFileHours", "uiFromFileContacts",
@@ -170,7 +170,8 @@ function kindChoice(kind: Kind, w: DescribeWords): string {
 function areaField(draft: Draft, w: DescribeWords): string {
   const { label, placeholder, hint } = w.field("area");
   const current = cleanAreas(draft.areaServed)[0];
-  const picked = current && draft.lat && draft.lon ? current : null;
+  // An area as typed (no code, 2026-11-23) is picked without a pin.
+  const picked = current && ((draft.lat && draft.lon) || !current.code) ? current : null;
   return `<label class="wb-field" for="f-area">${esc(label)}
         <input id="f-area" name="areaSearch" type="text" value="${esc(current ? areaLabel(current) : "")}" autocomplete="off" maxlength="100"
           spellcheck="false" enterkeyhint="search" aria-controls="f-area-list"
@@ -227,6 +228,7 @@ function whereOut(draft: Draft, w: DescribeWords): string {
 function locatedKey(draft: Draft): string | null {
   if (draft.kind === "network") {
     const area = cleanAreas(draft.areaServed)[0];
+    if (area && !area.code) return `typed|${area.name}`;
     return draft.lat && draft.lon && area ? `area|${area.code}` : null;
   }
   if (!draft.lat || !draft.lon || !draft.place || !draft.city) return null;
@@ -292,7 +294,9 @@ export function renderDescribeForm(draft: Draft, w: DescribeWords, importUrl: st
   // Where is the city for a space, the area for a network.
   const where = network ? !!cleanAreas(draft.areaServed).length : !!draft.city;
   // A network serving areas in several countries has no country: its area is what it needs.
-  const ready = !!(draft.name && where && draft.lat && draft.lon && (network || draft.country));
+  // An area as typed (2026-11-23) needs no pin.
+  const asTyped = network && !!cleanAreas(draft.areaServed)[0] && !cleanAreas(draft.areaServed)[0].code;
+  const ready = !!(draft.name && where && ((draft.lat && draft.lon) || asTyped) && (network || draft.country));
   const located = locatedKey(draft);
   const typed = FIELDS.some((f) => draft[f.key]) || (network && where);
   // Anything optional already typed keeps the fold open: nothing typed hides behind it.
@@ -344,7 +348,10 @@ export function readDescribeForm(form: HTMLFormElement, draft: Draft): void {
     const name = String(data.get("areaName") ?? "").trim();
     // One area is picked here. A draft read from the pod with several shows the first: left as it is, it keeps them all.
     const kept = cleanAreas(draft.areaServed);
-    if (!picked) delete draft.areaServed;
+    if (!picked && name) {
+      // As typed (2026-11-23): its name alone; the same name again keeps the others.
+      if (kept[0]?.code || kept[0]?.name !== name) draft.areaServed = cleanAreas([{ code: "", name }]);
+    } else if (!picked) delete draft.areaServed;
     else if (kept[0]?.code !== picked) draft.areaServed = cleanAreas([{ code: picked, name }]);
     // The same area picked again names it (one read from a #67 file had no name); the others stay as they are.
     else if (name && kept[0].name !== name) draft.areaServed = cleanAreas([{ code: picked, name }, ...kept.slice(1)]);
@@ -395,7 +402,7 @@ export function setKind(form: HTMLFormElement, kind: Kind): boolean {
 
 /** The where of the kind picked is given: the city for a space, the area for a network. */
 function whereFilled(form: HTMLFormElement): boolean {
-  return kindOf(form) === "network" ? !!areaOf(form) : filled(form, "city");
+  return kindOf(form) === "network" ? areaChosen(form) : filled(form, "city");
 }
 
 /** The area picked, as a code the map reads; "" when none (typed but not picked is none). */
@@ -471,7 +478,7 @@ export function missing(form: HTMLFormElement): HTMLInputElement | null {
   if (!filled(form, "name")) return input(form, "name");
   if (kindOf(form) === "network") {
     // A pick brings its pin: no area picked (or none with a pin) sends focus back to the box.
-    if (areaOf(form) && pinned(form)) return null;
+    if (areaChosen(form) && pinned(form)) return null;
     reveal(form, "where");
     return areaBox(form);
   }
@@ -499,7 +506,7 @@ export function describeCommit(form: HTMLFormElement, target: EventTarget | null
 
 /** An area picked: the rest opens (the name given), and focus, on the offer that went with the list, goes to the box. */
 export function areaPicked(form: HTMLFormElement): void {
-  if (areaOf(form) && filled(form, "name")) reveal(form, "rest");
+  if (areaChosen(form) && filled(form, "name")) reveal(form, "rest");
   areaBox(form)?.focus();
 }
 

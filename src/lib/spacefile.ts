@@ -109,7 +109,11 @@ export const AREA_CODE = /^[A-Z]{2}(-[A-Z0-9]{1,3})?$/;
 export const FIDELITIES = ["exact", "approximate", "city", "region", "country"] as const;
 const MAX_AREAS = 10;
 
-/** An area a network serves (2026-11-19): its ISO code, and its name as the geocoder gave it ("" when unknown). */
+/**
+ * An area a network serves (2026-11-19): its ISO code, and its name as the geocoder gave it ("" when unknown).
+ * An area named as typed, with no ISO code ("Benelux", 2026-11-23): code "", its name. It names no country and
+ * has no centre, so a network serving only such areas has no pin (networks show by their members anyway).
+ */
 export interface Area {
   code: string;
   name: string;
@@ -135,19 +139,34 @@ export function cleanAreaName(value: unknown): string {
  * Areas as the map keeps them (`clean_areas`): valid codes only (upper case), once each, sorted by code, ten at
  * most. Takes `{code, name}` and a bare code string (a draft or file from #67, name ""); anything else is
  * dropped. Two of one code: a name beats none, then the smaller name, so the same file always reads the same.
+ * An object with a name and no code (or an empty one) is an area named as typed (2026-11-23): kept after the
+ * coded ones, one per name (case aside), sorted by name, as the map's `clean_areas` keeps it.
  */
 export function cleanAreas(areas: readonly unknown[] | undefined): Area[] {
   const best = new Map<string, string>();
+  const named = new Map<string, string>();
   for (const a of Array.isArray(areas) ? areas : []) {
     const raw = typeof a === "string" ? { code: a, name: "" } : a && typeof a === "object" ? (a as Record<string, unknown>) : null;
-    if (!raw || typeof raw.code !== "string") continue;
+    if (!raw) continue;
+    const name = cleanAreaName(raw.name);
+    if (raw.code === undefined || raw.code === null || raw.code === "") {
+      if (!name || typeof a === "string") continue;
+      // Python's casefold and lower agree on the names people type; sorted by code point, as Python sorts.
+      const key = name.toLowerCase();
+      const had = named.get(key);
+      if (had === undefined || name < had) named.set(key, name);
+      continue;
+    }
+    if (typeof raw.code !== "string") continue;
     const code = raw.code.trim().toUpperCase();
     if (!AREA_CODE.test(code)) continue;
-    const name = cleanAreaName(raw.name);
     const had = best.get(code);
     if (had === undefined || (name && (!had || name < had))) best.set(code, name);
   }
-  return [...best.keys()].sort().slice(0, MAX_AREAS).map((code) => ({ code, name: best.get(code)! }));
+  const byPoint = (x: string, y: string) => (x < y ? -1 : x > y ? 1 : 0);
+  const coded = [...best.keys()].sort(byPoint).map((code) => ({ code, name: best.get(code)! }));
+  const free = [...named.keys()].sort(byPoint).map((key) => ({ code: "", name: named.get(key)! }));
+  return [...coded, ...free].slice(0, MAX_AREAS);
 }
 
 /**
@@ -161,7 +180,7 @@ const AREA_NAMES: Readonly<Record<string, string>> = { "BE-VLG": "Flanders", "BE
  * knows, the country's English name for a country code, else the code.
  */
 export function areaLabel(area: Area): string {
-  if (area.name) return area.name;
+  if (area.name || !area.code) return area.name;
   if (AREA_NAMES[area.code]) return AREA_NAMES[area.code];
   if (/^[A-Z]{2}$/.test(area.code)) {
     try {
@@ -175,7 +194,7 @@ export function areaLabel(area: Area): string {
 
 /** The one country all the areas are in (`BE-VLG`, `BE-BRU` → `BE`); null when they span several, or none. */
 export function areasCountry(areas: readonly Area[]): string | null {
-  const countries = new Set(areas.map((a) => a.code.slice(0, 2)));
+  const countries = new Set(areas.filter((a) => a.code).map((a) => a.code.slice(0, 2)));
   return countries.size === 1 ? [...countries][0] : null;
 }
 
@@ -322,20 +341,23 @@ export function draftFromStore(raw: unknown): Draft {
 }
 
 /**
- * What a network's card cannot do without, checked and trimmed: a name, an area, a pin. The fidelity is the
- * draft's when the map reads it, else the first area's shape; the country is the one all areas share (or none).
+ * What a network's card cannot do without, checked and trimmed: a name and an area. The pin is optional
+ * (2026-11-23): a network is not a place on the map, and an area named as typed has no centre. With a pin, the
+ * fidelity is the draft's when the map reads it, else the first coded area's shape; without one, none. The
+ * country is the one all coded areas share (or none).
  */
 export function networkParts(draft: Draft) {
   const name = (draft.name ?? "").trim();
   const areas = cleanAreas(draft.areaServed);
-  const lat = (draft.lat ?? "").trim();
-  const lon = (draft.lon ?? "").trim();
+  const pin = DECIMAL.test((draft.lat ?? "").trim()) && DECIMAL.test((draft.lon ?? "").trim());
+  const lat = pin ? (draft.lat ?? "").trim() : "";
+  const lon = pin ? (draft.lon ?? "").trim() : "";
   const missing: SpaceFileProblem[] = [];
   if (!name) missing.push("name");
   if (!areas.length) missing.push("area");
-  if (!DECIMAL.test(lat) || !DECIMAL.test(lon)) missing.push("pin");
   if (missing.length) throw new SpaceFileError(missing);
-  const fidelity = cleanFidelity(draft.fidelity) ?? areaFidelity(areas[0].code);
+  const coded = areas.find((a) => a.code);
+  const fidelity = pin ? (cleanFidelity(draft.fidelity) ?? (coded ? areaFidelity(coded.code) : null)) : null;
   return { name, areas, country: areasCountry(areas), lat, lon, fidelity };
 }
 
@@ -372,8 +394,11 @@ export function spaceFile(draft: Draft): SpaceFile {
   if (parts) {
     // A network: no address, one node per area served, its code and its name (an unknown name is left out).
     for (const area of parts.areas) {
-      const named = area.name ? ` ; schema:name ${literal(area.name)}` : "";
-      add("schema:areaServed", `[ a schema:AdministrativeArea ; schema:identifier ${literal(area.code)}${named} ]`);
+      // An area named as typed (2026-11-23) has no identifier.
+      const node = ["a schema:AdministrativeArea"];
+      if (area.code) node.push(`schema:identifier ${literal(area.code)}`);
+      if (area.name) node.push(`schema:name ${literal(area.name)}`);
+      add("schema:areaServed", `[ ${node.join(" ; ")} ]`);
     }
   } else {
     const { town, country } = space!;
@@ -386,8 +411,9 @@ export function spaceFile(draft: Draft): SpaceFile {
     add("schema:address", `[ ${address.join(" ;\n    ")} ]`);
   }
 
-  add("schema:geo", `[ a schema:GeoCoordinates ;\n    schema:latitude ${lat} ; schema:longitude ${lon} ]`);
-  if (parts) add("mom:geolocationFidelity", literal(parts.fidelity));
+  // A network with no pin (an area named as typed, 2026-11-23) has no geo and no fidelity.
+  if (lat && lon) add("schema:geo", `[ a schema:GeoCoordinates ;\n    schema:latitude ${lat} ; schema:longitude ${lon} ]`);
+  if (parts?.fidelity) add("mom:geolocationFidelity", literal(parts.fidelity));
 
   const email = (draft.email ?? "").trim();
   if (email) add("schema:email", literal(email));

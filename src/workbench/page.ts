@@ -60,7 +60,7 @@ import {
   setKind,
   syncCta,
 } from "./describe";
-import { locate, meterInto, pickArea, pinByHand, pinned, unpin } from "./where";
+import { locate, meterInto, pickArea, pickAreaAsTyped, pinByHand, pinned, unpin } from "./where";
 import { readSpaceFile, type ReadOutcome } from "../lib/spaceapi-read";
 import { esc } from "./html";
 import { renderHexRow } from "./hexrow";
@@ -783,6 +783,16 @@ export function renderPage(root: HTMLElement, base: Tree, opts: PageOptions): Pa
       if (next) select(next.id);
       else draw();
       step.querySelector<HTMLElement>(".wb-step-title")?.focus();
+      return;
+    }
+    if (target.dataset.areaTyped) {
+      // The text as typed, picked (2026-11-23): the area is its name alone, no pin.
+      const form = step.querySelector<HTMLFormElement>("#f-describe");
+      if (!form) return;
+      pickAreaAsTyped(form, target, words);
+      areaPicked(form);
+      syncCta(form);
+      keep(form);
       return;
     }
     if (target.dataset.areaCode) {

@@ -56,8 +56,9 @@ export function spaceApiJson(draft: Draft): SpaceApi {
       lon: Number(lon),
     };
   } else {
-    // A network: no address; the country its areas share, when they share one.
-    out.location = { ...(network!.country ? { country_code: network!.country } : {}), lat: Number(lat), lon: Number(lon) };
+    // A network: no address; the country its areas share, when they share one; the pin, when it has one.
+    const location = { ...(network!.country ? { country_code: network!.country } : {}), ...(lat && lon ? { lat: Number(lat), lon: Number(lon) } : {}) };
+    if (Object.keys(location).length) out.location = location;
   }
 
   const description = (draft.description ?? "").trim();
@@ -88,8 +89,11 @@ export function spaceApiJson(draft: Draft): SpaceApi {
 
   out.state = { open: null };
   // Each area as `{code, name}`, in that order; a name not known (read from a #67 file) is left out, as in the Turtle.
-  const areas = network?.areas.map((a) => (a.name ? { code: a.code, name: a.name } : { code: a.code }));
-  const mom: Record<string, unknown> = network ? { kind: "network", areaServed: areas, geolocationFidelity: network.fidelity } : {};
+  // An area named as typed (2026-11-23) is `{name}` alone; a network with no pin has no fidelity.
+  const areas = network?.areas.map((a) => (!a.code ? { name: a.name } : a.name ? { code: a.code, name: a.name } : { code: a.code }));
+  const mom: Record<string, unknown> = network
+    ? { kind: "network", areaServed: areas, ...(network.fidelity ? { geolocationFidelity: network.fidelity } : {}) }
+    : {};
   if (lists.memberOf) mom.memberOf = lists.memberOf;
   if (lists.sdgs) mom.sdgs = lists.sdgs;
   if (Object.keys(mom).length) out.mom = mom;

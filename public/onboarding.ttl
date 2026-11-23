@@ -57,7 +57,9 @@
   onb:uiNameNetwork "Network name"@en ;
   onb:uiAreaFound "Areas found: {n}. Arrow down to pick one."@en ;
   onb:uiPinArea "A network sits at the centre of the area it serves: {area}."@en ;
-  onb:uiNoResultArea "No area by that name. Try another spelling, or the country. The card waits until an area is picked."@en ;
+  onb:uiNoResultArea "No area by that name. Try another spelling, or use it as typed."@en ;
+  onb:uiAreaAsTyped "Use “{area}” as typed"@en ;
+  onb:uiAreaTyped "{area}, as typed. A network has no pin: the map shows it through its members."@en ;
   onb:uiUnavailableArea "The geocoder isn't answering right now. Press Enter in a moment to ask again."@en ;
   onb:uiRateArea "Too many requests to the geocoder. Press Enter in a moment to ask again."@en ;
   onb:uiYourNetwork "Your network"@en ;
