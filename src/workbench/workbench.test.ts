@@ -603,7 +603,7 @@ describe("tile A's words come from the tree (14.2 AC8)", () => {
 
 describe("tile A, a network (2026-11-19)", async () => {
   const { areaOf, areaPicked, describeKeydown, kindOf, missing, readDescribeForm, renderDescribeForm, setKind, syncCta } = await import("./describe");
-  const { locate, pickArea, timing, unpin } = await import("./where");
+  const { locate, pickArea, pickAreaAsTyped, timing, unpin } = await import("./where");
   timing.minWait = 0;
   timing.tick = 0;
   timing.areaGap = 0;
@@ -675,7 +675,7 @@ describe("tile A, a network (2026-11-19)", async () => {
     expect(missing(form)).toBe(area());
     await type(form, "Flanders");
     expect(JSON.parse((fetch.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)).toEqual({ area_search: "Flanders", lang: "en" });
-    expect(options().map((o) => o.textContent)).toEqual(["Flanders, Belgium", "West Flanders, Belgium"]);
+    expect(options().map((o) => o.textContent)).toEqual(["Flanders, Belgium", "West Flanders, Belgium", W.ui("uiAreaAsTyped", { area: "Flanders" })]);
     // Typed is not picked: no area, no card.
     expect(areaOf(form)).toBe("");
     expect(cta().disabled).toBe(true);
@@ -727,7 +727,7 @@ describe("tile A, a network (2026-11-19)", async () => {
       await Promise.all([paused, entered]);
       expect(fetch).toHaveBeenCalledTimes(1);
       const shown = options();
-      expect(shown).toHaveLength(2);
+      expect(shown).toHaveLength(3); // two areas, and the text as typed
       shown[1].focus();
       await locate(form, W, () => {}, true);
       expect(fetch).toHaveBeenCalledTimes(1);
@@ -859,7 +859,49 @@ describe("tile A, a network (2026-11-19)", async () => {
     vi.stubGlobal("fetch", fetch);
     await locate(form, W, () => {}, true); // Enter in the box: the same text, asked again
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(options()).toHaveLength(1);
+    expect(options()).toHaveLength(2); // the area, and the text as typed
+  });
+
+  it("an area with no ISO code is taken as typed: no code, no pin, no country, and the card is on (2026-11-23)", async () => {
+    const { spaceFile } = await import("../lib/spacefile");
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ candidates: [] })));
+    const form = mount({ kind: "network", name: "Benelux Makers" });
+    await type(form, "Benelux");
+    expect(document.querySelector("#f-pin")!.textContent).toBe(W.ui("uiNoResultArea"));
+    expect(options().map((o) => o.textContent)).toEqual([W.ui("uiAreaAsTyped", { area: "Benelux" })]);
+    expect(cta().disabled).toBe(true); // offered is not picked
+    pickAreaAsTyped(form, options()[0], W);
+    areaPicked(form);
+    syncCta(form);
+    expect(cta().disabled).toBe(false);
+    expect(missing(form)).toBeNull();
+    expect(areaOf(form)).toBe("");
+    expect(area().value).toBe("Benelux");
+    expect(options()).toEqual([]);
+    const draft: Record<string, unknown> = {};
+    readDescribeForm(form, draft);
+    expect(draft).toEqual({ kind: "network", name: "Benelux Makers", areaServed: [{ code: "", name: "Benelux" }] });
+    const turtle = spaceFile(draft).turtle;
+    expect(turtle).toContain('schema:areaServed [ a schema:AdministrativeArea ; schema:name "Benelux" ]');
+    expect(turtle).not.toContain("schema:geo");
+    expect(turtle).not.toContain("geolocationFidelity");
+    // Drawn again from the draft, it is still picked and the card still on.
+    const again = mount(draft);
+    expect(area().value).toBe("Benelux");
+    syncCta(again);
+    expect(cta().disabled).toBe(false);
+    expect(missing(again)).toBeNull();
+    // Typing again drops it.
+    await type(again, "Benelu");
+    syncCta(again);
+    expect(cta().disabled).toBe(true);
+  });
+
+  it("the geocoder away offers nothing as typed, so a typo isn't kept for want of an answer", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 503 })));
+    const form = mount({ kind: "network", name: "Maakbib" });
+    await type(form, "Flandres");
+    expect(options()).toEqual([]);
   });
 
   it("a space's draft carries no kind, area or fidelity", () => {

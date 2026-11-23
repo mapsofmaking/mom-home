@@ -82,6 +82,12 @@ describe("a network's SpaceAPI file (2026-11-19)", () => {
     expect(Object.keys(two.mom.areaServed[0])).toEqual(["code", "name"]);
   });
 
+  it("writes an area named without a code as {name}, and no pin or fidelity when there is none (2026-11-23)", () => {
+    const out = JSON.parse(spaceApiJson({ kind: "network", name: "Benelux Makers", areaServed: [{ code: "", name: "Benelux" }] }).json);
+    expect(out.mom).toEqual({ kind: "network", areaServed: [{ name: "Benelux" }] });
+    expect(out.location).toBeUndefined();
+  });
+
   it("refuses a network with no area, as the Turtle does", () => {
     expect(() => spaceApiJson({ ...network, areaServed: [] })).toThrow(SpaceFileError);
   });

@@ -24,9 +24,16 @@
  * away): no area and no pin, so no card yet; the line says so, and typing again
  * or Enter asks again. There are no coordinates by hand for a network: the area
  * is what the map reads, and only the geocoder names one.
+ *
+ * Unless what is typed is the area (2026-11-23, Nicolas: take what comes, sort it
+ * once there is data): "Benelux", "South East Asia" have no ISO code. The last
+ * offer is always "Use “Benelux” as typed" (after a match, or when nothing
+ * matched; not while the geocoder is away, so a typo isn't kept by default).
+ * Picked, the area is that name alone: no code, no pin, no country. A network
+ * has no pin on the map anyway: its members' filter and zoom show it.
  */
 import type { DescribeWords } from "./describe";
-import { AREA_CODE, areaFidelity, areaLabel, cleanAreas, cleanFidelity } from "../lib/spacefile";
+import { AREA_CODE, areaFidelity, areaLabel, cleanAreaName, cleanAreas, cleanFidelity } from "../lib/spacefile";
 import { announce } from "../ui/a11y";
 
 /** The wait has a floor so the pin reads as worked out, not magicked (genjson). */
@@ -215,12 +222,18 @@ function meter(form: HTMLFormElement, w: DescribeWords): () => void {
 const isNetwork = (form: HTMLFormElement) => value(form, "kind") === "network";
 /** The area picked (hidden in the form, set only by a pick): its code, "" when none. */
 const areaIn = (form: HTMLFormElement) => (AREA_CODE.test(value(form, "area")) ? value(form, "area") : "");
+/** An area picked as typed (2026-11-23): its name with no code; "" when none. */
+const areaAsTyped = (form: HTMLFormElement) => (!value(form, "area") ? value(form, "areaName") : "");
+/** An area is picked: one the geocoder offered, or the text as typed. */
+export const areaChosen = (form: HTMLFormElement) => !!areaIn(form) || !!areaAsTyped(form);
 
 /** True when the form has everything the card needs from where: a country and a pin (a network: an area too). */
 export function pinned(form: HTMLFormElement): boolean {
   const lat = Number(value(form, "lat"));
   const lon = Number(value(form, "lon"));
   return (
+    // An area picked as typed has no pin, and needs none (2026-11-23).
+    (isNetwork(form) && !!areaAsTyped(form)) ||
     // A network needs its area, not a country: one serving areas in several countries has none (the writers
     // then leave the country out, and the map derives one only when all areas share it).
     (isNetwork(form) ? !!areaIn(form) : /^[A-Z]{2}$/.test(value(form, "country"))) &&
@@ -345,12 +358,13 @@ const signature = (candidates: readonly Candidate[]) => JSON.stringify(candidate
 
 /**
  * The areas offered, as buttons under the box (each carries what a pick sets); none hides the list. The same
- * offers again leave the list as it is, so focus and the arrow keys' place in it hold.
+ * offers again leave the list as it is, so focus and the arrow keys' place in it hold. `typed`: the text, offered
+ * last as itself (2026-11-23).
  */
-function offer(form: HTMLFormElement, candidates: readonly Candidate[]): void {
+function offer(form: HTMLFormElement, candidates: readonly Candidate[], typed = "", w?: DescribeWords): void {
   const list = areaList(form);
   if (!list) return;
-  const sig = signature(candidates);
+  const sig = signature(candidates) + `|${cleanAreaName(typed)}`;
   if (list.dataset.offers === sig) return;
   list.dataset.offers = sig;
   list.textContent = "";
@@ -367,7 +381,18 @@ function offer(form: HTMLFormElement, candidates: readonly Candidate[]): void {
     item.append(button);
     list.append(item);
   }
-  list.hidden = !candidates.length;
+  const asTyped = cleanAreaName(typed);
+  if (asTyped && w) {
+    const item = document.createElement("li");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "btn wb-area-option";
+    button.textContent = w.ui("uiAreaAsTyped", { area: asTyped });
+    button.dataset.areaTyped = asTyped;
+    item.append(button);
+    list.append(item);
+  }
+  list.hidden = !list.children.length;
 }
 
 /**
@@ -377,7 +402,7 @@ function offer(form: HTMLFormElement, candidates: readonly Candidate[]): void {
  * its offers show does nothing; only after nothing came back does Enter ask again.
  */
 async function searchArea(form: HTMLFormElement, w: DescribeWords, done: () => void, now: boolean): Promise<void> {
-  if (areaIn(form)) return; // picked: the pin came with it
+  if (areaChosen(form)) return; // picked: the pin came with it (or, as typed, needs none)
   const text = value(form, "areaSearch");
   const key = `search|${text}`;
   const going = searches.get(form);
@@ -393,7 +418,7 @@ async function searchArea(form: HTMLFormElement, w: DescribeWords, done: () => v
   }
   const search: Search = { key, phase: "pausing" };
   searches.set(form, search);
-  const current = () => searches.get(form) === search && form.isConnected && !areaIn(form);
+  const current = () => searches.get(form) === search && form.isConnected && !areaChosen(form);
   if (!now) {
     await new Promise<void>((resolve) => {
       const timer = setTimeout(resolve, timing.areaGap);
@@ -413,16 +438,36 @@ async function searchArea(form: HTMLFormElement, w: DescribeWords, done: () => v
   if (found === null || !current()) return; // typed again, picked or redrawn
   if (typeof found !== "object") {
     search.phase = "nothing";
-    offer(form, []);
+    // Nothing matched: the text itself is offered (2026-11-23). The geocoder away or busy: not, so a typo
+    // isn't kept for want of an answer; Enter asks again.
+    offer(form, [], found === "none" ? text : "", w);
     say(form, w.ui(found === "rate" ? "uiRateArea" : found === "unavailable" ? "uiUnavailableArea" : "uiNoResultArea"), "error");
     done();
     return;
   }
   search.phase = "offered";
   say(form, "");
-  offer(form, found);
+  offer(form, found, text, w);
   announce(w.ui("uiAreaFound", { n: String(found.length) }));
   done();
+}
+
+/**
+ * Picks the text as typed (2026-11-23): the area is its name alone, with no code, no pin, no fidelity, no country.
+ * The list goes; the box says the name.
+ */
+export function pickAreaAsTyped(form: HTMLFormElement, option: HTMLElement, w: DescribeWords): void {
+  const name = cleanAreaName(option.dataset.areaTyped);
+  if (!name) return;
+  for (const key of ["area", "lat", "lon", "postcode", "place", "fidelity", "country"]) set(form, key, "");
+  set(form, "areaName", name);
+  set(form, "areaSearch", name);
+  show(form, "country", false);
+  show(form, "coords", false);
+  form.dataset.located = `typed|${name}`;
+  searches.delete(form);
+  offer(form, []);
+  say(form, w.ui("uiAreaTyped", { area: name }), "ok");
 }
 
 /**

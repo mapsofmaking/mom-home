@@ -240,7 +240,7 @@ describe("a network (2026-11-19): it serves an area, it has no address", () => {
     expect(read.country).toBe("BE");
   });
 
-  it("requires a name, an area and a pin, and names what is missing", () => {
+  it("requires a name and an area, and names what is missing; the pin is optional (2026-11-23)", () => {
     const missing = (d: object) => {
       try {
         spaceFile(d);
@@ -249,9 +249,31 @@ describe("a network (2026-11-19): it serves an area, it has no address", () => {
         return (e as SpaceFileError).missing;
       }
     };
-    expect(missing({ kind: "network" })).toEqual(["name", "area", "pin"]);
+    expect(missing({ kind: "network" })).toEqual(["name", "area"]);
     expect(missing({ ...network, areaServed: [{ code: "Vlaanderen", name: "Vlaanderen" }] })).toEqual(["area"]);
-    expect(missing({ ...network, lat: "north" })).toEqual(["pin"]);
+    expect(missing({ ...network, lat: "north" })).toEqual([]);
+    // A bad pin is left out, with its fidelity.
+    const turtle = spaceFile({ ...network, lat: "north" }).turtle;
+    expect(turtle).not.toContain("schema:geo");
+    expect(turtle).not.toContain("geolocationFidelity");
+  });
+
+  it("keeps an area named without an ISO code after the coded ones, once per name; it names no country", async () => {
+    const { areasCountry } = await import("./spacefile");
+    const areas = cleanAreas([{ name: "South East Asia" }, { code: "BE", name: "Belgium" }, { name: "Benelux" }, { name: "benelux" },
+      { code: "nope", name: "Bad" }, { code: "", name: "" }, { name: "  " }]);
+    expect(areas).toEqual([{ code: "BE", name: "Belgium" }, { code: "", name: "Benelux" }, { code: "", name: "South East Asia" }]);
+    expect(areasCountry(areas)).toBe("BE");
+    expect(areasCountry([{ code: "", name: "Benelux" }])).toBeNull();
+    expect(areaLabel({ code: "", name: "Benelux" })).toBe("Benelux");
+  });
+
+  it("reads back an area named without a code, as it writes it", () => {
+    const d = { kind: "network" as const, name: "Benelux Makers", areaServed: [{ code: "", name: "Benelux" }] };
+    const read = draftFromTurtle(spaceFile(d).turtle, base)!;
+    expect(read.areaServed).toEqual([{ code: "", name: "Benelux" }]);
+    expect(read.country).toBeUndefined();
+    expect(read.lat).toBeUndefined();
   });
 
   it("writes a fidelity the map reads, else the one the area's shape gives; never anything else", () => {
@@ -274,7 +296,7 @@ describe("draftFromStore: the draft kept in this browser, read back", () => {
   it("keeps text fields and a network's areas, cleaned; drops anything else", () => {
     expect(
       draftFromStore({ kind: "network", name: "Maakbib", areaServed: [{ code: "fr-idf", name: "Île-de-France" }, 3, "nope", { name: "x" }], lat: 51, event: {} })
-    ).toEqual({ kind: "network", name: "Maakbib", areaServed: [{ code: "FR-IDF", name: "Île-de-France" }] });
+    ).toEqual({ kind: "network", name: "Maakbib", areaServed: [{ code: "FR-IDF", name: "Île-de-France" }, { code: "", name: "x" }] });
     // A draft kept by #67 holds bare codes: read as areas with no name.
     expect(draftFromStore({ kind: "network", areaServed: ["be-vlg"] })).toEqual({ kind: "network", areaServed: [{ code: "BE-VLG", name: "" }] });
     expect(draftFromStore({ kind: "garden", name: "Atelier", city: "Gent" })).toEqual({ name: "Atelier", city: "Gent" });

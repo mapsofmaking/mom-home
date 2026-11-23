@@ -61,8 +61,10 @@ export const DONE_CHECKS: Readonly<Record<string, DoneCheck>> = {
   // A network (2026-11-19) says an area instead of a town.
   describe: async (ctx) => {
     const d = ctx.spaceData;
-    const where = d?.kind === "network" ? !!d.areaServed?.length : !!d?.city;
-    return ctx.space !== null && !!(d?.name && where && d.lat && d.lon);
+    const network = d?.kind === "network";
+    const where = network ? !!d.areaServed?.length : !!d?.city;
+    // A network needs no pin (2026-11-23): an area named as typed has none.
+    return ctx.space !== null && !!(d?.name && where && (network || (d.lat && d.lon)));
   },
   // change, "Update it once" (14.6 S1, #36): the space's file says its opening hours. Tile A doesn't ask for
   // them, so hours in the file were set here (or by the coordinator's own edit, which counts the same).
